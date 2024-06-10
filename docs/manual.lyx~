@@ -1,0 +1,627 @@
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass book
+\begin_preamble
+\usepackage{titlesec}
+\titleformat{\part}
+  {\normalfont\sffamily\huge}
+  {\partname\ \thepart}{1em}{}
+\titleformat{\chapter}[display]
+  {\normalfont\sffamily\huge}
+  {\chaptertitlename\ \thechapter}{20pt}{\Huge}
+\titleformat{\section}
+  {\normalfont\sffamily\Large}
+  {\thesection}{1em}{}
+\titleformat{\subsection}
+  {\normalfont\sffamily\large}
+  {\thesection}{1em}{}
+\titleformat{\subsubsection}
+  {\normalfont\sffamily\normalsize}
+  {\thesection}{1em}{}
+
+\usepackage{newtxtext}
+\usepackage{titletoc}
+
+\contentsmargin[1cm]{0cm}
+
+\titlecontents{part}[0em]{\vskip12pt\bfseries\sffamily}
+{\thecontentslabel\enspace}
+{\hspace{1.05em}}
+{ \hfill\contentspage}[\vskip 6pt]
+
+\titlecontents{chapter}[0em]{\vskip12pt\bfseries\sffamily}
+{\thecontentslabel\enspace}
+{\hspace{1.05em}}
+{ \hfill\contentspage}[\vskip 6pt]
+
+\titlecontents{section}[1em]{\sffamily}
+{\thecontentslabel\enspace}
+{}
+{\titlerule*[1pc]{.}\quad\contentspage}[\vskip 4pt]
+
+\titlecontents{subsection}[2.7em]{\sffamily}
+{\thecontentslabel\enspace}
+{}
+{\titlerule*[1pc]{.}\quad\contentspage}[\vskip 3pt]
+
+\usepackage{listings}
+\usepackage{color}
+\definecolor{ltgry}{rgb}{0.95,0.95,0.95}
+\definecolor{purplekeywords}{rgb}{0.75,0,0.75}
+\definecolor{greycomments}{rgb}{0.5,0.5,0.5}
+\definecolor{redstrings}{rgb}{0.64,0.08,0.08}
+\lstset{backgroundcolor=\color{ltgry}}
+
+\lstset{columns=fixed, basicstyle=\ttfamily, basewidth=0.55em}
+
+\usepackage{pifont}
+\newcommand{\xmark}{\ding{55}}
+\end_preamble
+\use_default_options true
+\begin_modules
+theorems-ams
+eqs-within-sections
+figs-within-sections
+\end_modules
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "Baskerville"
+\font_sans "default" "Helvetica"
+\font_typewriter "default" "Andale Mono"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 80 80
+\use_microtype false
+\use_dash_ligatures false
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize 11
+\spacing single
+\use_hyperref true
+\pdf_bookmarks true
+\pdf_bookmarksnumbered false
+\pdf_bookmarksopen false
+\pdf_bookmarksopenlevel 1
+\pdf_breaklinks false
+\pdf_pdfborder true
+\pdf_colorlinks false
+\pdf_backref false
+\pdf_pdfusetitle true
+\papersize default
+\use_geometry true
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\biblio_style plain
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\use_minted 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\leftmargin 1in
+\topmargin 1in
+\rightmargin 1in
+\bottommargin 1in
+\secnumdepth 2
+\tocdepth 1
+\paragraph_separation indent
+\paragraph_indentation default
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\listings_params "language=Java,showspaces=false,showtabs=false,breaklines=true,showstringspaces=false,breakatwhitespace=true,escapeinside={(*@}{@*)},commentstyle={\color{greycomments}},keywordstyle={\color{purplekeywords}\bfseries},stringstyle={\color{redstrings}},basicstyle={\ttfamily},morekeywords={ var, fn, print,in }"
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+Optimize4: An optimization package for 
+\emph on
+morpho
+\end_layout
+
+\begin_layout Chapter
+Overview
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\begin_inset Graphics
+	filename figures/structure.pdf
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+
+\series bold
+Classes in the optimize4 package 
+\series default
+and how they interact.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The 
+\family typewriter
+optimize4
+\family default
+ package faciliates the solution of optimization problems, with a particular
+ focus on the shape optimization problems for which 
+\emph on
+morpho
+\emph default
+ was designed.
+ The design is intended to be flexible, enabling customization of the choice
+ of algorithm and easy incorporation of new algorithms by the developer
+ or user.
+ To use the package, simply import it into your 
+\emph on
+morpho
+\emph default
+ program as usual:
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+import optimize4
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+This imports several subsidiary modules, which provide three main kinds
+ of class that work together (Fig.
+ 1): 
+\end_layout
+
+\begin_layout Description
+OptimizationProblem classes are used to describe the problem to be solved.
+ Functionals may be added to the problem either as energies or constraints
+ with set target values.
+ 
+\end_layout
+
+\begin_layout Description
+OptimizationAdapter classes provide a uniform interface for optimization
+ targets, enabling the setting and getting parameters as well as calculating
+ the value of the objective function, constraints and gradients.
+ Adapters are provided, for example, to take an 
+\emph on
+OptimizationProblem
+\emph default
+ and a target object, such as a Mesh or a Field, and compute the value of
+ the objective function and gradients with respect to the target.
+ Adapters can also be used to transform one type of problem to another,
+ e.g.
+ a constrained problem to an unconstrained problem, facilitating the use
+ of different optimization algorithms.
+ 
+\end_layout
+
+\begin_layout Description
+OptimizationController classes objects implement an optimization algorithm
+ or a useful subcomponent.
+ Controllers work by calling appropriate methods on associated OptimizationAdapt
+ers to obtain value, gradient and even Hessians in some cases, and direct
+ how parameters are to be adjusted as the algorithm proceeds.
+ 
+\end_layout
+
+\begin_layout Chapter
+Using optimize
+\end_layout
+
+\begin_layout Standard
+To establish notation, the goal of the 
+\family typewriter
+optimize4
+\family default
+ package is to solve the following standard problem, 
+\begin_inset Formula 
+\begin{align}
+\min_{\mathbf{x}}f(\mathbf{x})\nonumber \\
+s.t.\ \mathbf{c}(\mathbf{x}) & =0\nonumber \\
+\mathbf{d}(\mathbf{x}) & \ge0\label{eq:Problem}
+\end{align}
+
+\end_inset
+
+where 
+\begin_inset Formula $f(\mathbf{x})$
+\end_inset
+
+ is the objective function and 
+\begin_inset Formula $\mathbf{x}$
+\end_inset
+
+ are its 
+\begin_inset Formula $N$
+\end_inset
+
+ parameters.
+ There are a total of 
+\begin_inset Formula $M$
+\end_inset
+
+ constraints, expressed as 
+\begin_inset Formula $\mathbf{c}(\mathbf{x})$
+\end_inset
+
+ a vector of 
+\begin_inset Formula $M_{=}$
+\end_inset
+
+ equality constrained functions, and 
+\begin_inset Formula $\mathbf{d}$
+\end_inset
+
+ a vector of 
+\begin_inset Formula $M_{\neq}=M-M_{=}$
+\end_inset
+
+ inequality constrained functions.
+ We adopt the sign convention that the inequality constraint functions 
+\begin_inset Formula $\mathbf{d}$
+\end_inset
+
+ are positive in the feasible region.
+\end_layout
+
+\begin_layout Standard
+We shall use the subscript notation 
+\begin_inset Formula $\mathbf{x}_{k}$
+\end_inset
+
+ to refer to the value of a quantity at a particular iteration 
+\begin_inset Formula $k$
+\end_inset
+
+.
+ If 
+\begin_inset Formula $\mathbf{c}$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{d}$
+\end_inset
+
+ are empty vectors the problem is said to be 
+\emph on
+unconstrained
+\emph default
+.
+ If constraints are present, the set 
+\begin_inset Formula $\mathbf{x}\in\Omega$
+\end_inset
+
+ compatible with the constraints is called the 
+\emph on
+feasible
+\emph default
+ set.
+ 
+\end_layout
+
+\begin_layout Standard
+We shall also use consistent notation for the gradient of the objective
+ function, 
+\begin_inset Formula 
+\[
+\mathbf{g}=\frac{\partial f}{\partial x_{i}}
+\]
+
+\end_inset
+
+and its hessian, 
+\begin_inset Formula 
+\[
+\mathbf{H}=H_{ij}=\frac{\partial^{2}f}{\partial x_{i}\partial x_{j}}
+\]
+
+\end_inset
+
+as well as the 
+\begin_inset Formula $N\times N_{c}$
+\end_inset
+
+ matrix of the gradients of constraints, 
+\begin_inset Formula 
+\[
+\mathbf{C}=C_{ij}=\frac{\partial c_{j}}{\partial x_{i}},\ \mathbf{D}=D_{ij}=\frac{\partial d_{j}}{\partial x_{i}}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\emph on
+[More to go here]
+\end_layout
+
+\begin_layout Chapter
+OptimizationProblem
+\end_layout
+
+\begin_layout Standard
+An OptimizationProblem is a container object that describes an optimization
+ problem using Functional objects, which can be used as part of the objective
+ function (these are referred to as 
+\begin_inset Quotes eld
+\end_inset
+
+energies
+\begin_inset Quotes erd
+\end_inset
+
+), or as constraints.
+ Earlier versions of 
+\emph on
+morpho
+\emph default
+ provided the same user interface, which has been adopted and integrated
+ into the 
+\family typewriter
+optimize4
+\family default
+ package.
+ Creation of an OptimizationProblem is described in the main 
+\emph on
+morpho
+\emph default
+ manual; we provide a simple example below appropriate for minimizing the
+ length of a closed loop at constant enclosed area:
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+var problem = OptimizationProblem(mesh)
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+problem.addenergy(Length())
+\end_layout
+
+\begin_layout Plain Layout
+
+problem.addconstraint(EnclosedArea())
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Chapter
+OptimizationAdapters
+\end_layout
+
+\begin_layout Standard
+OptimizationAdapter and its subclasses exist to provide a uniform interface
+ for OptimizationControllers to call.
+ This design enables optimization algorithms to be separated from the task
+ of evaluating quantities like gradients and widens the range of things
+ that could be optimized—all that's needed to optimize an arbitrary object
+ that depends on parameters is to create an appropriate OptimizationAdapter.
+ 
+\end_layout
+
+\begin_layout Standard
+Further, adapter objects can be connected together to create useful effects.
+ An adapter such as PenaltyAdapter converts a constrained problem to an
+ unconstrained problem, for example, facilitating use of a different set
+ of OptimizationControllers.
+ Appropriate adapters could also be used within a broader algorithm to solve
+ a subproblem of interest, for example performing a linesearch on an augmented
+ objective function rather than the original one.
+ 
+\end_layout
+
+\begin_layout Section
+OptimizationAdapter interface
+\end_layout
+
+\begin_layout Standard
+An adapter 
+\series bold
+must
+\series default
+ implement the following methods,
+\end_layout
+
+\begin_layout Subsection
+set(x)
+\end_layout
+
+\begin_layout Standard
+Sets the current value of the parameters to 
+\begin_inset Formula $x$
+\end_inset
+
+, which should be supplied as a column vector.
+ 
+\end_layout
+
+\begin_layout Subsection
+get()
+\end_layout
+
+\begin_layout Standard
+Returns the current value of the parameters as a column vector.
+ 
+\end_layout
+
+\begin_layout Subsection
+value()
+\end_layout
+
+\begin_layout Standard
+Returns the value of the objective function.
+ 
+\end_layout
+
+\begin_layout Subsection
+gradient()
+\end_layout
+
+\begin_layout Standard
+Returns the gradient of the objective function at the current parameters
+ as a column vector.
+ 
+\end_layout
+
+\begin_layout Subsection
+hessian()
+\end_layout
+
+\begin_layout Standard
+Returns the hessian of the objective function at the current parameters
+ as a column vector, or 
+\family typewriter
+nil
+\family default
+ if a hessian is not available.
+\end_layout
+
+\begin_layout Subsection
+countConstraints()
+\end_layout
+
+\begin_layout Standard
+Returns the total number of constraints present 
+\begin_inset Formula $M=M_{=}+M_{\neq}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Subsection
+countEqualityConstraints()
+\end_layout
+
+\begin_layout Standard
+Returns the number of equality constraints 
+\begin_inset Formula $M_{=}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Subsection
+countInequalityConstraints()
+\end_layout
+
+\begin_layout Standard
+Returns the number of equality constraints 
+\begin_inset Formula $M_{\neq}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Subsection
+constraintValue() 
+\end_layout
+
+\begin_layout Standard
+Returns a List containing the value(s) of any constraints.
+ 
+\end_layout
+
+\begin_layout Subsection
+constraintGradient()
+\end_layout
+
+\begin_layout Standard
+Returns a List containing the gradient(s) of any constraints as column vectors.
+\end_layout
+
+\begin_layout Subsection
+constraintHessian()
+\end_layout
+
+\begin_layout Standard
+Returns a List containing the hessian(s) of any constraints.
+\end_layout
+
+\begin_layout Section
+Available adapters
+\end_layout
+
+\end_body
+\end_document

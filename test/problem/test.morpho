@@ -1,0 +1,22 @@
+
+import meshtools
+import plot
+import optimizationproblem4
+
+var m = LineMesh(fn (t) [t, 0, 0], -1..1:0.5)
+var f = Field(m, fn (x, y, z) x^2)
+
+var problem = OptimizationProblem(m) 
+var lgsq=GradSq(f)
+problem.addenergy(lgsq)
+
+var mr = MeshRefiner([m, f]) 
+var refdict = mr.refine() 
+problem.update(refdict)
+var mnew = refdict[m]
+var fnew = refdict[f]
+
+print problem.energies[0].functional.field == f    // expect: false 
+print problem.energies[0].functional.field == fnew // expect: true
+
+//Show(plotmesh(m, grade=[0,1]))

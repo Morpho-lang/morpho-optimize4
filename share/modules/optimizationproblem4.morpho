@@ -1,0 +1,117 @@
+/* ************************************************************
+ * OptimizationProblem 
+ * ************************************************************ */ 
+
+/* OptimizationProblems are containers that describe the problem using
+   functionals, global constraints and local constraints. */
+
+/* --------------------------
+ * Constraints and Energies
+ * -------------------------- */ 
+
+class Constraint {
+  init (func, target) {
+    self.functional = func
+    self.target = target
+    self.field = nil
+    self.selection = nil
+    self.onesided = false
+  }
+}
+
+class Energy {
+  init (func) {
+    self.functional = func
+    self.selection = nil
+    self.prefactor = nil
+  }
+}
+
+/* --------------------------
+ * OptimizationProblem class
+ * -------------------------- */ 
+
+class OptimizationProblem {
+  init (m) {
+    self.mesh = m
+    self.fields = []
+    self.energies = []
+    self.constraints = []
+    self.localconstraints = []
+    self.fixed = nil
+  }
+
+  // Adds an energy to the problem
+  addenergy(functional, selection=nil, prefactor=nil) { 
+    var en = Energy(functional)
+    en.selection = selection
+    en.prefactor = prefactor
+    self.energies.append(en)
+    return en
+  }
+
+  // Adds a constraint to the problem 
+  addconstraint(functional, selection=nil, field=nil) {
+    var target
+    if (selection) {
+      target=functional.total(self.mesh, selection)
+    } else {
+      target=functional.total(self.mesh)
+    }
+    var cons = Constraint(functional, target)
+    cons.selection = selection
+    cons.field = field
+    cons.prefactor = nil
+    self.constraints.append(cons)
+    return cons
+  }
+
+  // Adds a local constraint to the problem 
+  addlocalconstraint(functional, selection=nil, field=nil, onesided=false, target=0) {
+    var cons = Constraint(functional, target)
+    cons.selection = selection
+    cons.onesided = onesided
+    cons.field = field
+    cons.prefactor = nil
+    self.localconstraints.append(cons)
+    return cons
+  }
+
+  updatelist(lst, dict) {
+    if (islist(lst)) for (en in lst) {
+      if (en.has("selection") && dict.contains(en.selection)) en.selection = dict[en.selection]
+      if (en.has("field") && dict.contains(en.field)) en.field = dict[en.field]
+      //if (en.has("target") && dict.contains(en.target)) en.target = dict[en.target]
+
+      if (en.functional.has("field")) {
+        var f = en.functional.field
+
+        if (isfield(f) && dict.contains(f)) {
+          en.functional.field = dict[f]
+        } else if (islist(f)) {
+          var newlist = []
+          for (fel in f) {
+            if (dict.contains(fel)) newlist.append(dict[fel])
+            else newlist.append(fel)
+          }
+          en.functional.field = newlist
+        }
+      }
+    }
+  }
+
+  update(dict) { // Update attached datastructures 
+    if (dict.contains(self.mesh)) self.mesh = dict[self.mesh]
+
+    var newfields = []
+    for (f in self.fields) {
+      if (dict.contains(f)) newfields.append(dict[f])
+      else newfields.append(f)
+    }
+    self.fields = newfields
+
+    self.updatelist(self.energies, dict)
+    self.updatelist(self.constraints, dict)
+    self.updatelist(self.localconstraints, dict)
+  }
+}

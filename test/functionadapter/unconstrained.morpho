@@ -1,0 +1,29 @@
+// Test the FunctionAdapter on a simple quadratic 
+
+import optimize4
+
+fn func(x, y) {
+    return (x-0.5)^2 + (y-1)^2 + 0.25*x*y
+}
+
+var adapt = FunctionAdapter(func, start=Matrix([1,0]))
+
+print adapt.get()
+// expect: [ 1 ]
+// expect: [ 0 ]
+
+print adapt.value() 
+// expect: 1.25
+
+print adapt.gradient() 
+// expect: [ 1 ]
+// expect: [ -1.75 ]
+
+adapt.set(Matrix([2,2]))
+print adapt.get()
+// expect: [ 2 ]
+// expect: [ 2 ]
+
+print adapt.hessian().format("%4.2g")
+// expect: [    2 0.25 ]
+// expect: [ 0.25    2 ]

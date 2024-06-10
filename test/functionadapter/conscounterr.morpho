@@ -1,0 +1,13 @@
+// Error when initializing a FunctionAdapter with incorrect equalitycount
+import optimize4
+
+fn func(x, y, z) {
+    return x + y + z 
+}
+
+fn c(x, y, z) {
+    return x + z - 1
+}
+
+var adapt = FunctionAdapter(func, start=Matrix([0, 0, 0]), constraints=[c], equalitycount=2)
+// expect error 'OptConsCount'

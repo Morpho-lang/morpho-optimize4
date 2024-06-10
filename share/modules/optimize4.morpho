@@ -1,0 +1,6 @@
+/* ************************************************************
+ * Optimize4 module 
+ * ************************************************************ */ 
+
+import optimizationproblem4 
+import optimizationadapter4

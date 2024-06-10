@@ -7,6 +7,8 @@
  * -------------------------- */ 
 
 var _OptUnknwnVrbsty = Error("OptUnknwnVrbsty", "Unknown verbosity setting: use 'silent', 'quiet', 'normal', or 'verbose'.")
+var _OptMaxErr = Error("OptMaxIter", "Maximum iterations exceeded: present solution does not meet convergence criteria.")
+var _OptInf = Error("OptInf", "Optimizer encountered an infinite or non-numerical value.")
 
 /* --------------------------
  * Reporting levels 
@@ -30,9 +32,9 @@ var _OptVerbosity = { "silent" : _OptSilent,
    optimization algorithm or a subcomponent that works by invoking
    the interface of an OptimizationAdapter. */ 
 
-class OptimizationController {
+class OptimizationController is DelegateAdapter {
   init(adapter, quiet=false, verbosity=nil) { 
-    self.adapter = adapter
+    super.init(adapter)
     
     // Control verbosity 
     self.verbosity = _OptNormal
@@ -42,5 +44,137 @@ class OptimizationController {
       else if (isint(verbosity)) self.verbosity = verbosity
       else _OptUnknwnVrbsty.throw() 
     }
+
+    // Tolerances
+    self.gradtol = 1e-6 // Convergence criterion based on norm of the gradient
+    self.etol = 1e-8 // Convergence criterion based on change in value of objective function
+
+    self._valuehistory=[] // History of objective function values 
   } 
+
+  /* Convenience methods to calculate quantities */
+
+  value() { // Value of the objective function
+    var v = self.adapter.value()
+    if (isinf(v) || isnan(v)) _OptInf.throw() 
+    return v
+  }
+
+  /* Verbosity */
+
+  checkVerbosity(level) { // Checks if output should be printed at a given level
+    return (self.verbosity>=level)
+  }
+
+  warning(error) { // Generate a warning 
+    if (self.checkverbosity(_OptQuiet)) error.warning() 
+  }
+
+  /* Convergence check */
+
+  hasConverged() {
+    // Convergence in value  |delta e|/|e| < etol or |delta e| < etol if e is < etol
+    if (self._valuehistory && self._valuehistory.count()>1) {
+      var f1=self._valuehistory[-1], f2=self._valuehistory[-2]
+
+      // Compute relative change in value, or use absolute value if close to zero
+      var de = abs(f1-f2)
+      if (abs(f1)>self.etol) de/=(abs(f1))
+      if (de < self.etol) return true 
+    } 
+
+    var g = self.gradient()
+    if (g && g.norm()<self.gradtol) return true 
+
+    return false 
+  }
+
+  /* Reporting */
+
+  reportOptimality() { // Report value of optimality condition
+    var g = self.gradient()
+    if (!g) return ""
+    return "|grad|=${g.norm()}"
+  }
+
+  reportStepsize() { return "" } // Report stepsize taken
+
+  report(iter) { // Reporting
+    if (!self.checkVerbosity(_OptNormal)) return 
+
+    var f = self.value() 
+
+    print "Iteration ${iter.format("%2i")}: ${f} ${self.reportOptimality()} ${self.reportStepsize()}" 
+  }
+
+  /* Optimization sequence */
+
+  start() { }           // Initialization at the beginning of an optimization
+  begin() { }           // Calculate initial information for the iteration
+  step() { }            // Perform optimization step 
+  next() { }            // Calculate updated information
+
+  record() {            // Record information about the iteration
+    self._valuehistory.append(self.value())
+  }
+
+  iterate() {  // Perform one optimization iteration
+    self.begin()  
+    self.step()
+    self.next()
+  }
+
+  optimize(nsteps) { // Optimization loop
+    self.start()
+    self.record() 
+    for (i in 1..nsteps) {
+      if (self.hasConverged()) return 
+      self.iterate() 
+      self.report(i)
+      self.record()
+    }
+
+    self.warning(_OptMaxErr)
+  }
+}
+
+/* ************************************************************
+ * Line search methods
+ * ************************************************************ */ 
+
+/* -----------------------------------------
+ * GradientDescentController
+ * 
+ * Simple gradient descent at fixed stepsize 
+ * ----------------------------------------- */ 
+
+class GradientDescentController is OptimizationController {
+  init(adapter, quiet=false, verbosity=nil, stepsize=0.1) { 
+    super.init(adapter, quiet=quiet, verbosity=verbosity)
+    self.stepsize=stepsize
+    self._direction=nil 
+  }
+
+  // Define a descent direction
+  setDirection(d) { 
+    self._direction = d     
+    //var ndof = self.countdof()
+    //if (d.count()>ndof) self._direction = d[0...ndof]
+  }
+
+  direction() { return self._direction}
+
+  searchDirection() { // Determine the search direction
+    self.setDirection(-self.gradient())
+  }
+
+  begin() { self.searchDirection() }
+
+  step() { // Take a step in the current search direction
+    var x = self.get() 
+    x+=self.stepsize*self.direction()
+    self.set(x)
+  }
+
+  reportStepsize() { return "stepsize=${self.stepsize}" }
 }

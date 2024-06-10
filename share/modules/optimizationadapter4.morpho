@@ -36,6 +36,36 @@ class OptimizationAdapter {
   constraintHessian() { return nil }  // Returns the hessian(s) of any constraints as a list of matrices, or sublists
 }
 
+/* --------------------------
+ * DelegateAdapter class
+ * -------------------------- */ 
+
+/** A delegate adapter fully implements the adapter protocol, but instead passes
+    method calls on to a second adapter. Useful as a base class for adapters 
+    that are intended to work with other adapters */
+
+class DelegateAdapter is OptimizationAdapter {
+  init(OptimizationAdapter adapter) {
+    self.adapter = adapter
+  }
+
+  set(x) { self.adapter.set(x) }
+  get() { return self.adapter.get() }
+
+  value() { return self.adapter.value() }
+  gradient() { return self.adapter.gradient() }
+  hessian() { return self.adapter.hessian() }
+
+  countConstraints() { return self.adapter.countConstraints() }
+  countEqualityConstraints() { return self.adapter.countEqualityConstraints() }
+  countInequalityConstraints() { return self.adapter.countInequalityConstraints() }
+
+  constraintValue() { return self.adapter.constraintValue() }
+  constraintGradient() { return self.adapter.constraintGradient() }
+  constraintHessian() { return self.adapter.constraintHessian() } 
+}
+
+
 /* -------------------------
  * FunctionAdapter 
  * ------------------------- */

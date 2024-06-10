@@ -60,6 +60,8 @@
 
 \usepackage{pifont}
 \newcommand{\xmark}{\ding{55}}
+
+\usepackage{algorithm,algpseudocode}
 \end_preamble
 \use_default_options true
 \begin_modules
@@ -486,7 +488,7 @@ Further, adapter objects can be chained together to create useful effects.
  An adapter such as PenaltyAdapter converts a constrained problem to an
  unconstrained problem, for example, facilitating use of a different set
  of OptimizationControllers.
- Appropriate adapters could also be used within a broader algorithm to solve
+ Appropriate adapters can also be used within a broader algorithm to solve
  a subproblem of interest, for example performing a linesearch on an augmented
  objective function rather than the original one.
  
@@ -579,6 +581,20 @@ constraintHessian() Returns a List containing the hessian(s) of any constraints.
 
 \begin_layout Section
 Available adapters
+\end_layout
+
+\begin_layout Subsection
+DelegateAdapter
+\end_layout
+
+\begin_layout Standard
+A DelegateAdapter is initialized with a given adapter.
+ The DelegateAdapter implements the OptimizationAdapter interface, but simply
+ redirects all of method calls to the enclosed adapter.
+\end_layout
+
+\begin_layout Standard
+
 \end_layout
 
 \begin_layout Subsection
@@ -803,6 +819,393 @@ normal Report progress of the controller, but suppress additional output
 
 \begin_layout Description
 verbose Display all available information
+\end_layout
+
+\begin_layout Section
+Interface
+\end_layout
+
+\begin_layout Standard
+An OptimizationController is a base class for iterative optimization algorithms.
+ The user performs optimization by calling the 
+\begin_inset listings
+inline true
+status open
+
+\begin_layout Plain Layout
+
+optimize
+\end_layout
+
+\end_inset
+
+ method with a maximum number of iterations.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float algorithm
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{algorithmic}[1]
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+State {start()}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+State {record()}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+For{$i 
+\backslash
+gets 1$ to $N_{iter}$} 
+\end_layout
+
+\begin_layout Plain Layout
+
+	
+\backslash
+If{hasConverged()} 
+\end_layout
+
+\begin_layout Plain Layout
+
+		
+\backslash
+State 
+\backslash
+textbf{break}
+\end_layout
+
+\begin_layout Plain Layout
+
+	
+\backslash
+EndIf
+\end_layout
+
+\begin_layout Plain Layout
+
+	 
+\backslash
+State {iterate()}
+\end_layout
+
+\begin_layout Plain Layout
+
+	 
+\backslash
+State {report(i)}
+\end_layout
+
+\begin_layout Plain Layout
+
+	 
+\backslash
+State {record()}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+EndFor
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithmic}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:Generic-optimization-algorithm"
+
+\end_inset
+
+Generic optimization algorithm
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+The generic optimization sequence is shown in Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:Generic-optimization-algorithm"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ Particular algorithms are defined by subclassing OptimizationController
+ and implementing the below methods, all of which do nothing in the base
+ class unless otherwise indicated.
+ 
+\end_layout
+
+\begin_layout Description
+start() Called once by 
+\begin_inset listings
+inline true
+status open
+
+\begin_layout Plain Layout
+
+optimize
+\end_layout
+
+\end_inset
+
+ to performs any initialization at the beginning of optimization.
+ 
+\end_layout
+
+\begin_layout Description
+begin() Calculate any necessary quantities at the beginning of each iteration.
+\end_layout
+
+\begin_layout Description
+step() Perform the optimization step
+\end_layout
+
+\begin_layout Description
+next() Calculate updated information at the end of the iteration.
+ 
+\end_layout
+
+\begin_layout Description
+iterate() Calls 
+\begin_inset listings
+inline true
+status open
+
+\begin_layout Plain Layout
+
+begin
+\end_layout
+
+\end_inset
+
+, 
+\begin_inset listings
+inline true
+status open
+
+\begin_layout Plain Layout
+
+step
+\end_layout
+
+\end_inset
+
+ and 
+\begin_inset listings
+inline true
+status open
+
+\begin_layout Plain Layout
+
+next
+\end_layout
+
+\end_inset
+
+ in turn.
+\end_layout
+
+\begin_layout Description
+record() Records information about the iteration.
+ By default, the value of the objective functional is stored after each
+ iteration step.
+ 
+\end_layout
+
+\begin_layout Standard
+
+\series medium
+The OptimizationController base class provides two further methods that
+ form part of the generic optimization algorithm:
+\end_layout
+
+\begin_layout Description
+hasConverged() Performs a convergence check as described in subsection 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Convergence-criteria"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ below.
+ 
+\end_layout
+
+\begin_layout Description
+report(i) Reports information to the user, including the value of the optimizati
+on algorithm
+\end_layout
+
+\begin_layout Section
+Convergence criteria
+\begin_inset CommandInset label
+LatexCommand label
+name "sec:Convergence-criteria"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The base OptimizationController class provides two basic convergence criteria,
+ that are controlled by the properties 
+\family typewriter
+gradtol
+\family default
+ and 
+\family typewriter
+etol
+\family default
+.
+\end_layout
+
+\begin_layout Enumerate
+The first criterion is to examine the norm of the gradient of the objective
+ function,
+\begin_inset Formula 
+\[
+\left|g_{k}\right|<\texttt{gradtol}
+\]
+
+\end_inset
+
+where 
+\family typewriter
+gradtol
+\family default
+ is 
+\begin_inset Formula $1\times10^{-6}$
+\end_inset
+
+ by default.
+ 
+\end_layout
+
+\begin_layout Enumerate
+The second is to monitor the change in the value of the objective function
+ in successive iterations of the algorithm, 
+\begin_inset Formula $f_{k}$
+\end_inset
+
+ and 
+\begin_inset Formula $f_{k+1}$
+\end_inset
+
+ and stop if, 
+\begin_inset Formula 
+\[
+\begin{cases}
+\left|f_{k+1}-f_{k}\right|<\texttt{etol}, & \left|f_{k+1}\right|<\texttt{etol}\\
+\left|f_{k+1}-f_{k}\right|<\texttt{etol}\left|f_{k+1}\right|, & \text{otherwise}
+\end{cases}
+\]
+
+\end_inset
+
+i.e.
+ ensuring a relative tolerance of 
+\begin_inset Formula $\texttt{etol}$
+\end_inset
+
+ unless 
+\begin_inset Formula $f$
+\end_inset
+
+ itself is nearly zero, in which case 
+\begin_inset Formula $\texttt{etol}$
+\end_inset
+
+ is an absolute tolerance.
+ The value of 
+\family typewriter
+etol
+\family default
+ is 
+\begin_inset Formula $1\times10^{-8}$
+\end_inset
+
+ by default.
+ 
+\end_layout
+
+\begin_layout Standard
+The method 
+\begin_inset listings
+inline true
+status open
+
+\begin_layout Plain Layout
+
+hasConverged
+\end_layout
+
+\end_inset
+
+ returns 
+\begin_inset listings
+inline true
+status open
+
+\begin_layout Plain Layout
+
+true
+\end_layout
+
+\end_inset
+
+ if either of these convergence checks are met.
+ 
 \end_layout
 
 \end_body

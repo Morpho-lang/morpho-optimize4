@@ -10,6 +10,10 @@ var _OptUnknwnVrbsty = Error("OptUnknwnVrbsty", "Unknown verbosity setting: use 
 var _OptMaxErr = Error("OptMaxIter", "Maximum iterations exceeded: present solution does not meet convergence criteria.")
 var _OptInf = Error("OptInf", "Optimizer encountered an infinite or non-numerical value.")
 
+var _OptLnSrchDrn = Error("OptLnSrchDrn", "Linesearch encountered an upward direction.")
+var _OptLnSrchStpsz = Error("OptLnSrchStpsz", "Linesearch stepsize has tended to zero.")
+var _OptLnSrchZm = Error("OptLnSrchZm", "Maximum iterations exceeded in linesearch interval identification.")
+
 /* --------------------------
  * Reporting levels 
  * -------------------------- */ 
@@ -180,4 +184,55 @@ class GradientDescentController is OptimizationController {
   }
 
   reportStepsize() { return "stepsize=${self.stepsize}" }
+}
+
+/* -----------------------------------------
+ * LineSearchController
+ * 
+ * Armijo linesearches
+ * ----------------------------------------- */ 
+
+class LineSearchController is GradientDescentController {
+  init(adapter, quiet=false, verbosity=nil, stepsize=0.1, alpha=0.2, beta=0.5) {
+    super.init(adapter, quiet=quiet, verbosity=verbosity, stepsize=stepsize)
+    self.maxsteps = 50 // Maximum steps for reducing stepsize
+    self.alpha = alpha // } Coefficients 
+    self.beta = beta   // }
+  }
+
+  expectedDescent() { // Predict expected descent
+    var d = self.direction()
+    var g = self.gradient() 
+
+    self.df = g.inner(d)
+
+    if (self.df>0) self.warning(_OptLnSrchDrn)
+  }
+
+  accept(t) { // Have we descended sufficiently?
+    return self.value() < self._ovalue + self.alpha*t*self.df
+  }
+
+  stepwith(x0, t) { // Take a step of size t from x0 in the descent direction
+    self.set(x0 + t*self.direction())
+    return self.value()
+  }
+
+  step() {// Perform a single linesearch
+    self.expectedDescent()
+    var t=1
+    var success=false
+    self._ovalue = self.value() // Save value for comparison
+
+    var x0 = self.get() 
+    for (nsteps in 1..self.maxsteps) {
+        self.stepwith(x0, t)
+        success=self.accept(t)
+        if (success) break
+        t*=self.beta
+    }
+    if (!success) self.warning(_OptLnSrchStpsz)
+
+    self.stepsize=t
+  }
 }

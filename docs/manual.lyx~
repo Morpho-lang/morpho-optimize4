@@ -593,8 +593,69 @@ A DelegateAdapter is initialized with a given adapter.
  redirects all of method calls to the enclosed adapter.
 \end_layout
 
-\begin_layout Standard
+\begin_layout Subsection
+ProxyAdapter
+\end_layout
 
+\begin_layout Standard
+Implements the 
+\emph on
+proxy
+\emph default
+ software design pattern
+\begin_inset Foot
+status collapsed
+
+\begin_layout Plain Layout
+Erich Gamma, Richard Helm, Ralph Johnson, John Vlissides (1994).
+ Design Patterns: Elements of Reusable Object-Oriented Software.
+ Addison Wesley.
+ pp.
+ 207ff
+\end_layout
+
+\end_inset
+
+ for the adapter protocol.
+ Calls to 
+\family typewriter
+value
+\family default
+, 
+\family typewriter
+gradient
+\family default
+, etc.
+ are returned from a cache if they have already been calculated, or are
+ calculated as necessary.
+ Every time 
+\family typewriter
+set
+\family default
+ is called with new parameters, the cache is reset.
+ This adapter prevents multiple evaluation of potentially expensive quantities
+ like the gradient or the hessian by OptimizationControllers.
+ Using a ProxyAdapter may help simplify the writing a controller: there's
+ no need to temporarily store these quantities across methods, for example.
+\end_layout
+
+\begin_layout Standard
+A ProxyAdapter also keeps track of how many times the objective function
+ value, gradient etc.
+ are actually calculated and can display this information using the 
+\family typewriter
+report
+\family default
+ method.
+ This information can also be obtained as a list in the order 
+\begin_inset Formula $(N_{f},N_{\mathbf{g}},N_{\mathbf{H}},N_{\mathbf{c}},N_{\nabla\mathbf{c}},N_{\Delta\mathbf{c}})$
+\end_inset
+
+ from the 
+\family typewriter
+countEvals
+\family default
+ method.
 \end_layout
 
 \begin_layout Subsection

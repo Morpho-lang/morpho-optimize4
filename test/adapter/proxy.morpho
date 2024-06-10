@@ -1,0 +1,19 @@
+// Check that the ProxyAdapter works
+import optimize4
+
+fn func(x, y) {
+    return (x-0.5)^2 + (y-1)^2 + 0.25*x*y
+}
+
+var adapt = FunctionAdapter(func, start=Matrix([1,0]))
+
+var proxy = ProxyAdapter(adapt)
+
+for (i in 1..10) {
+  proxy.value() 
+  proxy.gradient() 
+  proxy.hessian() 
+}
+
+proxy.report() 
+// expect: Fn evals: 1, Grad evals: 1, Hess evals: 1

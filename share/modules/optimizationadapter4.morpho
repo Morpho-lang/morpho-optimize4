@@ -65,6 +65,71 @@ class DelegateAdapter is OptimizationAdapter {
   constraintHessian() { return self.adapter.constraintHessian() } 
 }
 
+/* --------------------------
+ * ProxyAdapter class
+ * -------------------------- */ 
+
+/** A ProxyAdapter calls the methods of a provided adapter, but caches values
+    to prevent multiple evaluations. Can provide a report of the number of 
+    evaluations of each quantity. */
+
+class ProxyAdapter is DelegateAdapter {
+  init(adapter) {
+    super.init(adapter)
+    self.reset() 
+    self.count = [0,0,0,0,0,0]
+  }
+
+  reset() {
+    self._value = nil 
+    self._gradient = nil 
+    self._hessian = nil 
+    self._constraintValue = nil 
+    self._constraintGradient = nil 
+    self._constraintHessian = nil 
+  }
+
+  set(x) { 
+    self.adapter.set(x) 
+    self.reset() 
+  }
+
+  get() { return self.adapter.get() }
+
+  _compute(prop, func, counter) {
+    if (!self[prop]) { 
+      self.setindex(prop, func())
+      self.count[counter]+=1
+    }
+    return self[prop]
+  }
+
+  value()    { return self._compute("_value", self.adapter.value, 0) }
+  gradient() { return self._compute("_gradient", self.adapter.gradient, 1) }
+  hessian() { return self._compute("_hessian", self.adapter.hessian, 2) }
+
+  constraintValue() { return self._compute("_constraintValue", self.adapter.constraintValue, 3) }
+  constraintGradient() { return self._compute("_constraintGradient", self.adapter.constraintGradient, 4) }
+  constraintHessian() { return self._compute("_constraintHessian", self.adapter.constraintHessian, 4) }
+
+  countEvals() { // Returns the evaluation count
+    return self.count 
+  }
+
+  report() { // Reports the number of calls 
+    var out = "" 
+    var desc = ("Fn", "Grad", "Hess", "Cons.", "Cons. grad", "Cons. hess")
+
+    for (count, k in self.count) {
+      if (count>0) {
+        if (k>0) out+=", "
+        out+="${desc[k]} evals: ${count}"
+      }
+    }
+
+    print out 
+  }
+}
 
 /* -------------------------
  * FunctionAdapter 

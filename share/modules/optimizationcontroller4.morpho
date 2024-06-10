@@ -36,6 +36,9 @@ class OptimizationController is DelegateAdapter {
   init(adapter, quiet=false, verbosity=nil) { 
     super.init(adapter)
     
+    // Fit a ProxyAdapter over the regular adapter if not present to avoid repeated calculations
+    if (adapter.clss()!=ProxyAdapter) self.adapter = ProxyAdapter(adapter)
+
     // Control verbosity 
     self.verbosity = _OptNormal
     if (quiet) self.verbosity = _OptQuiet

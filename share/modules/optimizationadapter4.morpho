@@ -289,4 +289,3 @@ class FunctionAdapter is OptimizationAdapter {
     return self.constraintMap(self.constrainthessianfn)
   }
 }
-

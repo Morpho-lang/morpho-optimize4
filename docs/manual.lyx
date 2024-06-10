@@ -1269,5 +1269,97 @@ true
  
 \end_layout
 
+\begin_layout Section
+Gradient descent methods
+\end_layout
+
+\begin_layout Standard
+Gradient descent methods select a search direction 
+\begin_inset Formula $\mathbf{d}_{k}$
+\end_inset
+
+ and update it according to the rule,
+\begin_inset Formula 
+\[
+\mathbf{x}_{k+1}\leftarrow\mathbf{x}_{k}+\gamma_{k}\mathbf{d}_{k}
+\]
+
+\end_inset
+
+where 
+\begin_inset Formula $\gamma_{k}$
+\end_inset
+
+ is the 
+\emph on
+stepsize
+\emph default
+.
+ 
+\end_layout
+
+\begin_layout Subsection
+GradientDescentController
+\end_layout
+
+\begin_layout Standard
+The simplest choice, called 
+\emph on
+steepest descent
+\emph default
+, is implemented by the GradientDescentController class.
+ It simply uses the negative of the gradient of 
+\begin_inset Formula $f$
+\end_inset
+
+ as the search direction, i.e.
+ 
+\begin_inset Formula $\mathbf{d}_{k}=-\mathbf{g}_{k}$
+\end_inset
+
+ and 
+\begin_inset Formula $\gamma_{k}=\gamma$
+\end_inset
+
+ constant for all iterations.
+ This method is cheap per iteration, requiring a single evaluation of the
+ gradient, but typically converges very slowly indeed and may oscillate
+ around the minimum in some cases.
+ The stepsize 
+\begin_inset Formula $\gamma$
+\end_inset
+
+ can be set in the initializer, or by changing the property 
+\family typewriter
+stepsize
+\family default
+; the default value is 
+\begin_inset Formula $0.1$
+\end_inset
+
+.
+ 
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+var control = GradientDescentController(adapter, stepsize=0.1)
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+While GradientDescentController is rarely useful directly, it is sometimes
+ helpful in very constrained problems (where linesearches may offer little
+ benefit) or to establish that a new OptimizationAdapter is indeed working
+ correctly.
+ 
+\end_layout
+
 \end_body
 \end_document

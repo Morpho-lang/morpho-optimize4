@@ -635,8 +635,8 @@ set
  is called with new parameters, the cache is reset.
  This adapter prevents multiple evaluation of potentially expensive quantities
  like the gradient or the hessian by OptimizationControllers.
- Using a ProxyAdapter may help simplify the writing a controller: there's
- no need to temporarily store these quantities across methods, for example.
+ Using a ProxyAdapter helps simplify the writing a controller: there's no
+ need to temporarily store these quantities across methods, for example.
 \end_layout
 
 \begin_layout Standard

@@ -59,6 +59,7 @@ class OptimizationController is DelegateAdapter {
     // Tolerances
     self.gradtol = 1e-6 // Convergence criterion based on norm of the gradient
     self.etol = 1e-8 // Convergence criterion based on change in value of objective function
+    self.ctol = 1e-10 // Constraint tolerance
 
     self._valuehistory=[] // History of objective function values 
   } 
@@ -245,7 +246,6 @@ class LineSearchController is GradientDescentController {
     self.stepsize=t
   }
 }
-
 
 /* -----------------------------------------
  * WolfeLineSearchController
@@ -563,5 +563,58 @@ class LBFGSController is InvBFGSController {
     self._storage.append((sk, yk, sk.inner(yk), yk.inner(yk)))
 
     if (self._storage.count()>self.maxhistorylength) self._storage = self._popfirst(self._storage)
+  }
+}
+
+/* ************************************************************
+ * Controllers for constrained optimization
+ * ************************************************************ */ 
+
+/* -----------------------------------------
+ * PenaltyController
+ * 
+ * Implements a penalty method
+ * ----------------------------------------- */ 
+
+class PenaltyController is OptimizationController {
+  init(adapter, quiet=false, verbosity=nil, controller=nil, mu0=1, mumul=10.0) {
+    super.init(adapter, quiet=quiet, verbosity=verbosity)
+
+    self.mumul = mumul // Factor to multiply penalty by at each iteration
+
+    self.adapter = PenaltyAdapter(self.adapter)
+    self.adapter.setpenalty(mu0)
+  }
+
+  begin() {
+    self.mu=self.adapter.penalty()
+    self.control = LBFGSController(self.adapter, verbosity=self.verbosity)
+  }
+
+  start() {
+    self.control = nil 
+  }
+
+  step() {
+    self.control.optimize(100) 
+  }
+
+  next() {
+    self.adapter.setpenalty(self.mumul*self.adapter.penalty())
+  }
+
+  constraintNorm() {
+    return self.adapter.constraintVector().norm(1)
+  }
+
+  hasConverged() {
+    if (!self.control) return false 
+    return self.control.hasConverged() && (self.constraintNorm()<self.ctol)
+  }
+
+  report(iter) {
+    if (!self.checkVerbosity(_OptNormal)) return 
+    
+    print "==Penalty iteration ${iter}: mu=${self.mu} |constraints|=${self.constraintNorm()}"
   }
 }

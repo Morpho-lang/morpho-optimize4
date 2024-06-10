@@ -16,7 +16,7 @@ fn h(x, y, z) {
 
 var start = Matrix([0,0,0])
 
-var adapt = FunctionAdapter(func, start=start, constraints = [g,h], inequalitycount=1)
+var adapt = FunctionAdapter(func, start=start, constraints = [g,h], equalitycount=1)
 var control = PenaltyController(adapt)
 control.optimize(20) 
 

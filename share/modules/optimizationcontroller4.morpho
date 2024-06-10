@@ -6,6 +6,8 @@
  * Errors
  * -------------------------- */ 
 
+var _OptCons = Error("OptCons", "Optimization controller cannot handle constraints: Convert to unconstrained problem or use a different controller.")
+
 var _OptUnknwnVrbsty = Error("OptUnknwnVrbsty", "Unknown verbosity setting: use 'silent', 'quiet', 'normal', or 'verbose'.")
 var _OptMaxErr = Error("OptMaxIter", "Maximum iterations exceeded: present solution does not meet convergence criteria.")
 var _OptInf = Error("OptInf", "Optimizer encountered an infinite or non-numerical value.")
@@ -158,6 +160,7 @@ class OptimizationController is DelegateAdapter {
 class GradientDescentController is OptimizationController {
   init(adapter, quiet=false, verbosity=nil, stepsize=0.1) { 
     super.init(adapter, quiet=quiet, verbosity=verbosity)
+    if (self.adapter.countConstraints()>0) _OptCons.throw()
     self.stepsize=stepsize
     self._direction=nil 
   }

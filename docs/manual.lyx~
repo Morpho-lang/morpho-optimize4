@@ -482,7 +482,7 @@ OptimizationAdapter and its subclasses exist to provide a uniform interface
 \end_layout
 
 \begin_layout Standard
-Further, adapter objects can be connected together to create useful effects.
+Further, adapter objects can be chained together to create useful effects.
  An adapter such as PenaltyAdapter converts a constrained problem to an
  unconstrained problem, for example, facilitating use of a different set
  of OptimizationControllers.
@@ -504,12 +504,8 @@ must
  implement the following methods,
 \end_layout
 
-\begin_layout Subsection
-set(x)
-\end_layout
-
-\begin_layout Standard
-Sets the current value of the parameters to 
+\begin_layout Description
+set(x) Sets the current value of the parameters to 
 \begin_inset Formula $x$
 \end_inset
 
@@ -517,110 +513,296 @@ Sets the current value of the parameters to
  
 \end_layout
 
-\begin_layout Subsection
-get()
-\end_layout
-
-\begin_layout Standard
-Returns the current value of the parameters as a column vector.
+\begin_layout Description
+get() Returns the current value of the parameters as a column vector.
  
 \end_layout
 
-\begin_layout Subsection
-value()
-\end_layout
-
-\begin_layout Standard
-Returns the value of the objective function.
+\begin_layout Description
+value() Returns the value of the objective function.
  
 \end_layout
 
-\begin_layout Subsection
-gradient()
-\end_layout
-
-\begin_layout Standard
-Returns the gradient of the objective function at the current parameters
- as a column vector.
+\begin_layout Description
+gradient() Returns the gradient of the objective function at the current
+ parameters as a column vector.
  
 \end_layout
 
-\begin_layout Subsection
-hessian()
-\end_layout
-
-\begin_layout Standard
-Returns the hessian of the objective function at the current parameters
- as a column vector, or 
+\begin_layout Description
+hessian() Returns the hessian of the objective function at the current parameter
+s as a column vector, or 
 \family typewriter
 nil
 \family default
  if a hessian is not available.
 \end_layout
 
-\begin_layout Subsection
-countConstraints()
-\end_layout
-
-\begin_layout Standard
-Returns the total number of constraints present 
+\begin_layout Description
+countConstraints() Returns the total number of constraints present 
 \begin_inset Formula $M=M_{=}+M_{\neq}$
 \end_inset
 
 .
 \end_layout
 
-\begin_layout Subsection
-countEqualityConstraints()
-\end_layout
-
-\begin_layout Standard
-Returns the number of equality constraints 
+\begin_layout Description
+countEqualityConstraints() Returns the number of equality constraints 
 \begin_inset Formula $M_{=}$
 \end_inset
 
 .
 \end_layout
 
-\begin_layout Subsection
-countInequalityConstraints()
-\end_layout
-
-\begin_layout Standard
-Returns the number of equality constraints 
+\begin_layout Description
+countInequalityConstraints() Returns the number of equality constraints
+ 
 \begin_inset Formula $M_{\neq}$
 \end_inset
 
 .
 \end_layout
 
-\begin_layout Subsection
-constraintValue() 
-\end_layout
-
-\begin_layout Standard
-Returns a List containing the value(s) of any constraints.
+\begin_layout Description
+constraintValue() Returns a List containing the value(s) of any constraints.
  
 \end_layout
 
-\begin_layout Subsection
-constraintGradient()
+\begin_layout Description
+constraintGradient() Returns a List containing the gradient(s) of any constraint
+s as column vectors.
 \end_layout
 
-\begin_layout Standard
-Returns a List containing the gradient(s) of any constraints as column vectors.
-\end_layout
-
-\begin_layout Subsection
-constraintHessian()
-\end_layout
-
-\begin_layout Standard
-Returns a List containing the hessian(s) of any constraints.
+\begin_layout Description
+constraintHessian() Returns a List containing the hessian(s) of any constraints.
 \end_layout
 
 \begin_layout Section
 Available adapters
+\end_layout
+
+\begin_layout Subsection
+FunctionAdapter
+\end_layout
+
+\begin_layout Standard
+A FunctionAdapter provides an interface to minimize a callable 
+\emph on
+morpho
+\emph default
+ object, i.e.
+ a function, invocation or closure, with respect to its positional parameters.
+ To miminize a simple quadratic function 
+\begin_inset Formula $(x-1/2)^{2}+(y-1)^{2}+\frac{1}{4}xy$
+\end_inset
+
+, for example, 
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+fn func(x, y) {
+\end_layout
+
+\begin_layout Plain Layout
+
+    return (x-0.5)^2 + (y-1)^2 + 0.25*x*y
+\end_layout
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+var adapt = FunctionAdapter(func, start=Matrix(2)) // Start from (0,0)
+\end_layout
+
+\end_inset
+
+You can specify the starting point through the 
+\family typewriter
+start
+\family default
+ optional parameter in the constructor, and provide functions that return
+ the gradient and/or hessian via 
+\family typewriter
+gradient
+\family default
+ and 
+\family typewriter
+hessian
+\family default
+.
+ If these are not provided, FunctionAdapter will compute approximations
+ using finite differences.
+ 
+\end_layout
+
+\begin_layout Standard
+If you want to optimize a callable object with respect to its optional parameter
+s, you can wrap it in another function or closure:
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+fn wrapper(x, y) {
+\end_layout
+
+\begin_layout Plain Layout
+
+    return myfunc(a=x, b=y)
+\end_layout
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+var adapt = FunctionAdapter(wrapper, start=Matrix(2)) // Start from (0,0)
+\end_layout
+
+\end_inset
+
+OptimizationControllers
+\end_layout
+
+\begin_layout Standard
+In this chapter we review optimization algorithms available in the package,
+ which are implemented as OptimizationControllers, with enough context to
+ understand their relative utility.
+ For a deeper understanding of these algorithms, the reader should consult
+ standard textbooks on optimization theory
+\begin_inset Foot
+status collapsed
+
+\begin_layout Plain Layout
+Recommended texts include Nocedal and Wright, 
+\begin_inset Quotes eld
+\end_inset
+
+Numerical Optimization
+\begin_inset Quotes erd
+\end_inset
+
+ (Springer); Boyd and Vandenberghe 
+\begin_inset Quotes eld
+\end_inset
+
+Convex Optimization
+\begin_inset Quotes erd
+\end_inset
+
+ (Cambridge University Press).
+\end_layout
+
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+New OptimizationControllers can easily be defined, including ones created
+ in extensions linking to external optimization libraries.
+\end_layout
+
+\begin_layout Chapter
+OptimizationControllers
+\end_layout
+
+\begin_layout Standard
+In this chapter we review optimization algorithms available in the package,
+ which are implemented as OptimizationController objects, with enough context
+ to understand their relative utility.
+ For a deeper understanding of these algorithms, the reader should consult
+ standard textbooks on optimization theory
+\begin_inset Foot
+status collapsed
+
+\begin_layout Plain Layout
+Recommended texts include Nocedal and Wright, 
+\begin_inset Quotes eld
+\end_inset
+
+Numerical Optimization
+\begin_inset Quotes erd
+\end_inset
+
+ (Springer); Boyd and Vandenberghe 
+\begin_inset Quotes eld
+\end_inset
+
+Convex Optimization
+\begin_inset Quotes erd
+\end_inset
+
+ (Cambridge University Press).
+\end_layout
+
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+New classes that implement OptimizationController protocols can easily be
+ defined, including ones created in extensions linking to external optimization
+ libraries.
+\end_layout
+
+\begin_layout Section
+Reporting
+\end_layout
+
+\begin_layout Standard
+OptimizationController objects support controllable levels of output.
+ To set, initialize the OptimizationController with the optional parameter
+ 
+\begin_inset listings
+inline true
+status open
+
+\begin_layout Plain Layout
+
+verbosity
+\end_layout
+
+\end_inset
+
+ with one of the following options, supplied as a String
+\end_layout
+
+\begin_layout Description
+silent Suppresses all output except errors.
+\end_layout
+
+\begin_layout Description
+quiet Suppresses all output except errors and warnings.
+\end_layout
+
+\begin_layout Description
+normal Report progress of the controller, but suppress additional output
+\end_layout
+
+\begin_layout Description
+verbose Display all available information
 \end_layout
 
 \end_body

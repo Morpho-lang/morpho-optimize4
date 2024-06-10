@@ -1,0 +1,46 @@
+/* ************************************************************
+ * OptimizationController
+ * ************************************************************ */ 
+
+/* --------------------------
+ * Errors
+ * -------------------------- */ 
+
+var _OptUnknwnVrbsty = Error("OptUnknwnVrbsty", "Unknown verbosity setting: use 'silent', 'quiet', 'normal', or 'verbose'.")
+
+/* --------------------------
+ * Reporting levels 
+ * -------------------------- */ 
+
+var _OptSilent  = 0 // Only errors
+var _OptQuiet   = 1 // Warnings and errors only
+var _OptNormal  = 2 // Normal output including 
+var _OptVerbose = 3 // Additional debugging information
+
+var _OptVerbosity = { "silent" : _OptSilent,
+                      "quiet" : _OptQuiet,
+                      "normal" : _OptNormal, 
+                      "verbose" : _OptVerbose }
+
+/* --------------------------
+ * OptimizationController 
+ * -------------------------- */ 
+
+/* OptimizationController is a base class that implements an 
+   optimization algorithm or a subcomponent that works by invoking
+   the interface of an OptimizationAdapter. */ 
+
+class OptimizationController {
+  init(adapter, quiet=false, verbosity=nil) { 
+    self.adapter = adapter
+    
+    // Control verbosity 
+    self.verbosity = _OptNormal
+    if (quiet) self.verbosity = _OptQuiet
+    if (verbosity) {
+      if (_OptVerbosity.contains(verbosity)) self.verbosity = _OptVerbosity[verbosity]
+      else if (isint(verbosity)) self.verbosity = verbosity
+      else _OptUnknwnVrbsty.throw() 
+    }
+  } 
+}

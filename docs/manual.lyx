@@ -482,11 +482,11 @@ OptimizationAdapter and its subclasses exist to provide a uniform interface
 \end_layout
 
 \begin_layout Standard
-Further, adapter objects can be connected together to create useful effects.
+Further, adapter objects can be chained together to create useful effects.
  An adapter such as PenaltyAdapter converts a constrained problem to an
  unconstrained problem, for example, facilitating use of a different set
  of OptimizationControllers.
- Appropriate adapters could also be used within a broader algorithm to solve
+ Appropriate adapters can also be used within a broader algorithm to solve
  a subproblem of interest, for example performing a linesearch on an augmented
  objective function rather than the original one.
  
@@ -579,6 +579,230 @@ constraintHessian() Returns a List containing the hessian(s) of any constraints.
 
 \begin_layout Section
 Available adapters
+\end_layout
+
+\begin_layout Subsection
+FunctionAdapter
+\end_layout
+
+\begin_layout Standard
+A FunctionAdapter provides an interface to minimize a callable 
+\emph on
+morpho
+\emph default
+ object, i.e.
+ a function, invocation or closure, with respect to its positional parameters.
+ To miminize a simple quadratic function 
+\begin_inset Formula $(x-1/2)^{2}+(y-1)^{2}+\frac{1}{4}xy$
+\end_inset
+
+, for example, 
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+fn func(x, y) {
+\end_layout
+
+\begin_layout Plain Layout
+
+    return (x-0.5)^2 + (y-1)^2 + 0.25*x*y
+\end_layout
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+var adapt = FunctionAdapter(func, start=Matrix(2)) // Start from (0,0)
+\end_layout
+
+\end_inset
+
+You can specify the starting point through the 
+\family typewriter
+start
+\family default
+ optional parameter in the constructor, and provide functions that return
+ the gradient and/or hessian via 
+\family typewriter
+gradient
+\family default
+ and 
+\family typewriter
+hessian
+\family default
+.
+ If these are not provided, FunctionAdapter will compute approximations
+ using finite differences.
+ 
+\end_layout
+
+\begin_layout Standard
+If you want to optimize a callable object with respect to its optional parameter
+s, you can wrap it in another function or closure:
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+fn wrapper(x, y) {
+\end_layout
+
+\begin_layout Plain Layout
+
+    return myfunc(a=x, b=y)
+\end_layout
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+var adapt = FunctionAdapter(wrapper, start=Matrix(2)) // Start from (0,0)
+\end_layout
+
+\end_inset
+
+OptimizationControllers
+\end_layout
+
+\begin_layout Standard
+In this chapter we review optimization algorithms available in the package,
+ which are implemented as OptimizationControllers, with enough context to
+ understand their relative utility.
+ For a deeper understanding of these algorithms, the reader should consult
+ standard textbooks on optimization theory
+\begin_inset Foot
+status collapsed
+
+\begin_layout Plain Layout
+Recommended texts include Nocedal and Wright, 
+\begin_inset Quotes eld
+\end_inset
+
+Numerical Optimization
+\begin_inset Quotes erd
+\end_inset
+
+ (Springer); Boyd and Vandenberghe 
+\begin_inset Quotes eld
+\end_inset
+
+Convex Optimization
+\begin_inset Quotes erd
+\end_inset
+
+ (Cambridge University Press).
+\end_layout
+
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+New OptimizationControllers can easily be defined, including ones created
+ in extensions linking to external optimization libraries.
+\end_layout
+
+\begin_layout Chapter
+OptimizationControllers
+\end_layout
+
+\begin_layout Standard
+In this chapter we review optimization algorithms available in the package,
+ which are implemented as OptimizationController objects, with enough context
+ to understand their relative utility.
+ For a deeper understanding of these algorithms, the reader should consult
+ standard textbooks on optimization theory
+\begin_inset Foot
+status collapsed
+
+\begin_layout Plain Layout
+Recommended texts include Nocedal and Wright, 
+\begin_inset Quotes eld
+\end_inset
+
+Numerical Optimization
+\begin_inset Quotes erd
+\end_inset
+
+ (Springer); Boyd and Vandenberghe 
+\begin_inset Quotes eld
+\end_inset
+
+Convex Optimization
+\begin_inset Quotes erd
+\end_inset
+
+ (Cambridge University Press).
+\end_layout
+
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+New classes that implement OptimizationController protocols can easily be
+ defined, including ones created in extensions linking to external optimization
+ libraries.
+\end_layout
+
+\begin_layout Section
+Reporting
+\end_layout
+
+\begin_layout Standard
+OptimizationController objects support controllable levels of output.
+ To set, initialize the OptimizationController with the optional parameter
+ 
+\begin_inset listings
+inline true
+status open
+
+\begin_layout Plain Layout
+
+verbosity
+\end_layout
+
+\end_inset
+
+ with one of the following options, supplied as a String
+\end_layout
+
+\begin_layout Description
+silent Suppresses all output except errors.
+\end_layout
+
+\begin_layout Description
+quiet Suppresses all output except errors and warnings.
+\end_layout
+
+\begin_layout Description
+normal Report progress of the controller, but suppress additional output
+\end_layout
+
+\begin_layout Description
+verbose Display all available information
 \end_layout
 
 \end_body

@@ -6,8 +6,6 @@
  * Errors
  * -------------------------- */ 
 
-var _OptCons = Error("OptCons", "Optimization controller cannot handle constraints: Convert to unconstrained problem or use a different controller.")
-
 var _OptUnknwnVrbsty = Error("OptUnknwnVrbsty", "Unknown verbosity setting: use 'silent', 'quiet', 'normal', or 'verbose'.")
 var _OptMaxErr = Error("OptMaxIter", "Maximum iterations exceeded: present solution does not meet convergence criteria.")
 var _OptInf = Error("OptInf", "Optimizer encountered an infinite or non-numerical value.")
@@ -15,6 +13,10 @@ var _OptInf = Error("OptInf", "Optimizer encountered an infinite or non-numerica
 var _OptLnSrchDrn = Error("OptLnSrchDrn", "Linesearch encountered an upward direction.")
 var _OptLnSrchStpsz = Error("OptLnSrchStpsz", "Linesearch stepsize has tended to zero.")
 var _OptLnSrchZm = Error("OptLnSrchZm", "Maximum iterations exceeded in linesearch interval identification.")
+
+var _OptCons = Error("OptCons", "Method cannot handle constraints: Convert to unconstrained problem or use a different controller.")
+var _OptNoGrad = Error("OptNoGrad", "Method requires a gradient.")
+var _OptNoHess = Error("OptNoHess", "Method requires a hessian.")
 
 /* --------------------------
  * Reporting levels 
@@ -69,6 +71,10 @@ class OptimizationController is DelegateAdapter {
     return v
   }
 
+  countDOF() { // Count degrees of freedom
+    return self.adapter.get().count()
+  }
+
   /* Verbosity */
 
   checkVerbosity(level) { // Checks if output should be printed at a given level
@@ -76,7 +82,7 @@ class OptimizationController is DelegateAdapter {
   }
 
   warning(error) { // Generate a warning 
-    if (self.checkverbosity(_OptQuiet)) error.warning() 
+    if (self.checkVerbosity(_OptQuiet)) error.warning() 
   }
 
   /* Convergence check */
@@ -168,8 +174,8 @@ class GradientDescentController is OptimizationController {
   // Define a descent direction
   setDirection(d) { 
     self._direction = d     
-    //var ndof = self.countdof()
-    //if (d.count()>ndof) self._direction = d[0...ndof]
+    var ndof = self.countDOF()
+    if (d.count()>ndof) self._direction = d[0...ndof]
   }
 
   direction() { return self._direction}
@@ -221,7 +227,7 @@ class LineSearchController is GradientDescentController {
     return self.value()
   }
 
-  step() {// Perform a single linesearch
+  step() { // Perform a single linesearch
     self.expectedDescent()
     var t=1
     var success=false
@@ -237,5 +243,325 @@ class LineSearchController is GradientDescentController {
     if (!success) self.warning(_OptLnSrchStpsz)
 
     self.stepsize=t
+  }
+}
+
+
+/* -----------------------------------------
+ * WolfeLineSearchController
+ * 
+ * Linesearches that satisfy strong Wolfe 
+ * conditions [Nocedal&Wright Chapter 3, p60]
+ * ----------------------------------------- */ 
+
+// See also SciPy implementation https://indrag49.github.io/Numerical-Optimization/line-search-descent-methods.html#selection-of-step-length
+// See also an implementation at https://github.com/gjkennedy/ae6310/blob/master/Line%20Search%20Algorithms.ipynb
+
+class WolfeLineSearchController is LineSearchController {
+  init(adapter, quiet=false, verbosity=nil, stepsize=1, steplimit=2, c1=1e-3, c2=0.9) {
+    super.init(adapter, quiet=quiet, verbosity=verbosity)
+    self.maxsteps = 50 // Maximum steps for reducing stepsize
+    self.stepsize = stepsize   // Initial stepsize
+    self.steplimit = steplimit // Stepsize limit
+    self.c1 = c1 // } Coefficients 
+    self.c2 = c2 // }
+    self.verbose = self.checkVerbosity(_OptVerbose)
+  }
+
+  _interpolate(f0, df, alpha, fa) {
+    return - df*alpha^2/(2*(fa-f0-df*alpha))
+  }
+
+  _zoom(alphalo0, alphahi0, x0, f0, df) {
+    var alphalo = alphalo0, alphahi = alphahi0
+    var flo = self.stepwith(x0, alphalo)
+
+    for (_ in 1..self.maxsteps) {
+      if (self.verbose) print "  Zoom iteration ${_}: (${alphalo},${alphahi}) [${flo}, ${self.stepwith(x0, alphahi)}]"
+      var alpha = (alphalo+alphahi)/2 // Bisection
+
+      var f = self.stepwith(x0, alpha)
+
+      if (f>f0+self.c1*alpha*df || // Armijo condition
+          f >= flo) {
+            if (self.verbose) print "    Armijo test failed; reduce stepsize"
+            alphahi = alpha 
+      } else {
+        self.gradient() 
+        var dfalpha = self.gradient().inner(self.direction())
+
+        if (self.verbose) print "    Testing curvature condition: ${abs(dfalpha)} <= ${self.c2*abs(df)}"
+        if (abs(dfalpha) <= self.c2*abs(df)) { // Curvature condition
+          if (self.verbose) print "    Curvature condition succeeded alpha=${alpha.format("%.16g")}"
+          self.stepsize = alpha 
+          return 
+        } else if (dfalpha*(alphahi-alphalo)>=0) {
+          if (self.verbose) print "    Swap intervals"
+          alphahi = alphalo 
+        }
+
+        if (self.verbose) print "    Increase stepsize "
+        alphalo = alpha  
+        flo = f 
+      }
+    }
+ 
+    self.warning(_OptLnSrchZm)
+  }
+
+  step() { // Perform a single linesearch; Alg. 3.5 of N&D
+    self.expectedDescent()
+
+    var f0 = self.value()
+    var df = self.df 
+    var x0 = self.get() 
+
+    var alpha=self.stepsize
+    var oalpha=0
+    var of = f0 
+
+    for (_ in 1..self.maxsteps) {
+      var f = self.stepwith(x0, alpha)
+      if (self.verbose) print "  ls iteration ${_}: alpha=${alpha} f=${f}"
+
+      if (f>f0+self.c1*alpha*df ||
+          f>=of) { // Step is too long if Armijo test fails or the function simply increased
+        if (self.verbose) print "  Armijo test failed; zooming on interval (${oalpha},${alpha})"
+        return self._zoom(oalpha, alpha, x0, f0, df) 
+      }
+       
+      var dfalpha = self.gradient().inner(self.direction())
+
+      if (abs(dfalpha) <= self.c2*abs(df)) { // Curvature test
+        if (self.verbose) print "  Curvature test succeeded alpha=${alpha.format("%.16g")}"
+        self.stepsize = alpha // Success
+        if (self.verbose) print self.adapter.get()
+        return 
+      }
+
+      if (dfalpha>=0) { // Gradient is upward so reduce stepsize
+        if (self.verbose) print "  Upward gradient detected; zooming on interval (${alpha},${oalpha})"
+        return self._zoom(alpha, oalpha, x0, f0, df)
+      }
+      
+      of = f 
+      oalpha = alpha 
+
+      //alpha = self._interpolate(f0, df, alpha, f)
+      alpha = min(2*alpha, self.steplimit)
+    }
+
+    if (self.verbose) print "Too many iterations in step."
+  }
+
+  _interpolate(x0,x1,f0,f1,df0,df1) { // Cubic interpolation Nocedal p59
+    var d1 = df0 + df1 - 3*(f1-f0)/(x1-x0)
+    var s = d1^2-df0*df1
+    if (s<0) return (x0+x1)/2
+    var d2 = sign(x1-x0)*sqrt(s)
+
+    return x1-(x1-x0)*(df1+d2-d1)/(df1-df0-2*d2) // Should check if outside interval
+  }
+}
+
+/* ************************************************************
+ * Newton and quasi-Newton methods
+ * ************************************************************ */ 
+
+/* -----------------------------------------
+ * NewtonController
+ * 
+ * Newton's method with linesearches
+ * ----------------------------------------- */ 
+
+class NewtonController is OptimizationController {
+  init(adapter, quiet=false, verbosity=nil, linesearch=nil) {
+    super.init(adapter, quiet=quiet, verbosity=verbosity)
+    if (self.adapter.countConstraints()>0) _OptCons.throw()
+    if (isclass(linesearch)) self.lscontroller = linesearch(self.adapter, quiet=quiet, verbosity=self.verbosity)
+    else if (isobject(linesearch)) self.lscontroller = linesearch
+    else self.lscontroller = LineSearchController(self.adapter, verbosity=self.verbosity)
+  }
+
+  linesearch(dirn) {
+    var x0 = self.adapter.get() /// <- If our space and linesearch space don't coincide
+    self.lscontroller.setDirection(dirn)
+    self.lscontroller.step() 
+    self.adapter.set(x0+self.lscontroller.stepsize*dirn) /// <- If our space and linesearch space don't coincide
+  }
+
+  direction() {
+    var g = self.gradient() 
+    var H = self.hessian()
+    if (!H) _OptNoHess.throw("NewtonController can't use ${self.adapter.clss()} because it doesn't provide a hessian.") 
+    return -g/H
+  }
+
+  step() { 
+    var d = self.direction()
+    self.linesearch(d)
+  }
+
+  reportstepsize() { return "stepsize=${self.lscontroller.stepsize}" }
+}
+
+/* -----------------------------------------
+ * ConjugateGradientController
+ * 
+ * Conjugate gradient with linesearch
+ * ----------------------------------------- */ 
+
+class ConjugateGradientController is NewtonController {
+  start() {
+    self._odirection = nil 
+    self._ogradient = nil
+  }
+
+  direction() {
+    var g = self.gradient() 
+    self._gradient = g 
+    self._direction = -g
+
+    if (self._ogradient) {
+      var beta = g.inner(g) / self._ogradient.inner(self._ogradient) 
+      if (beta<0) return self._direction
+      self._direction += beta*self._odirection
+    }
+     
+    return self._direction
+  }
+
+  next() {
+    self._ogradient = self._gradient 
+    self._odirection = self._direction 
+  }
+}
+
+/* -----------------------------------------
+ * BFGSController
+ * 
+ * BFGS with dense matrices
+ * ----------------------------------------- */ 
+
+class BFGSController is NewtonController {
+  hessian() { // Return our estimate of the hessian
+    return self.B
+  }
+
+  start() {
+    self.B = IdentityMatrix(self.get().count())
+  }
+
+  begin() {
+    super.begin() 
+    self._ox = self.get() 
+    self._ogradient = self.gradient() 
+  }
+
+  next() {
+    var sk = self.get() - self._ox
+    var yk = self.gradient() - self._ogradient
+
+    var u = self.B*sk 
+    var yksk = yk.inner(sk)
+    var sku = sk.inner(u)
+    if (yksk==0 || sku==0) { self.start(); return }
+
+    self.B += yk*yk.transpose()/yksk - u*u.transpose()/sku
+  }
+}
+
+/* -----------------------------------------
+ * InvBFGSController
+ * 
+ * BFGS but estimating the inverse hessian
+ * ----------------------------------------- */ 
+
+class InvBFGSController is BFGSController {
+  start() {
+    super.start() 
+    self.I = IdentityMatrix(self.get().count())
+  }
+
+  direction() {
+    var g = self.gradient()
+    return -self.B*g 
+  }
+
+  next() {
+    var sk = self.get() - self._ox
+    var yk = self.gradient() - self._ogradient
+
+    var v = yk.inner(sk)
+    if (v==0) { self.B=self.I; return }
+    var U = self.I - yk*sk.transpose()/v
+
+    self.B = U.transpose()*self.B*U + sk*sk.transpose()/v
+  }
+}
+
+/* -----------------------------------------
+ * LBFGSController
+ * 
+ * Limited memory variant of BFGS
+ * ----------------------------------------- */ 
+
+class LBFGSController is InvBFGSController {
+  init(adapter, quiet=false, verbosity=nil, maxhistorylength=10) {
+    super.init(adapter, quiet=quiet, verbosity=verbosity)
+    self.maxhistorylength = maxhistorylength
+  }
+
+  _popfirst(lst) { // Pops the first element of a list
+    var a = lst.roll(-1)
+    a.pop() 
+    return a 
+  }
+
+  _hmul(p) { // Compute the action of our approximation to the inv H on a vector or matrix 
+    var q = p
+
+    var n = self._storage.count() 
+    if (n==0) return q
+    
+    var alpha[n]
+
+    // Project off all components of p that lie in the history directions
+    for (k in n-1..0:-1) { // Start with most recent
+      var z = self._storage[k]
+      var sk = z[0], yk = z[1], rho = 1/z[2]
+
+      alpha[k] = rho * sk.transpose()*q //sk.inner(q)
+      q-=yk*alpha[k]
+    } 
+
+    var zl = self._storage[-1] // Last 
+    var r = (zl[2]/zl[3])*q // (sk.yk)/(yk.yk)
+
+    for (z, k in self._storage) { // Work forwards
+      var sk = z[0], yk = z[1], rho = 1/z[2]
+
+      var beta = rho * yk.transpose()*r// rho*yk.inner(r)
+      r+=sk*(alpha[k]-beta)
+    }
+
+    return r 
+  }
+
+  start() {
+    self._storage = []
+  }
+
+  direction() {
+    return -self._hmul(self.gradient())
+  }
+
+  next() { // Update our estimate of the inverse Hessian
+    var sk = self.get() - self._ox
+    var yk = self.gradient() - self._ogradient
+
+    self._storage.append((sk, yk, sk.inner(yk), yk.inner(yk)))
+
+    if (self._storage.count()>self.maxhistorylength) self._storage = self._popfirst(self._storage)
   }
 }

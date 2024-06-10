@@ -1,0 +1,124 @@
+// Suite of test functions
+// See: https://en.wikipedia.org/wiki/Test_functions_for_optimization
+
+import meshtools 
+import optimize4
+
+fn sphere(...x) {
+  var sum = 0
+  for (u in x) sum+=(u-1)^2
+  return sum 
+}
+
+fn rosenbrock(...x) { // Sharp curved valley around minimum
+  var n = x.count() 
+  var sum = 0 
+  for (var i=0; i<n-1; i+=1) {
+      sum+=100*(x[i+1] - x[i]^2)^2 + (1-x[i])^2
+  }
+  return sum 
+}
+
+fn beale(x, y) { 
+  return (1.5 - x + x*y)^2 + (2.25 - x + x*y*y)^2 + (2.625 - x + x*y^3)^2
+}
+
+fn booth(x, y) { // Asymmetric quadratic
+  return (x + 2*y - 7)^2 + (2*x + y - 5)^2
+}
+
+fn bukin(x, y) { // Long, narrow valley 
+  return 100*sqrt(abs(y-0.01*x^2)) + 0.01*abs(x+10)
+}
+
+fn easom(x, y) { // transcendental functions
+  return -cos(x)*cos(y)*exp(-((x-Pi)^2 + (y-Pi)^2))
+}
+
+// Test functions: 
+//              label            fn            n    fmin,   soln
+var tests = [ [ "Sphere(2)",     sphere,       2,   0,      [1,   1] ],
+              [ "Rosenbrock(2)", rosenbrock,   2,   0,      [1,   1] ],
+              [ "Beale",         beale,        2,   0,      [3, 0.5] ],
+              [ "Booth",         booth,        2,   0,      [1,   3] ]
+              //[ "Bukin",         bukin,        2,   0,      [-10, 1] ]
+              //[ "Easom",         easom,        2,   -1,     [Pi, Pi] ]
+            ]
+
+// Algorithms 
+var algorithms = [ [ "linesearch",  LineSearchController         ],
+                   [ "conj. grad.", ConjugateGradientController  ],
+                   [ "newton",      NewtonController             ],
+                   [ "bfgs",        BFGSController               ],
+                   [ "bfgsinv",     InvBFGSController            ],
+                   [ "lbfgs",       LBFGSController              ]
+                 ]
+
+var ntests = tests.count(), nalgs = algorithms.count()
+
+// Tolerances to pass 
+var ftol = 1e-3 // Tolerance on the value returned 
+var ptol = 1e-2 // Tolerance on the parameters
+
+// Store results in a table
+var results[ntests+1, nalgs+1]
+results[0,0]=""
+for (controller,j in algorithms) results[0,j+1] = controller[0]
+
+// Run the tests
+for (t,i in tests) {
+  results[i+1,0] = t[0]
+  for (controller,j in algorithms) {
+    var adapt = FunctionAdapter(t[1], start=Matrix(t[2]))
+    var control = controller[1](adapt, verbosity="silent")
+
+    var success = false 
+    try {
+      control.optimize(10000)
+      success = true 
+    } catch {
+      "DvZr" : 
+        Error("DvZr", "Division by zero").warning() 
+        results[i+1,j+1]="/0"
+    }
+
+    if (!success) continue
+    if (abs(adapt.value()-t[3])<ftol &&
+        (adapt.get()-Matrix(t[4])).norm()<ptol) {
+          results[i+1,j+1]=control._valuehistory.count()
+    } else results[i+1,j+1]="X"
+  }
+}
+
+fn table(a) {
+  var b = a.clone() 
+  var dim = a.dimensions() 
+  var nrows = dim[0], ncols = dim[1]
+  var widths[dim[1]]
+
+  for (j in 0...ncols) { // Calculate maximum width of each column
+    widths[j]=0
+
+    for (i in 0...nrows) {
+      if (!isstring(a[i,j])) b[i,j]=String(a[i,j])
+
+      var w = b[i,j].count()
+      if (w>widths[j]) widths[j]=w
+    }
+  }
+
+  var out = ""
+  for (i in 0...nrows) {
+    for (j in 0...ncols) {
+      var w = b[i,j].count()
+      for (i in 0...widths[j]-w) out+=" "
+      out+=b[i,j]+" "
+    }
+    if (i<nrows-1) out+="\n"
+  }
+
+  return out
+}
+
+// Display results 
+print table(results)

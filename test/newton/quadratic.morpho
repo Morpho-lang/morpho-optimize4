@@ -1,0 +1,20 @@
+// Class to construct a quadratic function with given solution and scale factors
+
+class Quadratic {
+  init (soln, scale) {
+    self.soln = soln 
+    self.scale = scale 
+  }
+
+  func() { // Return the function
+    fn f(...x) {
+        var val = 0 
+        for (x, k in x) {
+            val+=self.scale[k]*(x - self.soln[k])^2
+        }
+        return val 
+    }
+
+    return f
+  }
+}

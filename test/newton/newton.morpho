@@ -1,0 +1,15 @@
+// Test Newton's method on a poorly scaled quadratic
+
+import optimize3
+import "quadratic.morpho"
+
+var f = Quadratic([1.3, -0.5, 0.9, 1.2, 5], [1,5,0.1,3,0.1]).func() 
+
+var adapt = FunctionAdapter(f, start=Matrix(5))
+
+var control = NewtonController(adapt, linesearch=LineSearchController)
+control.optimize(10)
+
+print (adapt.get() - Matrix([1.3, -0.5, 0.9, 1.2, 5])).norm() < 1e-8
+
+//var ev = adapt.hessian().eigenvalues() 

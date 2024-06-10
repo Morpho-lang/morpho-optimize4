@@ -1361,5 +1361,414 @@ While GradientDescentController is rarely useful directly, it is sometimes
  
 \end_layout
 
+\begin_layout Subsection
+LineSearchController
+\end_layout
+
+\begin_layout Standard
+An improvement in performance can be obtained by considering the one parameter
+ subproblem,
+\begin_inset Formula 
+\begin{equation}
+\min_{\gamma_{k}}f(\mathbf{x}_{k}+\gamma_{k}\mathbf{d}_{k})\label{eq:Linesearchproblem}
+\end{equation}
+
+\end_inset
+
+A LineSearchController aims to find a stepsize 
+\begin_inset Formula $\gamma_{k}$
+\end_inset
+
+ at each iteration that approximately solves this subproblem.
+ The search direction 
+\begin_inset Formula $\mathbf{d}_{k}$
+\end_inset
+
+ is by default chosen to be the steepest descent direction 
+\begin_inset Formula $\mathbf{d}_{k}=-\mathbf{g}_{k}$
+\end_inset
+
+, but could be chosen by some other method either by subclassing LineSearchContr
+oller and replacing the 
+\family typewriter
+searchdirection
+\family default
+ method, or by performing linesearches one at a time by setting the 
+\family typewriter
+direction
+\family default
+ property and invoking the 
+\family typewriter
+step
+\family default
+ method.
+ 
+\end_layout
+
+\begin_layout Standard
+Typically, it's not necessary to solve 
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:Linesearchproblem"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ very precisely.
+ LineSearchController therefore implements a 
+\emph on
+backtracking line search
+\emph default
+, starting with 
+\begin_inset Formula $\mathbf{\gamma}_{k}=1$
+\end_inset
+
+ and then successively reducing it by a factor 
+\begin_inset Formula $\beta\in(0,1]$
+\end_inset
+
+ at a time (so that 
+\begin_inset Formula $\mathbf{\gamma}_{k}=\beta^{n}$
+\end_inset
+
+) until the 
+\emph on
+Armijo condition
+\emph default
+, 
+\begin_inset Formula 
+\[
+f(\mathbf{x}_{k}+\gamma_{k}\mathbf{d}_{k})<f(\mathbf{x}_{k})+\alpha\mathbf{g}_{k}\cdot\mathbf{d}_{k},
+\]
+
+\end_inset
+
+is met, where 
+\begin_inset Formula $\alpha\in(0,1)$
+\end_inset
+
+ is a parameter.
+ Success indicates that the function has decreased at least proportionately
+ to what might be predicted from the gradient, and hence this condition
+ helps to prevent 
+\begin_inset Quotes eld
+\end_inset
+
+overshooting
+\begin_inset Quotes erd
+\end_inset
+
+ the minimum.
+ Default parameters are 
+\begin_inset Formula $\alpha=0.2$
+\end_inset
+
+ and 
+\begin_inset Formula $\beta=0.5$
+\end_inset
+
+; these can be adjusted by setting the 
+\family typewriter
+alpha
+\family default
+ and 
+\family typewriter
+beta
+\family default
+ in the LineSearchController's initializer or by setting the properties
+ directly.
+ 
+\end_layout
+
+\begin_layout Standard
+There is a limit placed on the number of backtracking steps in a property
+ called 
+\family typewriter
+maxsteps
+\family default
+; if this is exceeded a warning 
+\family typewriter
+OptLnSrchStpsz
+\family default
+ is generated.
+ The LineSearchController also checks to ensure that 
+\begin_inset Formula $\mathbf{g}_{k}\cdot\mathbf{d}_{k}\leq0$
+\end_inset
+
+, i.e.
+ that the search direction is actually downward.
+ If this is 
+\emph on
+not
+\emph default
+ the case, a warning 
+\family typewriter
+OptLnSrchDrn
+\family default
+ is raised and it is likely that there is an error somewhere, either in
+ the gradient calculation (if at some stage you provided one) or in the
+ algorithm that calculated the search direction.
+ 
+\end_layout
+
+\begin_layout Subsection
+ConjugateGradientController
+\end_layout
+
+\begin_layout Standard
+The conjugate gradient algorithm performs linesearches, but computes the
+ search direction using information from the prior iteration.
+ The resulting algorithm improves convergence on objective functions that
+ have long, narrow valleys and uses gradient information only.
+ As for gradient descent the search direction is initially,
+\begin_inset Formula 
+\[
+\mathbf{d}_{0}=-\mathbf{g}_{0},
+\]
+
+\end_inset
+
+and then in successive iterations the direction is computed, 
+\begin_inset Formula 
+\[
+\mathbf{d}_{k+1}=-\mathbf{g}_{k+1}+\beta_{k}\mathbf{d}_{k}.
+\]
+
+\end_inset
+
+The scaling 
+\begin_inset Formula $\beta_{k}$
+\end_inset
+
+ may be computed in several different ways, leading to different flavors
+ of the algorithm.
+ For example, the Fletcher-Reeves formula is, 
+\begin_inset Formula 
+\[
+\beta_{k}=\frac{\mathbf{g}_{k+1}\cdot\mathbf{g}_{k+1}}{\mathbf{g}_{k}\cdot\mathbf{g}_{k}}.
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Newton and Quasi-Newton methods
+\end_layout
+
+\begin_layout Standard
+Newton's method utilizes the observation that around a given point 
+\begin_inset Formula $\mathbf{x}_{k}$
+\end_inset
+
+, a sufficiently smooth function can be approximated by a Taylor expansion,
+ 
+\begin_inset Formula 
+\begin{equation}
+f(\mathbf{x})\approx f(\mathbf{x}_{k})+\mathbf{g}\cdot(\mathbf{x}-\mathbf{x}_{k})+\frac{1}{2}(\mathbf{x}-\mathbf{x}_{k})^{T}\cdot\mathbf{H}\cdot(\mathbf{x}-\mathbf{x}_{k})+...\label{eq:TaylorExpansion}
+\end{equation}
+
+\end_inset
+
+Taking the gradient of 
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:TaylorExpansion"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ yields, 
+\begin_inset Formula 
+\[
+\nabla f(\mathbf{x})=\mathbf{g}\cdot(\mathbf{x}-\mathbf{x}_{k})+\mathbf{H}\cdot(\mathbf{x}-\mathbf{x}_{k})+...
+\]
+
+\end_inset
+
+At the minimum of 
+\begin_inset Formula $f$
+\end_inset
+
+, its gradient should be zero, i.e.
+ that,
+\begin_inset Formula 
+\[
+0=\mathbf{g}\cdot(\mathbf{x}-\mathbf{x}_{k})+\mathbf{H}\cdot(\mathbf{x}-\mathbf{x}_{k})+...
+\]
+
+\end_inset
+
+and hence, neglecting higher order terms, we can obtain an update 
+\begin_inset Formula $(\mathbf{x}-\mathbf{x}_{k})$
+\end_inset
+
+ by solving the linear system,
+\begin_inset Formula 
+\begin{equation}
+\mathbf{H}_{k}\cdot(\mathbf{x}-\mathbf{x}_{k})=-\mathbf{g_{k}},\label{eq:NewtonStep}
+\end{equation}
+
+\end_inset
+
+which is called a Newton step.
+ If 
+\begin_inset Formula $f(\mathbf{x})$
+\end_inset
+
+ is a quadratic function, then Eq.
+ 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:TaylorExpansion"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ is no longer an approximation and the correct solution can be obtained
+ in one iteration.
+ In practice, the solution of Eq.
+ 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:NewtonStep"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ is used as a search direction 
+\begin_inset Formula $\mathbf{d}_{k}$
+\end_inset
+
+ for a line search.
+ 
+\end_layout
+
+\begin_layout Subsection
+NewtonController
+\end_layout
+
+\begin_layout Standard
+The NewtonController class implements Newton updates: in each iteration
+ a search direction is identified by solving Eq.
+ 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:NewtonStep"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ and then a linesearch is performed.
+ NewtonController requires an OptimizationAdapter that can calculate a hessian
+ and raises the error 
+\family typewriter
+OptNoHess
+\family default
+ it it detects this is not the case.
+\end_layout
+
+\begin_layout Subsection
+BFGSController
+\end_layout
+
+\begin_layout Standard
+The BFGS algorithm aims to compute an improved estimate of the Hessian at
+ each iteration using only the change in parameter values 
+\begin_inset Formula $\mathbf{s}_{k}=\mathbf{x}_{k+1}-\mathbf{x}_{k}$
+\end_inset
+
+ and the change in gradient 
+\begin_inset Formula $\mathbf{y}_{k}=\mathbf{g}_{k+1}-\mathbf{g}_{k}$
+\end_inset
+
+.
+ The estimate is initially set to the identity matrix, 
+\begin_inset Formula 
+\[
+\mathcal{H}_{0}=\mathbf{I},
+\]
+
+\end_inset
+
+and then updated after each iteration using the formula,
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathbf{\mathcal{H}}_{k+1}=\mathcal{H}_{k}+\frac{\mathbf{y}_{k}\mathbf{y}_{k}^{T}}{\mathbf{y}_{k}^{T}\mathbf{s}_{k}}-\frac{\mathbf{\mathcal{H}}_{k}\mathbf{s}_{k}\mathbf{s}_{k}^{T}\mathbf{\mathcal{H}}_{k}^{T}}{\mathbf{s}_{k}^{T}\mathbf{\mathcal{H}}_{k}\mathbf{s}_{k}}.
+\]
+
+\end_inset
+
+At each iteration, the current BFGS estimate of the Hessian is used to solve
+ the linear system, 
+\begin_inset Formula 
+\begin{equation}
+\mathbf{\mathcal{H}}_{k}\mathbf{d}_{k}=-\mathbf{g}_{k},\label{eq:LBFGSsolve}
+\end{equation}
+
+\end_inset
+
+to obtain a search direction 
+\begin_inset Formula $\mathbf{d}_{k}$
+\end_inset
+
+ that is then used as the basis of a linesearch.
+ 
+\end_layout
+
+\begin_layout Subsection
+InvBFGSController
+\end_layout
+
+\begin_layout Standard
+This controller implements a variant of the BFGS algorithm that avoids the
+ need to explicitly solve 
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:LBFGSsolve"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+; instead successive estimates of the inverse Hessian, 
+\begin_inset Formula $\mathcal{H}_{k}^{-1}$
+\end_inset
+
+, are built from an initial identity matrix.
+\end_layout
+
+\begin_layout Subsection
+LBFGSController
+\end_layout
+
+\begin_layout Standard
+The LBFGS algorithm avoids the need to store an estimated inverse Hessian
+ explicitly, instead computing its action from a stored set of 
+\begin_inset Formula $\mathbf{s}_{k}$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{y}_{k}$
+\end_inset
+
+.
+\end_layout
+
 \end_body
 \end_document

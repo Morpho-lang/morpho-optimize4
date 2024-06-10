@@ -7,6 +7,9 @@
  * -------------------------- */ 
 
 var _OptConsCountErr = Error("OptConsCount", "More equality constraints specified than provided.")
+var _OptUnConsErr = Error("OpUncons", "Problem is unconstrained; this adapter is intended for constrained problems.")
+var _OptNoHessErr = Error("OptNoHess", "Method requires a hessian.")
+var _OptNoActiveFuncErr = Error("OptNoActiveFunc", "Problem has no active functionals.")
 
 /* --------------------------
  * OptimizationAdapter class
@@ -287,5 +290,104 @@ class FunctionAdapter is OptimizationAdapter {
 
     if (!self.constraints) return nil 
     return self.constraintMap(self.constrainthessianfn)
+  }
+}
+
+/* -------------------------
+ * PenaltyAdapter
+ * ------------------------- */
+
+/* Converts a constrained optimization problem into an unconstrained one */
+
+class PenaltyAdapter is OptimizationAdapter {
+  init(adapter, penalty=1) { 
+    self.adapter = adapter
+    self.penalty = penalty 
+  }
+
+  setpenalty(penalty) { self.penalty = penalty }
+  penalty() { return self.penalty }
+
+  set(x) { self.adapter.set(x) }
+  get() { return self.adapter.get() }
+
+  _counteq(cv) { // Counts the number of equality constraints
+    var nc = self.adapter.countEqualityConstraints()
+    var neq = 0
+    for (c, k in cv) {
+      if (k>=nc) break
+      if (ismatrix(c)) neq+=c.count()
+      else neq+=1
+    }  
+    return neq
+  }
+
+  _flatten(v) {
+    var l = []
+    for (c in v) {
+      if (ismatrix(c)) for (x in c) l.append(x)
+      else l.append(c)
+    }
+    return Matrix(l)
+  } 
+
+  _checkineq(c, neq) {
+    for (k in neq...c.count()) {
+      if (c[k]>0) c[k]=0
+    }
+  }
+
+  constraintVector() {
+    var cv = self.adapter.constraintValue()
+
+    if (!cv) _OptUnConsErr.warning()
+
+    var v = self._flatten(cv)
+    var neq = self._counteq(cv)
+    self._checkineq(v, neq)
+
+    return v 
+  }
+
+  value() { // Q = f + mu*c^2 + mu*d-^2
+    var f = self.adapter.value() 
+    var v = self.constraintVector() 
+    if (v) f += self.penalty * v.inner(v)
+
+    return f
+  }
+
+  gradient() { // grad Q = grad f + 2*mu*g*grad g
+    var grad = self.adapter.gradient() 
+    var v = self.constraintVector()   
+
+    if (v) {
+      var dg = self.adapter.constraintGradient()   
+      var c = Matrix([dg])
+      grad+=2*self.penalty*c*v  
+    } 
+  
+    return grad
+  }
+
+  hessian() { // hessian Q = hessian f + 2*mu*g*hessian g + 2*mu*(dg \outer dg)
+    var hess = self.adapter.hessian() 
+    if (!hess) _OptNoHessErr.throw() 
+
+    var v = self.constraintVector() 
+    
+    if (v) {
+      var dg = self.adapter.constraintGradient()  
+      var hessg = self.adapter.constraintHessian() 
+
+      for (vk, k in v) {
+        if (abs(vk)==0) continue
+        if (!hessg[k]) _OptNoHessErr.throw() 
+
+        hess+=2*self.penalty*(vk*hessg[k] + dg[k].outer(dg[k]))
+      }
+    }
+
+    return hess
   }
 }

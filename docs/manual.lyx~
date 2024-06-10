@@ -1513,6 +1513,48 @@ OptLnSrchDrn
  
 \end_layout
 
+\begin_layout Subsection
+ConjugateGradientController
+\end_layout
+
+\begin_layout Standard
+The conjugate gradient algorithm performs linesearches, but computes the
+ search direction using information from the prior iteration.
+ The resulting algorithm improves convergence on objective functions that
+ have long, narrow valleys and uses gradient information only.
+ As for gradient descent the search direction is initially,
+\begin_inset Formula 
+\[
+\mathbf{d}_{0}=-\mathbf{g}_{0},
+\]
+
+\end_inset
+
+and then in successive iterations the direction is computed, 
+\begin_inset Formula 
+\[
+\mathbf{d}_{k+1}=-\mathbf{g}_{k+1}+\beta_{k}\mathbf{d}_{k}.
+\]
+
+\end_inset
+
+The scaling 
+\begin_inset Formula $\beta_{k}$
+\end_inset
+
+ may be computed in several different ways, leading to different flavors
+ of the algorithm.
+ For example, the Fletcher-Reeves formula is, 
+\begin_inset Formula 
+\[
+\beta_{k}=\frac{\mathbf{g}_{k+1}\cdot\mathbf{g}_{k+1}}{\mathbf{g}_{k}\cdot\mathbf{g}_{k}}.
+\]
+
+\end_inset
+
+
+\end_layout
+
 \begin_layout Section
 Newton and Quasi-Newton methods
 \end_layout
@@ -1726,6 +1768,10 @@ The LBFGS algorithm avoids the need to store an estimated inverse Hessian
 \end_inset
 
 .
+\end_layout
+
+\begin_layout Section
+Constrained optimization
 \end_layout
 
 \end_body

@@ -799,6 +799,98 @@ New OptimizationControllers can easily be defined, including ones created
  in extensions linking to external optimization libraries.
 \end_layout
 
+\begin_layout Subsection
+PenaltyAdapter
+\end_layout
+
+\begin_layout Standard
+A PenaltyAdapter can be used to convert the general constrained problem
+ 
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:Problem"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ into an unconstrained problem.
+ It must be constructed with another adapter as the target, and reports
+ the value and derivatives of the new objective function, 
+\begin_inset Formula 
+\begin{equation}
+\mathcal{L}=f(\mathbf{x})+\mu\left|\mathbf{c}\right|^{2}+\mu\left|\mathbf{d}^{-}\right|^{2},\label{eq:Penalty}
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\mathbf{d}^{-}$
+\end_inset
+
+ is defined for each component 
+\begin_inset Formula $d_{i}^{-}=argmin(0,d_{i})$
+\end_inset
+
+, i.e.
+ nonzero for constraints 
+\emph on
+outside
+\emph default
+ the feasible region.
+ The parameter 
+\begin_inset Formula $\mu$
+\end_inset
+
+ is called a 
+\emph on
+penalty parameter
+\emph default
+.
+ 
+\end_layout
+
+\begin_layout Standard
+Using this adapter facilitates penalty methods, that solve 
+\begin_inset Formula $\min_{\mathbf{x}}\mathcal{L}(\mu_{m})$
+\end_inset
+
+ for monotonically increasing penalty parameters 
+\begin_inset Formula $\mu_{m}$
+\end_inset
+
+.
+ As 
+\begin_inset Formula $\mu\to\infty$
+\end_inset
+
+, the solution of the new unconstrained problem should converge on the constrain
+ed problem.
+ 
+\end_layout
+
+\begin_layout Standard
+PenaltyAdapter relies on the attached adapter to provide value, gradient
+ and hessian information if requested by the controller; note especially
+ that the hessian of the constraint functions, and not just their gradient,
+ is required to compute the hessian of 
+\begin_inset Formula $\mathcal{L}$
+\end_inset
+
+ in 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:Penalty"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
 \begin_layout Chapter
 OptimizationControllers
 \end_layout
@@ -1768,6 +1860,10 @@ The LBFGS algorithm avoids the need to store an estimated inverse Hessian
 \end_inset
 
 .
+\end_layout
+
+\begin_layout Section
+Constrained optimization
 \end_layout
 
 \end_body

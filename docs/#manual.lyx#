@@ -1935,8 +1935,8 @@ ctol
 \end_inset
 
 , PenaltyController uses a nested controller which is by default an LBFGSControl
-ler, but you can choose an alternative by providing the PenaltyController
- constructor with the appropriate class as an optional argument 
+ler, but you can choose an alternative by providing the appropriate class
+ to an optional argument 
 \begin_inset listings
 inline true
 status open
@@ -1948,7 +1948,6 @@ controller
 
 \end_inset
 
-.
  
 \end_layout
 

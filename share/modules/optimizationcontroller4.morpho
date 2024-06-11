@@ -584,11 +584,14 @@ class PenaltyController is OptimizationController {
 
     self.adapter = PenaltyAdapter(self.adapter)
     self.adapter.setpenalty(mu0)
+
+    self.controller = controller 
+    if (!controller) self.controller = LBFGSController
   }
 
   begin() {
     self.mu=self.adapter.penalty()
-    self.control = LBFGSController(self.adapter, verbosity=self.verbosity)
+    self.control = self.controller(self.adapter, verbosity=self.verbosity)
   }
 
   start() {

@@ -1866,5 +1866,91 @@ The LBFGS algorithm avoids the need to store an estimated inverse Hessian
 Constrained optimization
 \end_layout
 
+\begin_layout Subsection
+PenaltyController
+\end_layout
+
+\begin_layout Standard
+Implements a penalty method.
+ Initialize with a constrained problem, and (optionally) an initial value
+ of the penalty parameter 
+\begin_inset listings
+inline true
+status open
+
+\begin_layout Plain Layout
+
+mu0
+\end_layout
+
+\end_inset
+
+ and a multiplier 
+\begin_inset listings
+inline true
+status open
+
+\begin_layout Plain Layout
+
+mumul
+\end_layout
+
+\end_inset
+
+.
+ 
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+var control = PenaltyController(adapter, mu0=1, mumul=10)
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Internally, PenaltyController uses a PenaltyAdapter to convert the constrained
+ problem into an unconstrained form.
+ Successive iterations increase the penalty parameter until the constraint
+ tolerance 
+\begin_inset listings
+inline true
+status open
+
+\begin_layout Plain Layout
+
+ctol
+\end_layout
+
+\end_inset
+
+ is met.
+ To perform optimization for each value of 
+\begin_inset Formula $\mu$
+\end_inset
+
+, PenaltyController uses a nested controller which is by default an LBFGSControl
+ler, but you can choose to use an alternative by providing the PenaltyController
+ constructor with the appropriate class as an optional argument 
+\begin_inset listings
+inline true
+status open
+
+\begin_layout Plain Layout
+
+controller
+\end_layout
+
+\end_inset
+
+.
+ 
+\end_layout
+
 \end_body
 \end_document

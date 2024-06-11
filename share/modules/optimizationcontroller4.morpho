@@ -592,6 +592,8 @@ class PenaltyController is OptimizationController {
   begin() {
     self.mu=self.adapter.penalty()
     self.control = self.controller(self.adapter, verbosity=self.verbosity)
+    self.control.etol = self.etol 
+    self.control.gradtol = self.gradtol 
   }
 
   start() {

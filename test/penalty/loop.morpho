@@ -1,0 +1,24 @@
+// Simple loop minimization problem solved with a penalty method
+
+import meshtools 
+import optimize4
+import plot 
+
+var m = LineMesh(fn (t) [2*cos(t),sin(t)], -Pi...Pi:Pi/20, closed=true)
+
+var problem = OptimizationProblem(m)
+
+var ll = Length() 
+problem.addenergy(ll)
+
+var la = AreaEnclosed() 
+problem.addconstraint(la)
+
+var adapt = MeshAdapter(problem, m)
+
+var control = PenaltyController(adapt)
+control.optimize(15) 
+
+Show(plotmesh(m))
+
+print "Length=${Length().total(m)} Area = ${AreaEnclosed().total(m)}"

@@ -1,0 +1,49 @@
+// Test the MeshAdapter on a simple loop with inequality constraints
+
+import meshtools 
+import optimize4
+import plot 
+
+// Build mesh 
+var m = LineMesh(fn (u) [cos(u), sin(u)], -Pi...Pi:Pi/6, closed=true) 
+
+// Set up a demo problem 
+var problem = OptimizationProblem(m)
+problem.addenergy(Length())
+problem.addconstraint(AreaEnclosed())
+
+var L = 1
+var lsupper = ScalarPotential(fn (x,y) L-y)
+var lslower = ScalarPotential(fn (x,y) y+L)
+problem.addlocalconstraint(lsupper)
+problem.addlocalconstraint(lslower)
+
+// Test the MeshAdapter 
+var adapt = MeshAdapter(problem, m) 
+
+var X = adapt.get()
+adapt.set(2*X)
+print (adapt.get()-2*X).norm() 
+// expect: 0 
+adapt.set(X)
+
+print abs(adapt.value() - Length().total(m))
+// expect: 0 
+
+print adapt.countEqualityConstraints()
+// expect: 1
+
+print adapt.countInequalityConstraints()
+// expect: 2
+
+print adapt.countConstraints()
+// expect: 3
+
+print ismatrix(adapt.gradient())
+// expect: true 
+
+print adapt.constraintValue()
+// expect: [ 0, <Matrix>, <Matrix> ]
+
+print adapt.constraintGradient()
+// expect: [ <Matrix>, <Sparse>, <Sparse> ]

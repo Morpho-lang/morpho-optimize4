@@ -510,11 +510,25 @@ class MeshAdapter is OptimizationAdapter {
     return cval
   }
 
+  _reduceIntegrandWithSelection(val, sel) { // Reduces an integrand using a selection
+    var l = []
+    for (id in sel.idlistforgrade(0)) { // TODO: Handle non-point constraints
+      l.append(val[id])
+    }  
+    return Matrix(l) 
+  } 
+
+  _zeroInactiveVal(val) { // Zero out any constraints that are in the feasible region
+    for (v, k in val) if (v>0) val[k]=0
+  }
+
   _localConstraintValue() {
     var cval=[]
-    for (cons in self.localConstraints()) { // TODO: Handle selections correctly
+    for (cons in self.localConstraints()) { 
       var val = self.integrandForFunctional(cons).transpose() 
       if (cons.has("target")) val-=cons.target
+      if (cons.onesided) self._zeroInactiveVal(val)
+      if (cons.selection) val = self._reduceIntegrandWithSelection(val, cons.selection)
 
       cval.append(val)
     }
@@ -529,11 +543,21 @@ class MeshAdapter is OptimizationAdapter {
     var grad = cons.functional.gradient(self.target)
     var dim = grad.dimensions()
     var ndof = dim[0], ncol = dim[1]
+    var val
+    if (cons.onesided) val = self.integrandForFunctional(cons) // Only needed if onesided
 
-    var s = Sparse(ndof*ncol,ncol)
+    var ids 
+    if (cons.selection) {
+      ids = cons.selection.idlistforgrade(0) // TODO: Handle other than point constraints
+    } else ids = 0...ncol
 
-    for (i in 0...ncol) {
-        for (x, j in grad.column(i)) s[i*ndof+j,i]=x
+    var s = Sparse(ndof*ncol,ids.count())
+
+    for (id, k in ids) {
+      var scale=1
+      if (cons.onesided && val[0, id]>0) scale=0
+
+      for (x, j in grad.column(id)) s[id*ndof+j,k]=scale*x
     }
 
     return s 
@@ -547,7 +571,7 @@ class MeshAdapter is OptimizationAdapter {
       cgrad.append(grad)      
     }
 
-    for (cons in self.localConstraints()) { // TODO: Handle selections correctly
+    for (cons in self.localConstraints()) { 
       var grad = self._localConstraintGradient(cons) 
       cgrad.append(grad)
     }

@@ -63,7 +63,7 @@ class OptimizationAdapter {
     that are intended to work with other adapters */
 
 class DelegateAdapter is OptimizationAdapter {
-  init(OptimizationAdapter adapter) {
+  init(adapter) {
     self.adapter = adapter
   }
 

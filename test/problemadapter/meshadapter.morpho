@@ -15,8 +15,8 @@ problem.addconstraint(AreaEnclosed())
 var L = 1
 var lsupper = ScalarPotential(fn (x,y) L-y)
 var lslower = ScalarPotential(fn (x,y) y+L)
-problem.addlocalconstraint(lsupper)
-problem.addlocalconstraint(lslower)
+problem.addlocalconstraint(lsupper, onesided=true)
+problem.addlocalconstraint(lslower, onesided=true)
 
 // Test the MeshAdapter 
 var adapt = MeshAdapter(problem, m) 

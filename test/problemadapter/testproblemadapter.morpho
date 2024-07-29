@@ -8,7 +8,7 @@ import "problemadapter.morpho"
 // Build mesh 
 var m = LineMesh(fn (u) [cos(u), sin(u)], -Pi...Pi:Pi/6, closed=true) 
 
-var f = Field(m, 0)
+var f = Field(m, 1)
 
 // Set up a demo problem 
 var problem = OptimizationProblem(m)
@@ -25,15 +25,16 @@ problem.addlocalconstraint(lslower, onesided=true)
 var adapt = ProblemAdapter(problem, m, f) 
 
 var X = adapt.get() 
+adapt.set(2*X)
+print (adapt.get()-2*X).norm() 
+// expect: 0 
 
-print X 
+adapt.set(X)
 
 /*
 var X = adapt.get()
 adapt.set(2*X)
 print (adapt.get()-2*X).norm() 
-// expect: 0 
-adapt.set(X)
 
 print abs(adapt.value() - Length().total(m))
 // expect: 0 

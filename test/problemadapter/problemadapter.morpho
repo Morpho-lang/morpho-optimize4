@@ -55,7 +55,36 @@ class ProblemAdapter is OptimizationAdapter {
     return f.linearize() 
   }
 
-  set(x) { return nil }               // Sets the parameters 
+  set(x) { // Sets the parameters 
+    var n = 0
+    for (t in self.target) {
+      var ndof = self.count(t)
+      self.set(t, x[n...n+ndof]) 
+      n+=ndof
+    }
+  }              
+
+  set(Mesh m, Matrix x) { 
+    var mat = m.vertexmatrix() // Extract the vertex matrix and edit it directly
+    _decolumnize(x, mat.dimensions())
+    mat.assign(x)
+    _columnize(x) // Restore x to column vector form
+    return nil  
+  }
+
+  set(Field f, Matrix x) {   
+    f.__linearize().assign(x)
+    return nil
+  }
+
+  count() { // Count the total number of degrees of freedom in the problem
+    var ndof = 0
+    for (t in self.target) ndof += self.count(t)
+    return ndof 
+  }
+
+  count(Mesh m) { return m.vertexmatrix().count() }
+  count(Field f) { return f.__linearize().count() }
 
   value() { return 0 }                // Returns the current value of the objective function at the current parameters
 

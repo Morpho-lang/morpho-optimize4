@@ -3,9 +3,12 @@
 import meshtools 
 import optimize4
 import plot 
+import "problemadapter.morpho"
 
 // Build mesh 
 var m = LineMesh(fn (u) [cos(u), sin(u)], -Pi...Pi:Pi/6, closed=true) 
+
+var f = Field(m, 0)
 
 // Set up a demo problem 
 var problem = OptimizationProblem(m)
@@ -18,8 +21,12 @@ var lslower = ScalarPotential(fn (x,y) y+L)
 problem.addlocalconstraint(lsupper, onesided=true)
 problem.addlocalconstraint(lslower, onesided=true)
 
-// Test the MeshAdapter 
-var adapt = ProblemAdapter(problem, m) 
+// Test the ProblemAdapter 
+var adapt = ProblemAdapter(problem, m, f) 
+
+var X = adapt.get() 
+
+print X 
 
 /*
 var X = adapt.get()

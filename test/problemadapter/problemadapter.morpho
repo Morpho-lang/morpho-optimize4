@@ -1,0 +1,77 @@
+
+var _OptNoPrblmErr = Error("OptNoPrblm", "ProblemAdapter must be initialized with an OptimizationProblem.")
+var _OptPrblmTrgtErr = Error("OptPrblmTrgt", "ProblemAdapter must be initialized with Meshes or Fields as targets.")
+
+var _OptNoActiveFuncErr = Error("OptNoActiveFunc", "Problem has no active functionals.")
+var _OptTrgtLstEmptyErr = Error("OptTrgtLstEmpty", "List of optimization targets is empty.")
+
+/* -------------------------
+ * Utility Functions
+ * ------------------------- */
+
+fn _columnize(Matrix matrix) { // Reshape a rectangular matrix into a column matrix 
+  var dim = matrix.dimensions() 
+  matrix.reshape(dim[0]*dim[1],1)
+}
+
+fn _decolumnize(Matrix matrix, dim) { // Reshape a matrix from a column matrix to a rectangular matrix
+  matrix.reshape(dim[0], dim[1])
+}
+
+/* -------------------------
+ * ProblemAdapter
+ * ------------------------- */
+
+class ProblemAdapter is OptimizationAdapter {
+  init(OptimizationProblem problem, ...target) {
+    self.problem = problem 
+    
+    self.target = [] // Keep track of optimization targets 
+    for (t in target) {
+      if (ismesh(t) || isfield(t)) self.target.append(t)
+      else _OptPrblmTrgtErr.throw() 
+    }
+
+    // Basic validation
+    if (self.target.count()==0) _OptTrgtLstEmptyErr.throw()
+    if (!islist(self.problem.energies) || self.problem.energies.count()==0) _OptNoActiveFuncErr.throw()
+  }
+
+  init(target) { _OptNoPrblmErr.throw() }
+
+  get() { // Returns current value of parameters
+    var l = []
+    for (t in self.target) l.append([self.get(t)])
+    return Matrix(l)
+  }                  
+
+  get(Mesh m) { // Extracts the positions from a Mesh as a column vector
+    var v = m.vertexmatrix().clone()
+    _columnize(v) 
+    return v 
+  }
+
+  get(Field f) { // Extracts the contents of a Mesh as a column vector
+    return f.linearize() 
+  }
+
+  set(x) { return nil }               // Sets the parameters 
+
+  value() { return 0 }                // Returns the current value of the objective function at the current parameters
+
+  gradient() { return nil }           // Returns the gradient of the objective function at the current parameters as a column vector
+
+  hessian() { return nil }            // (Optional) Returns the hessian of the objective function at the current parameters as a matrix
+
+  countConstraints() { return 0 }     // Returns number of constraints present
+  countEqualityConstraints() { return 0 } // Returns number of equality constraints present
+  countInequalityConstraints() {      // Returns number of inequality constraints present
+    return self.countConstraints() - self.countEqualityConstraints() 
+  } 
+
+  constraintValue() { return nil }    // Returns the value(s) of any constraints as a list of numbers and vectors
+
+  constraintGradient() { return nil } // Returns the gradient(s) of any constraints as a list of vectors or matrices
+  
+  constraintHessian() { return nil }  // Returns the hessian(s) of any constraints as a list of matrices, or sublists
+}

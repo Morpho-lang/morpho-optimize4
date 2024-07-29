@@ -31,11 +31,6 @@ print (adapt.get()-2*X).norm()
 
 adapt.set(X)
 
-/*
-var X = adapt.get()
-adapt.set(2*X)
-print (adapt.get()-2*X).norm() 
-
 print abs(adapt.value() - Length().total(m))
 // expect: 0 
 
@@ -47,6 +42,11 @@ print adapt.countInequalityConstraints()
 
 print adapt.countConstraints()
 // expect: 3
+
+/*
+var X = adapt.get()
+adapt.set(2*X)
+print (adapt.get()-2*X).norm() 
 
 print ismatrix(adapt.gradient())
 // expect: true 

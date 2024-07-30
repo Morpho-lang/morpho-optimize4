@@ -42,18 +42,23 @@ class ProblemAdapter is OptimizationAdapter {
     if (self.target.count()==1) return self.get(self.target[0]) 
 
     var l = []
-    for (t in self.target) l.append([self.get(t)])
+    for (t in self.target) l.append([self.columnVector(t)])
     return Matrix(l)
   }                  
 
-  get(Mesh m) { // Extracts the positions from a Mesh as a column vector
+  columnVector(Mesh m) { // Extracts the positions from a Mesh as a column vector
     var v = m.vertexmatrix().clone()
     _columnize(v) 
     return v 
   }
 
-  get(Field f) { // Extracts the contents of a Mesh as a column vector
+  columnVector(Field f) { // Extracts the contents of a Mesh as a column vector
     return f.linearize() 
+  }
+
+  columnVector(Matrix m) { // Converts a matrix to a column vector
+    _columnize(m) 
+    return m
   }
 
   set(x) { // Sets the parameters 
@@ -95,27 +100,51 @@ class ProblemAdapter is OptimizationAdapter {
   constraints() { return self.problem.constraints }
   localConstraints() { return self.problem.localconstraints }
 
+  evaluateFunctional(func, method, ...args) { 
+    if (func.selection) args.append(func.selection)
+    var result = apply(method, args)
+    if (func.prefactor) result*=func.prefactor
+    return result
+  }
+
+  checkFunctionalDependency(func, Field f) {
+    var deps 
+    if (func.functional.has("field")) deps = func.functional.field 
+    if (deps==f) return true 
+    if (islist(deps) && (deps.contains(f))) return true 
+    return false 
+  }
+
   value() { // Returns the current value of the objective function at the current parameters
     var energy = 0
     for (en in self.energies()) energy+=self.valueForFunctional(en)
     return energy
   }
 
-  evaluateFunctional(func, method) { 
-    var val
-    if (func.selection) {
-      val=method(self.problem.mesh, func.selection)
-    } else {
-      val=method(self.problem.mesh)
-    }
-    if (func.prefactor) val*=func.prefactor
-    return val
-  }
-
-  valueForFunctional(func) { return self.evaluateFunctional(func, func.functional.total) }
+  valueForFunctional(func) { return self.evaluateFunctional(func, func.functional.total, self.problem.mesh) }
 
   gradient() { // Returns the gradient of the objective function at the current parameters as a column vector
-    //for (t in self.target) 
+    var l = []
+    for (t in self.target) {
+      var grad=0
+      for (en in self.energies()) {
+        var g = self.gradientForFunctional(en, t)
+        if (g) grad+=g
+      }
+      l.append([self.columnVector(grad)])
+    }
+    if (l.count()==1) return l[0]
+    return Matrix(l)
+  }
+
+  gradientForFunctional(func, Mesh m) {
+    return self.evaluateFunctional(func, func.functional.gradient, m)
+  }
+
+  gradientForFunctional(func, Field f) {
+    if (!func.functional.respondsto("fieldgradient")) return nil
+    if (!self.checkFunctionalDependency(func, f)) return nil 
+    return self.evaluateFunctional(func, func.functional.fieldgradient, f, self.problem.mesh)
   }
 
   hessian() { return nil }            // (Optional) Returns the hessian of the objective function at the current parameters as a matrix

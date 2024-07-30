@@ -8,12 +8,14 @@ import "problemadapter.morpho"
 // Build mesh 
 var m = LineMesh(fn (u) [cos(u), sin(u)], -Pi...Pi:Pi/6, closed=true) 
 
-var f = Field(m, 1)
+var f = Field(m, Matrix([1,0]))
 
 // Set up a demo problem 
 var problem = OptimizationProblem(m)
 problem.addenergy(Length())
 problem.addconstraint(AreaEnclosed())
+
+problem.addenergy(NormSq(f))
 
 var L = 1
 var lsupper = ScalarPotential(fn (x,y) L-y)
@@ -22,7 +24,7 @@ problem.addlocalconstraint(lsupper, onesided=true)
 problem.addlocalconstraint(lslower, onesided=true)
 
 // Test the ProblemAdapter 
-var adapt = ProblemAdapter(problem, m) 
+var adapt = ProblemAdapter(problem, m, f) 
 
 var X = adapt.get() 
 adapt.set(2*X)
@@ -31,7 +33,7 @@ print (adapt.get()-2*X).norm()
 
 adapt.set(X)
 
-print abs(adapt.value() - Length().total(m))
+print abs(adapt.value() - Length().total(m) - NormSq(f).total(m))
 // expect: 0 
 
 print adapt.countEqualityConstraints()
@@ -43,6 +45,12 @@ print adapt.countInequalityConstraints()
 print adapt.countConstraints()
 // expect: 3
 
+print ismatrix(adapt.gradient())
+// expect: true 
+
+//print adapt.constraintValue()
+
+//print adapt.constraintGradient()
 /*
 var X = adapt.get()
 adapt.set(2*X)
@@ -51,7 +59,6 @@ print (adapt.get()-2*X).norm()
 print ismatrix(adapt.gradient())
 // expect: true 
 
-print adapt.constraintValue()
 // expect: [ 0, <Matrix>, <Matrix> ]
 
 print adapt.constraintGradient()

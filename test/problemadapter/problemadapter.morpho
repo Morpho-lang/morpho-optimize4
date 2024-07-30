@@ -123,6 +123,8 @@ class ProblemAdapter is OptimizationAdapter {
 
   valueForFunctional(func) { return self.evaluateFunctional(func, func.functional.total, self.problem.mesh) }
 
+  integrandForFunctional(func) { return self.evaluateFunctional(func, func.functional.integrand, self.problem.mesh) }
+
   gradient() { // Returns the gradient of the objective function at the current parameters as a column vector
     var l = []
     for (t in self.target) {
@@ -164,9 +166,114 @@ class ProblemAdapter is OptimizationAdapter {
     return n 
   } 
 
-  constraintValue() { return nil }    // Returns the value(s) of any constraints as a list of numbers and vectors
+  constraintValue() {  // Returns the value(s) of any constraints 
+    var a = self.globalConstraintValue()
+    var b = self.localConstraintValue()
+    var c = self.globalConstraintValue(onesided=true)
+    var d = self.localConstraintValue(onesided=true)
+    return a.join(b).join(c).join(d)
+  }
 
-  constraintGradient() { return nil } // Returns the gradient(s) of any constraints as a list of vectors or matrices
+  _checkOneSided(cons, onesided) {
+    return ((onesided && cons.onesided) || (!onesided && !cons.onesided)) 
+  }
+
+  globalConstraintValue(onesided=false) {
+    var cval=[]
+    for (cons in self.constraints()) {
+      if (!self._checkOneSided(cons, onesided)) continue
+
+      var val = self.valueForFunctional(cons)
+      if (cons.has("target")) val-=cons.target
+
+      cval.append(val)
+    }
+    return cval
+  }
+
+  _reduceIntegrandWithSelection(val, sel) { // Reduces an integrand using a selection
+    var l = []
+    for (id in sel.idlistforgrade(0)) { // TODO: Handle non-point constraints
+      l.append(val[id])
+    }  
+    return Matrix(l) 
+  } 
+
+  _zeroInactiveVal(val) { // Zero out any constraints that are in the feasible region
+    for (v, k in val) if (v>0) val[k]=0
+  }
+
+  localConstraintValue(onesided=false) {
+    var cval=[]
+    for (cons in self.localConstraints()) { 
+      if (!self._checkOneSided(cons, onesided)) continue
+
+      var val = self.integrandForFunctional(cons).transpose() 
+      if (cons.has("target")) val-=cons.target
+      if (cons.onesided) self._zeroInactiveVal(val)
+      if (cons.selection) val = self._reduceIntegrandWithSelection(val, cons.selection)
+
+      cval.append(val)
+    }
+    return cval
+  }
+
+  _localConstraintGradient(cons) {
+    var grad = cons.functional.gradient(self.target)
+    var dim = grad.dimensions()
+    var ndof = dim[0], ncol = dim[1]
+    var val
+    if (cons.onesided) val = self.integrandForFunctional(cons) // Only needed if onesided
+
+    var ids 
+    if (cons.selection) {
+      ids = cons.selection.idlistforgrade(0) // TODO: Handle other than point constraints
+    } else ids = 0...ncol
+
+    var s = Sparse(ndof*ncol,ids.count())
+
+    for (id, k in ids) {
+      var scale=1
+      if (cons.onesided && val[0, id]>0) scale=0
+
+      for (x, j in grad.column(id)) s[id*ndof+j,k]=scale*x
+    }
+
+    return s 
+  }
+
+  _zeroGradient(x) {
+    return Matrix(self.count(x)) 
+  }
+
+  globalConstraintGradient(onesided=false) {
+    var cval=[]
+    for (cons in self.constraints()) {
+      var l = []
+      for (t in self.target) {
+        if (!self._checkOneSided(cons, onesided)) continue
+
+        var grad = self.gradientForFunctional(cons, t)
+        if (grad) l.append([self.columnVector(grad)])
+        else l.append([self._zeroGradient(t)])
+      }
+      if (l.count()==1) cval.append(l[0])
+      else cval.append(Matrix(l))
+    }
+    return cval
+  }
+
+  localConstraintGradient(onesided=false) {
+
+  }
+
+  constraintGradient() { // Returns the gradient(s) of any constraints
+    var a = self.globalConstraintGradient()
+    var b = self.localConstraintGradient()
+    var c = self.globalConstraintGradient(onesided=true)
+    var d = self.localConstraintGradient(onesided=true)
+    return a.join(b).join(c).join(d)
+  }
   
   constraintHessian() { return nil }  // Returns the hessian(s) of any constraints as a list of matrices, or sublists
 }

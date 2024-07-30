@@ -48,19 +48,9 @@ print adapt.countConstraints()
 print ismatrix(adapt.gradient())
 // expect: true 
 
-//print adapt.constraintValue()
-
-//print adapt.constraintGradient()
-/*
-var X = adapt.get()
-adapt.set(2*X)
-print (adapt.get()-2*X).norm() 
-
-print ismatrix(adapt.gradient())
-// expect: true 
-
+print adapt.constraintValue()
 // expect: [ 0, <Matrix>, <Matrix> ]
 
-print adapt.constraintGradient()
+var cg = adapt.constraintGradient()
+print cg 
 // expect: [ <Matrix>, <Sparse>, <Sparse> ]
-*/

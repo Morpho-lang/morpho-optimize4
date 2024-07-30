@@ -25,11 +25,8 @@ fn _decolumnize(Matrix matrix, dim) { // Reshape a matrix from a column matrix t
 class ProblemAdapter is OptimizationAdapter {
   init(OptimizationProblem problem, ...target, mesh=nil) {
     self.problem = problem 
-    self.mesh = mesh 
-    
     self.target = [] // Keep track of optimization targets 
     for (t in target) {
-      if (ismesh(t) && !mesh) self.mesh = t // Capture a mesh if provided
       if (ismesh(t) || isfield(t)) self.target.append(t)
       else _OptPrblmTrgtErr.throw() 
     }
@@ -107,9 +104,9 @@ class ProblemAdapter is OptimizationAdapter {
   evaluateFunctional(func, method) { 
     var val
     if (func.selection) {
-      val=method(self.mesh, func.selection)
+      val=method(self.problem.mesh, func.selection)
     } else {
-      val=method(self.mesh)
+      val=method(self.problem.mesh)
     }
     if (func.prefactor) val*=func.prefactor
     return val
@@ -117,7 +114,9 @@ class ProblemAdapter is OptimizationAdapter {
 
   valueForFunctional(func) { return self.evaluateFunctional(func, func.functional.total) }
 
-  gradient() { return nil }           // Returns the gradient of the objective function at the current parameters as a column vector
+  gradient() { // Returns the gradient of the objective function at the current parameters as a column vector
+    //for (t in self.target) 
+  }
 
   hessian() { return nil }            // (Optional) Returns the hessian of the objective function at the current parameters as a matrix
 
@@ -129,7 +128,7 @@ class ProblemAdapter is OptimizationAdapter {
     return self.countConstraints() - self.countInequalityConstraints() 
   } 
   
-  countInequalityConstraints() {      // Returns number of inequality constraints present
+  countInequalityConstraints() { // Returns number of inequality constraints present
     var n=0
     for (c in self.constraints()) if (c.has("onesided") && c.onesided) n+=1
     for (c in self.localConstraints()) if (c.has("onesided") && c.onesided) n+=1

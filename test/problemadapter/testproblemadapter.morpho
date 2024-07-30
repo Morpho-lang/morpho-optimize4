@@ -22,7 +22,7 @@ problem.addlocalconstraint(lsupper, onesided=true)
 problem.addlocalconstraint(lslower, onesided=true)
 
 // Test the ProblemAdapter 
-var adapt = ProblemAdapter(problem, m, f) 
+var adapt = ProblemAdapter(problem, m) 
 
 var X = adapt.get() 
 adapt.set(2*X)

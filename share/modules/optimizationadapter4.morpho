@@ -379,6 +379,7 @@ class PenaltyAdapter is OptimizationAdapter {
     if (v) {
       var dg = self.adapter.constraintGradient()   
       var c = Matrix([dg])
+
       grad+=2*self.penalty*c*v  
     } 
   

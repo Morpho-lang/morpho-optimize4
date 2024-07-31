@@ -8,7 +8,7 @@ import "problemadapter.morpho"
 // Build mesh 
 var m = LineMesh(fn (u) [cos(u), sin(u)], -Pi...Pi:Pi/6, closed=true) 
 
-var f = Field(m, Matrix([1,0]))
+var f = Field(m, Matrix([1,0,0]))
 
 // Set up a demo problem 
 var problem = OptimizationProblem(m)
@@ -17,7 +17,7 @@ problem.addconstraint(AreaEnclosed())
 
 problem.addenergy(NormSq(f))
 
-var L = 1
+var L = 0.5
 var lsupper = ScalarPotential(fn (x,y) L-y)
 var lslower = ScalarPotential(fn (x,y) y+L)
 problem.addlocalconstraint(lsupper, onesided=true)

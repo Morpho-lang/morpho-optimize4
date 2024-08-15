@@ -1,0 +1,313 @@
+
+var _OptNoPrblmErr = Error("OptNoPrblm", "ProblemAdapter must be initialized with an OptimizationProblem.")
+var _OptPrblmTrgtErr = Error("OptPrblmTrgt", "ProblemAdapter must be initialized with Meshes or Fields as targets.")
+
+var _OptNoActiveFuncErr = Error("OptNoActiveFunc", "Problem has no active functionals.")
+var _OptTrgtLstEmptyErr = Error("OptTrgtLstEmpty", "List of optimization targets is empty.")
+
+/* -------------------------
+ * Utility Functions
+ * ------------------------- */
+
+fn _columnize(Matrix matrix) { // Reshape a rectangular matrix into a column matrix 
+  var dim = matrix.dimensions() 
+  matrix.reshape(dim[0]*dim[1],1)
+}
+
+fn _decolumnize(Matrix matrix, dim) { // Reshape a matrix from a column matrix to a rectangular matrix
+  matrix.reshape(dim[0], dim[1])
+}
+
+/* -------------------------
+ * ProblemAdapter
+ * ------------------------- */
+
+class ProblemAdapter is OptimizationAdapter {
+  init(OptimizationProblem problem, ...target, mesh=nil) {
+    self.problem = problem 
+    self.target = [] // Keep track of optimization targets 
+    for (t in target) {
+      if (ismesh(t) || isfield(t)) self.target.append(t)
+      else _OptPrblmTrgtErr.throw() 
+    }
+
+    // Basic validation
+    if (self.target.count()==0) _OptTrgtLstEmptyErr.throw()
+    if (!islist(self.problem.energies) || self.problem.energies.count()==0) _OptNoActiveFuncErr.throw()
+  }
+
+  init(target) { _OptNoPrblmErr.throw() }
+
+  get() { // Returns current value of parameters
+    if (self.target.count()==1) return self.columnVector(self.target[0])
+
+    var l = []
+    for (t in self.target) l.append([self.columnVector(t)])
+    return Matrix(l)
+  }                  
+
+  columnVector(Mesh m) { // Extracts the positions from a Mesh as a column vector
+    var v = m.vertexmatrix().clone()
+    _columnize(v) 
+    return v 
+  }
+
+  columnVector(Field f) { // Extracts the contents of a Mesh as a column vector
+    return f.linearize() 
+  }
+
+  columnVector(Matrix m) { // Converts a matrix to a column vector
+    _columnize(m) 
+    return m
+  }
+
+  set(x) { // Sets the parameters 
+    if (self.target.count()==1) return self.set(self.target[0], x)
+
+    var n = 0
+    for (t in self.target) {
+      var ndof = self.count(t)
+      self.set(t, x[n...n+ndof]) 
+      n+=ndof
+    }
+    return nil 
+  }              
+
+  set(Mesh m, Matrix x) { 
+    var mat = m.vertexmatrix() // Extract the vertex matrix and edit it directly
+    _decolumnize(x, mat.dimensions())
+    mat.assign(x)
+    _columnize(x) // Restore x to column vector form
+    return nil  
+  }
+
+  set(Field f, Matrix x) {   
+    f.__linearize().assign(x)
+    return nil
+  }
+
+  count() { // Count the total number of degrees of freedom in the problem
+    var ndof = 0
+    for (t in self.target) ndof += self.count(t)
+    return ndof 
+  }
+
+  count(Mesh m) { return m.vertexmatrix().count() }
+  count(Field f) { return f.__linearize().count() }
+
+  // Obtain energies and constraints from the problem 
+  energies() { return self.problem.energies } 
+  constraints() { return self.problem.constraints }
+  localConstraints() { return self.problem.localconstraints }
+
+  evaluateFunctional(func, method, ...args) { 
+    if (func.selection) args.append(func.selection)
+    var result = apply(method, args)
+    if (func.prefactor) result*=func.prefactor
+    return result
+  }
+
+  checkFunctionalDependency(func, Field f) {
+    var deps 
+    if (func.functional.has("field")) deps = func.functional.field 
+    if (deps==f) return true 
+    if (islist(deps) && (deps.contains(f))) return true 
+    return false 
+  }
+
+  value() { // Returns the current value of the objective function at the current parameters
+    var energy = 0
+    for (en in self.energies()) energy+=self.valueForFunctional(en)
+    return energy
+  }
+
+  valueForFunctional(func) { return self.evaluateFunctional(func, func.functional.total, self.problem.mesh) }
+
+  integrandForFunctional(func) { return self.evaluateFunctional(func, func.functional.integrand, self.problem.mesh) }
+
+  gradient() { // Returns the gradient of the objective function at the current parameters as a column vector
+    var l = []
+    for (t in self.target) {
+      var grad=0
+      for (en in self.energies()) {
+        var g = self.gradientForFunctional(en, t)
+        if (g) grad+=g
+      }
+      l.append([self.columnVector(grad)])
+    }
+    if (l.count()==1) return l[0][0]
+    return Matrix(l)
+  }
+
+  gradientForFunctional(func, Mesh m) {
+    return self.evaluateFunctional(func, func.functional.gradient, m)
+  }
+
+  gradientForFunctional(func, Field f) {
+    if (!func.functional.respondsto("fieldgradient")) return nil
+    if (!self.checkFunctionalDependency(func, f)) return nil 
+    return self.evaluateFunctional(func, func.functional.fieldgradient, f, self.problem.mesh)
+  }
+
+  hessian() { return nil }            // (Optional) Returns the hessian of the objective function at the current parameters as a matrix
+
+  countConstraints() { // Returns number of constraints present
+    return self.constraints().count() + self.localConstraints().count() 
+  } 
+
+  countEqualityConstraints() { // Returns number of equality constraints present
+    return self.countConstraints() - self.countInequalityConstraints() 
+  } 
+  
+  countInequalityConstraints() { // Returns number of inequality constraints present
+    var n=0
+    for (c in self.constraints()) if (c.has("onesided") && c.onesided) n+=1
+    for (c in self.localConstraints()) if (c.has("onesided") && c.onesided) n+=1
+    return n 
+  } 
+
+  constraintValue() {  // Returns the value(s) of any constraints 
+    var a = self.globalConstraintValue()
+    var b = self.localConstraintValue()
+    var c = self.globalConstraintValue(onesided=true)
+    var d = self.localConstraintValue(onesided=true)
+    return a.join(b).join(c).join(d)
+  }
+
+  _checkOneSided(cons, onesided) {
+    return ((onesided && cons.onesided) || (!onesided && !cons.onesided)) 
+  }
+
+  globalConstraintValue(onesided=false) {
+    var cval=[]
+    for (cons in self.constraints()) {
+      if (!self._checkOneSided(cons, onesided)) continue
+
+      var val = self.valueForFunctional(cons)
+      if (cons.has("target")) val-=cons.target
+
+      cval.append(val)
+    }
+    return cval
+  }
+
+  _reduceIntegrandWithSelection(val, sel) { // Reduces an integrand using a selection
+    var l = []
+    for (id in sel.idlistforgrade(0)) { // TODO: Handle non-point constraints
+      l.append(val[id])
+    }  
+    return Matrix(l) 
+  } 
+
+  _zeroInactiveVal(val) { // Zero out any constraints that are in the feasible region
+    for (v, k in val) if (v>0) val[k]=0
+  }
+
+  localConstraintValue(onesided=false) {
+    var cval=[]
+    for (cons in self.localConstraints()) { 
+      if (!self._checkOneSided(cons, onesided)) continue
+
+      var val = self.integrandForFunctional(cons).transpose() 
+      if (cons.has("target")) val-=cons.target
+      if (cons.onesided) self._zeroInactiveVal(val)
+      if (cons.selection) val = self._reduceIntegrandWithSelection(val, cons.selection)
+
+      cval.append(val)
+    }
+    return cval
+  }
+
+  _zeroGradient(x) {
+    return Matrix(self.count(x)) 
+  }
+
+  globalConstraintGradient(onesided=false) {
+    var cval=[]
+    for (cons in self.constraints()) {
+      if (!self._checkOneSided(cons, onesided)) continue
+
+      var l = []
+      for (t in self.target) {
+        var grad = self.gradientForFunctional(cons, t)
+
+        if (grad) l.append([self.columnVector(grad)])
+        else l.append([self._zeroGradient(t)])
+      }
+      if (l.count()==1) cval.append(l[0][0])
+      else cval.append(Matrix(l))
+    }
+    return cval
+  }
+
+  _dofPerEntry(Mesh m) {
+    return m.vertexmatrix().dimensions()[0] 
+  }
+
+  _dofPerEntry(Field f) {
+    var prototype = f[0]
+    if (isobject(prototype)) return prototype.count() 
+    return 1
+  } 
+
+  _element(Matrix m, id) {
+    return m.column(id)
+  }
+
+  _element(Field f, id) {
+    var v = f[0,id]
+    if (ismatrix(v)) return v 
+    return [v]
+  }
+
+  _assembleLocalConstraintGradient(cons, target) {
+    var grad = self.gradientForFunctional(cons, target)
+    var ndof = self._dofPerEntry(target), ncol = Int(self.count(target)/ndof)
+
+    var val
+    if (cons.onesided) val = self.integrandForFunctional(cons) // Only needed if onesided
+
+    var ids 
+    if (cons.selection) { // TODO: Handle other than point constraints
+      ids = cons.selection.idlistforgrade(0) 
+    } else ids = 0...ncol
+
+    var s = Sparse(ndof*ncol, ids.count())
+
+    if (grad) for (id, k in ids) {
+      var scale=1
+      if (cons.onesided && val[0, id]>0) scale=0
+
+      for (x, j in self._element(grad, id)) s[id*ndof+j,k]=scale*x
+    }
+
+    return s
+  }
+
+  localConstraintGradient(onesided=false) {
+    var cval=[]
+    for (cons in self.localConstraints()) {
+      if (!self._checkOneSided(cons, onesided)) continue
+      
+      var l = []
+      for (t in self.target) {
+        l.append([self._assembleLocalConstraintGradient(cons, t)])
+      }
+
+      if (l.count()==1) cval.append(l[0][0])
+      else cval.append(Matrix(l))
+    }
+
+    return cval
+  }
+
+  constraintGradient() { // Returns the gradient(s) of any constraints
+    var a = self.globalConstraintGradient()
+    var b = self.localConstraintGradient()
+    var c = self.globalConstraintGradient(onesided=true)
+    var d = self.localConstraintGradient(onesided=true)
+    return a.join(b).join(c).join(d)
+  }
+  
+  constraintHessian() { return nil }  // Returns the hessian(s) of any constraints as a list of matrices, or sublists
+}

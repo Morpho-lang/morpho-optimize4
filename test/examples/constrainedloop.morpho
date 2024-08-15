@@ -1,0 +1,30 @@
+// Test the MeshAdapter on a simple loop with inequality constraints
+
+import meshtools 
+import optimize4
+import plot 
+import "problemadapter.morpho"
+
+// Build mesh 
+var m = LineMesh(fn (u) [cos(u), sin(u)], -Pi...Pi:Pi/24, closed=true) 
+var minit = m.clone()
+
+// Set up a demo problem 
+var problem = OptimizationProblem(m)
+problem.addenergy(Length())
+problem.addenergy(EquiElement(), prefactor=0.1)
+problem.addconstraint(AreaEnclosed())
+
+var L = 0.5
+var lsupper = ScalarPotential(fn (x,y) L-y)
+var lslower = ScalarPotential(fn (x,y) y+L)
+problem.addlocalconstraint(lsupper, onesided=true)
+problem.addlocalconstraint(lslower, onesided=true)
+
+// Test the ProblemAdapter 
+var adapt = ProblemAdapter(problem, m) 
+
+var control = PenaltyController(adapt)
+control.optimize(15) 
+
+Show(plotmesh(m, grade=[0,1]))

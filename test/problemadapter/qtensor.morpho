@@ -9,7 +9,6 @@ import meshtools
 import plot
 import povray
 import optimize4
-import "problemadapter.morpho"
 
 // Define parameters that control the script options
 

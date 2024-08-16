@@ -4,7 +4,6 @@ import meshtools
 import meshgen
 import optimize4
 import plot 
-import "problemadapter.morpho"
 
 var dom = CircularDomain([0,0], 1)
 var mg = MeshGen(dom, [-1..1:0.2, -1..1:0.2], quiet=true)

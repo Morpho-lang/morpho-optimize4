@@ -3,7 +3,6 @@
 import meshtools 
 import optimize4
 import plot 
-import "problemadapter.morpho"
 
 // Build mesh 
 var m = LineMesh(fn (u) [cos(u), sin(u)], -Pi...Pi:Pi/6, closed=true) 

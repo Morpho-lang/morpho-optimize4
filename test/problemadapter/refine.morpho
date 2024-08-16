@@ -1,3 +1,4 @@
+// Ensure refinement works
 
 import meshtools
 import plot
@@ -19,4 +20,3 @@ var fnew = refdict[f]
 print problem.energies[0].functional.field == f    // expect: false 
 print problem.energies[0].functional.field == fnew // expect: true
 
-//Show(plotmesh(m, grade=[0,1]))

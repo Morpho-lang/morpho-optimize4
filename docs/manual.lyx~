@@ -1867,41 +1867,6 @@ Constrained optimization
 \end_layout
 
 \begin_layout Subsection
-ConstraintReprojectionController
-\end_layout
-
-\begin_layout Standard
-Given an infeasible starting point, this controller aims to reproject the
- OptimizationAdapter's parameters onto the feasible set by performing the
- following iterations: First, the linear system,
-\begin_inset Formula 
-\[
-\mathbf{C}^{T}\mathbf{C}\mathbf{\lambda}=\mathbf{c},
-\]
-
-\end_inset
-
-is solved to identify scale factors 
-\begin_inset Formula $\lambda$
-\end_inset
-
-.
- The updated parameters are,
-\begin_inset Formula 
-\[
-\mathbf{x}_{k+1}\leftarrow\mathbf{x}_{k}-\mathbf{C}\cdot\mathbf{\lambda},
-\]
-
-\end_inset
-
-until 
-\begin_inset Formula $\left|c\right|<\text{ctol}$
-\end_inset
-
-, at which point the parameters are in the feasible set.
-\end_layout
-
-\begin_layout Subsection
 PenaltyController
 \end_layout
 

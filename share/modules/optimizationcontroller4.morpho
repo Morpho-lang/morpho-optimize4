@@ -14,7 +14,8 @@ var _OptLnSrchDrn = Error("OptLnSrchDrn", "Linesearch encountered an upward dire
 var _OptLnSrchStpsz = Error("OptLnSrchStpsz", "Linesearch stepsize has tended to zero.")
 var _OptLnSrchZm = Error("OptLnSrchZm", "Maximum iterations exceeded in linesearch interval identification.")
 
-var _OptCons = Error("OptCons", "Method cannot handle constraints: Convert to unconstrained problem or use a different controller.")
+var _OptCons = Error("OptCons", "Method is not appropriate for constrained problems: convert to unconstrained problem or use a different controller.")
+var _OptUnCons = Error("OptUnCons", "Method not appropriate for unconstrained problems: Use a different Controller.")
 var _OptNoGrad = Error("OptNoGrad", "Method requires a gradient.")
 var _OptNoHess = Error("OptNoHess", "Method requires a hessian.")
 
@@ -151,6 +152,10 @@ class OptimizationController is DelegateAdapter {
     }
 
     self.warning(_OptMaxErr)
+  }
+
+  isConstrained() { // Checks if a problem is constrained
+    return self.adapter.countConstraints() > 0
   }
 }
 
@@ -579,6 +584,8 @@ class LBFGSController is InvBFGSController {
 class PenaltyController is OptimizationController {
   init(adapter, quiet=false, verbosity=nil, controller=nil, mu0=1, mumul=10.0) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)
+
+    if (!self.isConstrained()) _OptUnCons.throw()
 
     self.mumul = mumul // Factor to multiply penalty by at each iteration
 

@@ -19,6 +19,14 @@ Optimization test suite
     objectiveinfinite.morpho - Test situation where an objective is infinite
 
 \examples\ - Should contain example problems 
+    constrainedloop.morpho   - Constrained loop problem
+    nematic.morpho           - nematic problem 
+    oldqtensor.morpho        - qtensor problem using old optimizer.
+    oldthomson.morpho        - thomson problem using old optimizer. 
+    problemadapter.morpho    - problemadapter class???
+    qtensor.morpho           - qtensor problem using new optimizer. 
+    tactoid.morpho           - tactoid problem 
+    thomson.morpho           - thomson problem 
 
 \gradientdescent\ - Test gradient descent methods
     conjugategradient.morpho - CG on quadratic function

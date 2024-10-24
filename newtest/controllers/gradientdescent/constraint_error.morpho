@@ -1,9 +1,9 @@
 // Raise an error if an inappropriate controller is used
 
 import optimize4
-import "../../examples/constrainedquadratic.morpho"
+import "../../examples/constrainedfunction.morpho"
 
-var example = ConstrainedQuadraticExample()
+var example = ConstrainedFunctionExample()
 var adapt = example.build()
 
 var control = LineSearchController(adapt, stepsize=0.25)

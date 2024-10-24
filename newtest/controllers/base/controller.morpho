@@ -1,8 +1,8 @@
 // Test controller base class 
 import optimize4
-import "../../examples/constrainedquadratic.morpho"
+import "../../examples/constrainedfunction.morpho"
 
-var adapt = ConstrainedQuadraticExample().build() 
+var adapt = ConstrainedFunctionExample().build() 
 
 var con = OptimizationController(adapt)
 

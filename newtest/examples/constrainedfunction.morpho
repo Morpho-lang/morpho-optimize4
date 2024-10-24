@@ -1,14 +1,14 @@
-// Simple quadratic test problem with constraints
+// Simple test problem with constraints
 
 import optimize4
 
-class ConstrainedQuadraticExample {
+class ConstrainedFunctionExample {
   init() { 
   }
 
   buildAdapter() { 
     fn func(x, y, z) {
-    return x + y + z 
+      return x + y + z 
     }
 
     fn c(x, y, z) {

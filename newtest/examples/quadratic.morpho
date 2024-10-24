@@ -1,0 +1,53 @@
+// Simple base class for Optimization Examples
+
+import optimize4
+
+class Quadratic { // Class to build a quadratic function
+  init (soln, scale) {
+    self.soln = soln 
+    self.scale = scale 
+  }
+
+  func() { // Return the function
+    fn f(...x) {
+        var val = 0 
+        for (x, k in x) {
+            val+=self.scale[k]*(x - self.soln[k])^2
+        }
+        return val 
+    }
+
+    return f
+  }
+}
+
+class QuadraticExample {
+  init(zero=nil, scales=nil) {
+    self.zero=nil
+    if (!self.zero) self.zero = [1.3, -0.5, 0.9, 1.2, 5]
+
+    self.scales=nil
+    if (!self.scales) self.scales = [1,5,0.1,3,0.1]
+
+    self.func=nil 
+  }
+
+  buildQuadratic() { 
+    self.func = Quadratic(self.zero, self.scales).func() 
+    return self.func 
+  }
+
+  buildAdapter() { 
+    self.adapter = FunctionAdapter(self.func, start=Matrix(self.zero.count()))
+    return self.adapter
+  }
+
+  build() { // Setup the problem and return an Adapter
+    self.buildQuadratic()
+    return self.buildAdapter()
+  }
+
+  check() { 
+    return (self.adapter.get() - Matrix(self.zero)).norm()
+  }
+}

@@ -1,0 +1,12 @@
+// Test BFGS on a poorly scaled quadratic
+
+import optimize4
+import "../examples/quadratic.morpho"
+
+var example = QuadraticExample()
+var adapt = example.build()
+
+var control = BFGSController(adapt)
+control.optimize(100)
+
+print example.check() 

@@ -1,0 +1,13 @@
+// Test Newton's method on a poorly scaled quadratic
+
+import optimize4
+import "../../examples/quadratic.morpho"
+
+var example = QuadraticExample()
+var adapt = example.build()
+
+var control = NewtonController(adapt, linesearch=LineSearchController)
+control.optimize(100)
+
+print example.check() 
+

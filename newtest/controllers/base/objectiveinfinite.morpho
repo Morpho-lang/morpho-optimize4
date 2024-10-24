@@ -1,5 +1,5 @@
 // Infinite objective function
-import optimize3
+import optimize4
 
 fn func(x, y, z) {
     return x + y + 1/z 

@@ -1,19 +1,8 @@
 // Test controller base class 
 import optimize4
+import "../../examples/constrainedquadratic.morpho"
 
-fn func(x, y, z) {
-    return x + y + z 
-}
-
-fn c(x, y, z) {
-    return x + z - 1
-}
-
-fn d(x, y, z) {
-    return 1 - (x^2 + y^2 + z^2)
-}
-
-var adapt = FunctionAdapter(func, start=Matrix([0, 0, 0]), constraints=[c, d], equalitycount=1)
+var adapt = ConstrainedQuadraticExample().build() 
 
 var con = OptimizationController(adapt)
 

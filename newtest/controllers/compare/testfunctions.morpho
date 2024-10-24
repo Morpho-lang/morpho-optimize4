@@ -1,7 +1,7 @@
 // Suite of test functions
 // See: https://en.wikipedia.org/wiki/Test_functions_for_optimization
 
-import meshtools 
+import constants 
 import optimize4
 
 fn sphere(...x) {

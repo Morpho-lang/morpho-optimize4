@@ -1,0 +1,33 @@
+// Simple quadratic test problem with constraints
+
+import optimize4
+
+class ConstrainedQuadraticExample {
+  init() { 
+  }
+
+  buildAdapter() { 
+    fn func(x, y, z) {
+    return x + y + z 
+    }
+
+    fn c(x, y, z) {
+        return x + z - 1
+    }
+
+    fn d(x, y, z) {
+        return 1 - (x^2 + y^2 + z^2)
+    }
+
+    self.adapter = FunctionAdapter(func, start=Matrix([0, 0, 0]), constraints=[c, d], equalitycount=1)
+    return self.adapter
+  }
+
+  build() { // Setup the problem and return an Adapter
+    return self.buildAdapter()
+  }
+
+  check() { 
+    return (self.adapter.get() - Matrix(self.zero)).norm()
+  }
+}

@@ -1,0 +1,13 @@
+// Direct descent on a quadratic
+import optimize4
+
+import "../../examples/quadratic.morpho"
+
+var example = QuadraticExample(zero=[0.5,1], scales=[1,1])
+var adapt = example.build()
+
+var control = GradientDescentController(adapt, stepsize=0.25)
+
+control.optimize(1000)
+
+print adapt.get()

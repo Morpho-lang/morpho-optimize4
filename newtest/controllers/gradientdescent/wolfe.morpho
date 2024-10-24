@@ -1,0 +1,16 @@
+// Test the WolfeLineSearchController on a quadratic
+import optimize4
+
+import "../../examples/quadratic.morpho"
+
+var example = QuadraticExample(zero=[0.5,1,4], scales=[1,1,0.25])
+var adapt = example.build()
+
+adapt.set(Matrix([20,3.1,0]))
+
+var control = WolfeLineSearchController(adapt, verbosity="normal")
+
+control.optimize(100)
+
+print example.check() < 1e-3
+

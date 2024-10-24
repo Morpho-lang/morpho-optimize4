@@ -1,0 +1,10 @@
+// Raise an error if an inappropriate controller is used
+
+import optimize4
+import "../../examples/constrainedquadratic.morpho"
+
+var example = ConstrainedQuadraticExample()
+var adapt = example.build()
+
+var control = LineSearchController(adapt, stepsize=0.25)
+// expect error 'OptCons'

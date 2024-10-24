@@ -23,10 +23,10 @@ class Quadratic { // Class to build a quadratic function
 
 class QuadraticExample {
   init(zero=nil, scales=nil) {
-    self.zero=nil
+    self.zero=zero
     if (!self.zero) self.zero = [1.3, -0.5, 0.9, 1.2, 5]
 
-    self.scales=nil
+    self.scales=scales
     if (!self.scales) self.scales = [1,5,0.1,3,0.1]
 
     self.func=nil 

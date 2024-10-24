@@ -1,0 +1,10 @@
+
+import "../examples/thomson.morpho"
+
+var example = Thomson()
+var adapt = example.build()
+
+var control = PenaltyController(adapt)
+control.optimize(20) 
+
+example.visualize() 

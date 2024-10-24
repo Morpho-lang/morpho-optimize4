@@ -1,0 +1,43 @@
+// Simple loop problem: minimize length of a loop s.t. fixed area
+
+import meshtools 
+import optimize4
+import plot 
+
+class Loop {
+  init(Np=20) {
+    self.Np = Np
+    self.mesh = nil 
+    self.problem = nil 
+  }
+
+  initialMesh() { 
+    self.mesh = LineMesh(fn (t) [2*cos(t),sin(t)], -Pi...Pi:Pi/self.Np, closed=true)
+  }
+
+  buildProblem() { 
+    self.problem = OptimizationProblem(self.mesh)
+
+    var ll = Length() 
+    self.problem.addenergy(ll)
+
+    var la = AreaEnclosed() 
+    self.problem.addconstraint(la)
+    return self.problem
+  }
+
+  buildAdapter() { 
+    self.adapter = ProblemAdapter(self.problem, self.mesh)
+    return self.adapter
+  }
+
+  build() { // Setup the problem and return an Adapter
+    self.initialMesh()
+    self.buildProblem()
+    return self.buildAdapter()
+  }
+
+  visualize() {
+    Show(plotmesh(self.mesh))
+  }
+}

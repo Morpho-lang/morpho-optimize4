@@ -1,0 +1,10 @@
+
+import "../examples/loop.morpho"
+
+var example = Loop()
+var adapt = example.build()
+
+var control = PenaltyController(adapt)
+control.optimize(20) 
+
+example.visualize() 

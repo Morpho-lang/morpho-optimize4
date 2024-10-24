@@ -1,0 +1,25 @@
+// Simple base class for Optimization Examples
+
+class OptimizationExample {
+  init() {
+    self.mesh = nil 
+    self.problem = nil 
+  }
+
+  initialMesh() { }
+
+  initialField() { }
+
+  buildProblem() { }
+
+  buildAdapter() { }
+
+  build() { // Setup the problem and return an Adapter
+    self.initialMesh()
+    self.initialField()
+    self.buildProblem()
+    return self.buildAdapter()
+  }
+
+  visualize() { }
+}

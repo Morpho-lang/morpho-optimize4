@@ -1,0 +1,57 @@
+// Classic Thomson problem for charges on a sphere
+
+import meshtools
+import optimize4
+import functionals
+import graphics 
+
+class Thomson {
+  init(Np=100) {
+    self.Np = Np // Numbe r of particles
+  }
+
+  initialMesh() {
+    var build = MeshBuilder()
+    for (i in 1..self.Np) {
+      var x = Matrix([2*random()-1, 2*random()-1, 2*random()-1])
+      x/=x.norm() // Project onto unit sphere
+      build.addvertex(x)
+    }
+    self.mesh = build.build() // Tell the MeshBuilder to build the mesh
+    return self.mesh 
+  }
+
+  buildProblem() {
+    self.problem = OptimizationProblem(self.mesh)
+    
+    // The particles repel one another by a Coulomb potential.
+    // We supply the potential and it's derivative wrt r as anonymous functions.
+    var lv = PairwisePotential(fn (r) 1/r, fn (r) -1/r^2)
+    self.problem.addenergy(lv)
+
+    // Constrain the particles on the unit sphere via a level set constraint.
+    // The level set function and its gradient are supplied as anonymous functions.
+    var lsph = ScalarPotential(fn (x,y,z) x^2+y^2+z^2-1, fn (x,y,z) Matrix([2*x, 2*y, 2*z]))
+    self.problem.addlocalconstraint(lsph)
+    return self.problem 
+  }
+
+  buildAdapter() { 
+    self.adapter = ProblemAdapter(self.problem, self.mesh)
+    return self.adapter 
+  }
+
+  build() { // Setup the problem and return an Adapter
+    self.initialMesh()
+    self.buildProblem()
+    return self.buildAdapter()
+  }
+
+  visualize() {
+    var g = Graphics()
+    for (i in 0...self.mesh.count()) {
+      g.display(Sphere(self.mesh.vertexposition(i),1/sqrt(self.Np)))
+    }
+    Show(g) 
+  }
+}

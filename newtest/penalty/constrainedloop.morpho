@@ -1,0 +1,10 @@
+
+import "../examples/constrainedloop.morpho"
+
+var example = ConstrainedLoop()
+var adapt = example.build()
+
+var control = PenaltyController(adapt)
+control.optimize(20) 
+
+example.visualize() 

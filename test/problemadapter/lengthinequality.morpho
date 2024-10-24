@@ -283,8 +283,20 @@ class XProblemAdapter is OptimizationAdapter {
   }
 
   _assembleLocalConstraintGradient(cons, target) {
+    print "---"
+    // Determine size of constraint gradient matrix 
+    var grade = cons.functional.grade
+    var nel = self.count
+    print cons.selection.idlistfor
+
+
+    print "---"
+    print cons.has()
     var grad = self.gradientForFunctional(cons, target)
     var ndof = self._dofPerEntry(target), ncol = Int(self.count(target)/ndof)
+
+    print self.count(target)
+    @
 
     var val
     if (cons.onesided) val = self.integrandForFunctional(cons) // Only needed if onesided

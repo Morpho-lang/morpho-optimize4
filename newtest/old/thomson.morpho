@@ -1,0 +1,20 @@
+
+import "../examples/thomson.morpho" for Thomson
+import optimize
+
+var example = Thomson()
+example.build() 
+
+// Set up the optimizer to optimize this problem wrt the mesh vertex positions.
+var opt = ShapeOptimizer(example.problem, example.mesh)
+
+// Choose a stepsize
+opt.stepsize=0.01/sqrt(example.Np)
+
+// Do a few iterations at fixed stepsize to move away from the initally random
+// condition. [This helps condition the problem]
+opt.relax(5)
+// Now perform gradient descent
+opt.conjugategradient(1000) // Perform up to 1000 iterations of direct gradient descent
+
+example.visualize()

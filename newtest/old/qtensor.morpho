@@ -1,0 +1,16 @@
+// Old optimizer on QTensor example
+
+import optimize
+import "../examples/qtensor.morpho" for QTensor
+
+var example = QTensor()
+example.build()
+
+for (i in 1..2) {
+    if (i>1) example.refine(adaptive=false)
+
+    var opt = FieldOptimizer(example.problem, example.q_tensor)
+    opt.conjugategradient(500)
+}
+
+example.visualize()

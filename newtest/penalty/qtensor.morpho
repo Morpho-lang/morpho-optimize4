@@ -1,0 +1,16 @@
+// Test penalty method on Q tensor problem
+
+import optimize4
+
+import "../examples/qtensor.morpho"
+
+var example = QTensor()
+var adapt = example.build()
+
+for (i in 1..2) {
+    if (i>1) adapt = example.refine(adaptive=false)
+    var control = LBFGSController(adapt)
+    control.optimize(500) 
+}
+
+example.visualize()

@@ -8,11 +8,11 @@ class ConstrainedFunctionExample {
 
   buildAdapter() { 
     fn func(x, y, z) {
-      return x + y + z 
+      return (x+2)^2 + 0.5*(y-2)^2 + 2*(z-2)^2
     }
 
     fn c(x, y, z) {
-        return x + z - 1
+        return x + y - 1
     }
 
     fn d(x, y, z) {
@@ -28,6 +28,7 @@ class ConstrainedFunctionExample {
   }
 
   check() { 
-    return (self.adapter.get() - Matrix(self.zero)).norm()
+    var soln = Matrix([0.21288038164309642, 0.7871196183569036, 0.5788995158999289])
+    return (self.adapter.get() - soln).norm()
   }
 }

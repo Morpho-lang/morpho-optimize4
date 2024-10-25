@@ -1,0 +1,13 @@
+// Test PenaltyAdapter
+
+import optimize4
+
+import "../examples/constrainedfunction.morpho"
+
+var example = ConstrainedFunctionExample()
+var adapt = example.build()
+
+var padapt = PenaltyAdapter(adapt, penalty=1)
+
+print padapt.value()
+// expect: 15 

@@ -1,0 +1,70 @@
+// Test the MeshAdapter on a nematic in a circular disk
+
+import meshtools 
+import meshgen
+import optimize4
+import plot 
+
+fn visualize(n) { // Visualize a director field
+    var g = Graphics()
+    var m = n.mesh() 
+    var ll = Length().total(m)/m.count(1)/2
+    print ll 
+    for (id in 0...m.count()) {
+        var x = m.vertexposition(id)
+        g.display(Cylinder(x-ll*n[0,id],x+ll*n[0,id],aspectratio=0.2,color=White))
+    }
+    return g 
+}
+
+class Nematic {
+  init() {
+    self.mesh = nil 
+    self.problem = nil 
+  }
+
+  initialMesh() { 
+    var dom = CircularDomain([0,0], 1)
+    var mg = MeshGen(dom, [-1..1:0.2, -1..1:0.2], quiet=true)
+    var m = mg.build()
+    m.addgrade(1)
+    self.mesh = ChangeMeshDimension(m, 3)
+  }
+
+  initialField() { 
+    self.n = Field(self.mesh, Matrix([1,0,0]))
+  }
+
+  buildProblem() { 
+    var bnd = Selection(self.mesh, boundary=true)
+    
+    self.problem = OptimizationProblem(self.mesh)
+
+    var ln = Nematic(self.n)
+    self.problem.addenergy(ln)
+
+    var la = LineIntegral(fn (x, n) (tangent().inner(n))^2, self.n)
+    self.problem.addenergy(la, selection=bnd, prefactor=-1)
+
+    var cn = NormSq(self.n)
+    self.problem.addlocalconstraint(cn, target=1)
+    return self.problem
+  }
+
+  buildAdapter() {     
+    self.adapter = ProblemAdapter(self.problem, self.n) 
+    return self.adapter
+  }
+
+  build() { // Setup the problem and return an Adapter
+    self.initialMesh()
+    self.initialField()
+    self.buildProblem()
+    return self.buildAdapter()
+  }
+
+  visualize() { 
+    Show(plotmesh(self.mesh, grade=1)+visualize(self.n))
+  }
+}
+

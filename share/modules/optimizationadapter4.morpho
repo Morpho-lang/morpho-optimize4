@@ -129,6 +129,8 @@ class ProxyAdapter is DelegateAdapter {
   gradient() { return self._compute("_gradient", self.adapter.gradient, 1) }
   hessian() { return self._compute("_hessian", self.adapter.hessian, 2) }
 
+  directionalDerivative(d) { return self.adapter.directionalDerivative(d) }
+
   constraintValue() { return self._compute("_constraintValue", self.adapter.constraintValue, 3) }
   constraintGradient() { return self._compute("_constraintGradient", self.adapter.constraintGradient, 4) }
   constraintHessian() { return self._compute("_constraintHessian", self.adapter.constraintHessian, 4) }

@@ -7,14 +7,6 @@ var adapter = ConstrainedFunctionExample().build()
 adapter.set(Matrix([0,-0.4]))
 
 var padapt = L1PenaltyAdapter(adapter, penalty=10) 
+print padapt.value() // expect: 3.6
 
-var control = DirectedLineSearchController(padapt, direction=Matrix([0,1]))
-
-print "--"
-print adapter.value() 
-print padapt.value() 
-print padapt.get() 
-control.optimize(1)
-print adapter.value() 
-print padapt.value() 
-print padapt.get() 
+print padapt.directionalDerivative(Matrix([0,1])) // expect: -3

@@ -16,6 +16,8 @@ var _OptTrgtLstEmptyErr = Error("OptTrgtLstEmpty", "List of optimization targets
 var _OptNoPrblmErr = Error("OptNoPrblm", "ProblemAdapter must be initialized with an OptimizationProblem.")
 var _OptPrblmTrgtErr = Error("OptPrblmTrgt", "ProblemAdapter must be initialized with Meshes or Fields as targets.")
 
+var _OptNonDiffErr = Error("OptNonDiff", "Objective function is nondifferentiable; use a Controller that avoids differentiation.")
+
 /* -------------------------
  * Utility Functions
  * ------------------------- */
@@ -410,6 +412,38 @@ class PenaltyAdapter is OptimizationAdapter {
     }
 
     return hess
+  }
+}
+
+/* -------------------------
+ * L1PenaltyAdapter
+ * ------------------------- */
+
+/* Converts a constrained optimization problem into an unconstrained one 
+   using an L1 norm: 
+      F = f + mu*|c| + mu*|d-| 
+   The resulting function is nondifferentiable, but does admit a 
+   directional derivative. 
+   Commonly used as a merit function. */
+
+class L1PenaltyAdapter is PenaltyAdapter {
+  value() { // F = f + mu*|c| + mu*|d-|
+    var f = self.adapter.value() 
+    var c = self.constraintVector()  
+
+    if (c) f += self.penalty * c.norm(1)
+
+    return f
+  }
+
+  gradient() { _OptNonDiffErr.throw() }
+  hessian() { _OptNonDiffErr.throw() }
+
+  directionalDerivative(d) {
+    var df = self.adapter.gradient() 
+    var c = self.constraintVector()
+
+    return df.inner(d) - self.penalty*c.norm(1)
   }
 }
 

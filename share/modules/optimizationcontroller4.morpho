@@ -253,6 +253,32 @@ class LineSearchController is GradientDescentController {
 }
 
 /* -----------------------------------------
+ * DirectedLineSearchController
+ * 
+ * Armijo linesearches in a specified direction
+ * ----------------------------------------- */ 
+
+class DirectedLineSearchController is LineSearchController {
+  init(adapter, quiet=false, verbosity=nil, stepsize=0.1, alpha=0.2, beta=0.5, direction=nil) {
+    super.init(adapter, quiet=quiet, verbosity=verbosity, stepsize=stepsize, alpha=alpha, beta=beta)
+    if (direction) self.setDirection(direction)  
+  }
+  
+  expectedDescent() { // Predict expected descent
+    var d = self.direction()
+    self.df = self.adapter.directionalDerivative(d) 
+    if (self.df>0) self.warning(_OptLnSrchDrn)
+  }
+
+  hasConverged() { return false } // Prevent evaluation of gradient
+
+  optimize(n) { // Should only ever perform one step
+    self.step()
+    self.record()
+  }
+}
+
+/* -----------------------------------------
  * WolfeLineSearchController
  * 
  * Linesearches that satisfy strong Wolfe 

@@ -112,29 +112,14 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
 
 adapter.set(Matrix([0.2,-1]))
 
-/* This class */
-class UnconstrainedDelegateAdapter is OptimizationAdapter {
-  init(adapter) {
-    self.adapter = adapter
-  }
-
-  set(x) { self.adapter.set(x) }
-  get() { return self.adapter.get() }
-
-  value() { return self.adapter.value() }
-  gradient() { return self.adapter.gradient() }
-  hessian() { return self.adapter.hessian() }
-}
-
 class SQPController is OptimizationController {
   gradient() {
     return self.ladapter.gradient()
   }
 
   start() {
-    self.udapter = UnconstrainedDelegateAdapter(self.adapter)
     self.ladapter = LagrangeMultiplierAdapter(self.adapter)
-    self.lbfgs = LBFGSController(self.udapter)
+    self.lbfgs = LBFGSController(self.ladapter)
     self.lbfgs.start() 
   }
 

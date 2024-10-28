@@ -3,7 +3,8 @@
 
 import optimize4 
 //import "../examples/loop.morpho" for Loop
-//var adapter = Loop().build() 
+//var example = Loop()
+//var adapter = example.build() 
 
 var _OptUnConsErr = Error("OpUncons", "Problem is unconstrained; this adapter is intended for constrained problems.")
 
@@ -192,6 +193,7 @@ class SQPController is OptimizationController {
 }
 
 var control = SQPController(adapter)
-control.optimize(20)
+control.optimize(100)
 
 print control.ladapter.get()
+//example.visualize()

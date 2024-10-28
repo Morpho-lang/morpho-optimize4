@@ -1,0 +1,31 @@
+// Example of a function with one equality constraint
+// from Nocedal and Wright Example 12.1
+
+import optimize4
+
+class ConstrainedFunctionExample {
+  init() { 
+  }
+
+  buildAdapter() { 
+    fn func(x, y) {
+      return x^2 + y + x*y
+    }
+
+    fn c(x, y) {
+        return 2 - x^2 - y^2 
+    }
+
+    self.adapter = FunctionAdapter(func, start=Matrix([0, 0]), constraints=[c], equalitycount=1)
+    return self.adapter
+  }
+
+  build() { // Setup the problem and return an Adapter
+    return self.buildAdapter()
+  }
+
+  check() { 
+    var soln = Matrix([0,0])
+    return (self.adapter.get() - soln).norm()
+  }
+}

@@ -1,0 +1,20 @@
+// SQP method
+
+import optimize4 
+import "../examples/loop.morpho" for Loop
+
+var adapter = Loop().build() 
+
+
+
+class SQPController is OptimizationController {
+  start() { }           // Initialization at the beginning of an optimization
+  begin() { }           // Calculate initial information for the iteration
+  step() { }            // Perform optimization step 
+  next() { }            // Calculate updated information
+}
+
+var control = SQPController(adapter)
+
+control.optimize(1)
+

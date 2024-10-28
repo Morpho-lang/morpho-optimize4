@@ -1,0 +1,123 @@
+// Lagrange multiplier adapter
+
+import optimize4 
+//import "../examples/loop.morpho" for Loop
+//var adapter = Loop().build() 
+
+var _OptUnConsErr = Error("OpUncons", "Problem is unconstrained; this adapter is intended for constrained problems.")
+
+import "../examples/singleequalityconstraint.morpho" for ConstrainedFunctionExample
+var adapter = ConstrainedFunctionExample().build()
+
+class LagrangeMultiplierAdapter is OptimizationAdapter {
+  init(adapter) { 
+    self.adapter = adapter
+    var n = self.constraintVector().count() 
+    self.lambda = Matrix(n)
+  }
+
+  set(x) { // Get parameters, stripping off lagrange multipliers
+    var n = x.count()
+    var nvars = self.adapter.get().count()
+    self.adapter.set(x[0...nvars,0])
+    self.lambda = x[nvars...n,0] // Store lagrange multipliers on this adapter
+  }
+
+  get() { // Get parameters, joining real parameters with lagrange multipliers
+    var x = self.adapter.get()
+    return Matrix([[x], [self.lambda]]) 
+  }
+
+  _counteq(cv) { // Counts the number of equality constraints
+    var nc = self.adapter.countEqualityConstraints()
+    var neq = 0
+    for (c, k in cv) {
+      if (k>=nc) break
+      if (ismatrix(c)) neq+=c.count()
+      else neq+=1
+    }  
+    return neq
+  }
+
+  _flatten(v) {
+    var l = []
+    for (c in v) {
+      if (ismatrix(c)) for (x in c) l.append(x)
+      else l.append(c)
+    }
+    return Matrix(l)
+  } 
+
+  _checkineq(c, neq) {
+    for (k in neq...c.count()) {
+      if (c[k]>0) c[k]=0
+    }
+  }
+
+  constraintVector() {
+    var cv = self.adapter.constraintValue()
+
+    if (!cv) _OptUnConsErr.warning()
+
+    var v = self._flatten(cv)
+    var neq = self._counteq(cv)
+    self._checkineq(v, neq)
+
+    return v 
+  }
+
+  setLagrangeMultipliers(lambda) {
+    self.lambda = lambda
+  }
+
+  lagrangeMultipliers() {
+    return self.lambda 
+  }
+
+  value() { // Lagrangian function = f - lambda_i c_i
+    var f = self.adapter.value() 
+    var c = self.constraintVector()
+
+    return f - self.lambda.inner(c)  
+  }
+
+  varGradient() { // Gradient of lagrangian wrt original degrees of freedom
+    var grad = self.adapter.gradient()
+    var cgrad = self.adapter.constraintGradient()
+
+    for (cg,k in cgrad) grad -= self.lambda[k]*cg
+
+    return grad 
+  }
+
+  gradient() { // Gradient of Lagrangian is [ df + lambda_i dc_i , c_i] 
+    var c = self.constraintVector()
+
+    return Matrix([[self.varGradient()],[c]]) 
+  } 
+
+  hessian() { // Hessian of Lagrangian is the kkt matrix 
+    var h = self.adapter.hessian()    
+
+    var chess = self.adapter.constraintHessian() 
+    for (ch,k in chess) h -= self.lambda[k]*ch
+
+    var cg = self.adapter.constraintGradient()
+    var C = Matrix([cg])
+
+    return Matrix([[h, -C],[C.transpose(), 0]])
+  }
+}
+
+adapter.set(Matrix([0.2,-1]))
+
+var ladapter = LagrangeMultiplierAdapter(adapter) 
+var padapter = L1PenaltyAdapter(adapter)
+var ls = DirectedLineSearchController(padapter)
+
+print adapter.get()
+
+var opt = NewtonController(ladapter, linesearch=ls) 
+opt.optimize(10)
+
+print ladapter.get()

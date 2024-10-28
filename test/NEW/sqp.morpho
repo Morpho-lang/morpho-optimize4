@@ -192,6 +192,12 @@ class SQPController is OptimizationController {
   }
 }
 
+// Note that I think we are only estimating the hessian of the obj. function 
+// in the above, not the hessian of the Lagrangian. 
+// Change: 
+// l129: self._ogradient = self.ladapter.varGradient()
+// l190: var yk = self.ladapter.varGradient() - self._ogradient
+
 var control = SQPController(adapter)
 control.optimize(100)
 

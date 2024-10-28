@@ -2029,7 +2029,7 @@ To solve these, we iterate using the Newton-KKT system,
 \[
 \left(\begin{array}{cc}
 \nabla_{xx}\mathcal{L} & -C\\
-C & 0
+C^{T} & 0
 \end{array}\right)\left(\begin{array}{c}
 p_{x}\\
 p_{\lambda}
@@ -2058,50 +2058,134 @@ where
 \end_inset
 
  respectively.
- By subtracting 
-\begin_inset Formula $\lambda^{T}C$
+ We replace the hessian of the Lagrangian with its quasinewton approximant
+ 
+\begin_inset Formula $\mathcal{H}$
 \end_inset
 
- from both sides of the Newton-KKT system, we can obtain a related system
+,
 \begin_inset Formula 
 \[
 \left(\begin{array}{cc}
-\nabla_{xx}\mathcal{L} & -C\\
-C & 0
+\mathcal{H} & -C\\
+C^{T} & 0
 \end{array}\right)\left(\begin{array}{c}
 p_{x}\\
-\lambda_{k+1}
+p_{\lambda}
 \end{array}\right)=\left(\begin{array}{c}
--\nabla f\\
+-\nabla f+\lambda^{T}C\\
 -c
 \end{array}\right).
 \]
 
 \end_inset
 
-We now approximate the hessian of the Lagrangian using a quasinewton approximant
+Let 
+\begin_inset Formula $g=\nabla_{x}\mathcal{L}=\nabla f-\lambda^{T}C$
+\end_inset
+
 , 
 \begin_inset Formula 
 \[
 \left(\begin{array}{cc}
-B_{k} & -C\\
-C & 0
+\mathcal{H} & -C\\
+C^{T} & 0
 \end{array}\right)\left(\begin{array}{c}
 p_{x}\\
-\lambda_{k+1}
-\end{array}\right)=\left(\begin{array}{c}
--\nabla f\\
--c
-\end{array}\right),
+p_{\lambda}
+\end{array}\right)=-\left(\begin{array}{c}
+g\\
+c
+\end{array}\right).
 \]
 
 \end_inset
 
-where 
-\begin_inset Formula $B_{k}$
+We can now the Schur complement of the upper left block.
+ Consider a linear system in the form, 
+\begin_inset Formula 
+\[
+\left(\begin{array}{cc}
+A & B\\
+C & D
+\end{array}\right)\left(\begin{array}{c}
+x\\
+y
+\end{array}\right)=\left(\begin{array}{c}
+u\\
+v
+\end{array}\right).
+\]
+
 \end_inset
 
- is to be updated via 
+Then the Schur complement of the matrix wrt the upper left hand block is
+ 
+\begin_inset Formula $S=D-CA^{-1}B$
+\end_inset
+
+, and the solution to the system is,
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\left(\begin{array}{c}
+x\\
+y
+\end{array}\right)=\left(\begin{array}{cc}
+A^{-1}+A^{-1}BS^{-1}CA^{-1} & -A^{-1}BS^{-1}\\
+-S^{-1}CA^{-1} & S^{-1}
+\end{array}\right)\left(\begin{array}{c}
+u\\
+v
+\end{array}\right).
+\]
+
+\end_inset
+
+Substituting 
+\begin_inset Formula $A\to\mathcal{H}$
+\end_inset
+
+, 
+\begin_inset Formula $B\to-C$
+\end_inset
+
+, 
+\begin_inset Formula $C\to C^{T}$
+\end_inset
+
+, 
+\begin_inset Formula $D\to0$
+\end_inset
+
+ yields,
+\begin_inset Formula 
+\[
+S=C^{T}\mathcal{H}^{-1}C,
+\]
+
+\end_inset
+
+and the solution to the system is, 
+\begin_inset Formula 
+\[
+\left(\begin{array}{c}
+p_{x}\\
+p_{\lambda}
+\end{array}\right)=-\left(\begin{array}{cc}
+\mathcal{H}^{-1}-\mathcal{H}^{-1}CS^{-1}C^{T}\mathcal{H}^{-1} & \mathcal{H}^{-1}CS^{-1}\\
+-S^{-1}C^{T}\mathcal{H}^{-1} & S^{-1}
+\end{array}\right)\left(\begin{array}{c}
+g\\
+c
+\end{array}\right).
+\]
+
+\end_inset
+
+
 \end_layout
 
 \end_body

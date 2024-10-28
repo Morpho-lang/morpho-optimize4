@@ -144,24 +144,27 @@ class SQPController is OptimizationController {
   }
 
   solve() {
+    // Evaluate all elements of the KKT matrix
     var g = self.ladapter.varGradient() 
     var c = self.ladapter.constraintVector()
     var cg = self.adapter.constraintGradient()
     var C = Matrix([cg])
-
     var Ct = C.transpose()
 
-    var Hg = self.lbfgs._hmul(g)
+    // Form the Schur complement
     var HC = self.lbfgs._hmul(C)
+    var S = Ct*HC 
 
-    var S = -Ct*HC
+    // Apply the formula to invert the KKT system
+    var Hg = self.lbfgs._hmul(g)
+
     var Sinvc = c/S
     var SinvCt = (Ct*Hg)/S
 
     var HCSinvCt = self.lbfgs._hmul(C*SinvCt)
     var HCCSc = self.lbfgs._hmul(C*Sinvc)
 
-    return -Matrix([ [Hg + HCSinvCt - HCCSc],
+    return -Matrix([ [Hg - HCSinvCt + HCCSc],
                      [- SinvCt + Sinvc] ])
   }
 
@@ -195,7 +198,7 @@ class SQPController is OptimizationController {
   reportstepsize() { return "stepsize=${self.stepsize}" }
 
   next() {
-    // Crucially, yk = grad L(x+alpha d, lambda k+1)-grad L(x, lambda k+1)
+    // Note that we choose yk = grad L(x+alpha d, lambda k+1)-grad L(x, lambda k+1)
     // i.e. holding lambda constant
     var sk = self.get() - self._ox
     var yk = self.adapter.gradient() - self._ogradient

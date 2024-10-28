@@ -392,7 +392,7 @@ as well as the
  matrix of the gradients of constraints, 
 \begin_inset Formula 
 \[
-\mathbf{C}=C_{ij}=\frac{\partial c_{j}}{\partial x_{i}},\ \mathbf{D}=D_{ij}=\frac{\partial d_{j}}{\partial x_{i}}
+\mathbf{C}=C_{ij}=\frac{\partial c_{j}}{\partial x_{i}},\ \mathbf{D}=D_{ij}=\frac{\partial d_{j}}{\partial x_{i}}.
 \]
 
 \end_inset
@@ -889,6 +889,56 @@ noprefix "false"
 \end_inset
 
 .
+\end_layout
+
+\begin_layout Subsection
+LagrangeMultiplierAdapter
+\end_layout
+
+\begin_layout Standard
+A LagrangeMultiplierMultiplier converts the general constrained problem
+ 
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:Problem"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ into an unconstrained problem using the Lagrangian function,
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+\mathcal{L}=f(\mathbf{x})-\mathbf{\lambda}_{c}\cdot\mathbf{c}-\mathbf{\lambda}_{d}\cdot\mathbf{d},\label{eq:Penalty-1}
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\lambda_{c}$
+\end_inset
+
+ and 
+\begin_inset Formula $\lambda_{d}$
+\end_inset
+
+ are vectors of lagrange multipliers respectively; entries of 
+\begin_inset Formula $\lambda_{d}$
+\end_inset
+
+ are zero if the relevant constraint is not active.
+ This adapter is used to facilitate various algorithms including SQP.
+\end_layout
+
+\begin_layout Standard
+LagrangeMultiplierMultipliers provide a special method, varGradient(), that
+ returns the gradient of the Lagrangian function with respect to the original
+ problem parameters only.
+ 
 \end_layout
 
 \begin_layout Chapter
@@ -1950,6 +2000,108 @@ controller
 
 .
  
+\end_layout
+
+\begin_layout Subsection
+SQPController
+\end_layout
+
+\begin_layout Standard
+Successive Quadratic Programming solves a nonlinear constrained problem
+ by solving a sequence of quadratic models of the true problem.
+ We begin with the Lagrangian function, 
+\begin_inset Formula $\mathcal{L}=f-\lambda^{T}c$
+\end_inset
+
+, and note that the first order KKT conditions are,
+\begin_inset Formula 
+\[
+\left(\begin{array}{c}
+\nabla f-\lambda^{T}C\\
+c
+\end{array}\right)=0.
+\]
+
+\end_inset
+
+To solve these, we iterate using the Newton-KKT system,
+\begin_inset Formula 
+\[
+\left(\begin{array}{cc}
+\nabla_{xx}\mathcal{L} & -C\\
+C & 0
+\end{array}\right)\left(\begin{array}{c}
+p_{x}\\
+p_{\lambda}
+\end{array}\right)=\left(\begin{array}{c}
+-\nabla f+\lambda^{T}C\\
+-c
+\end{array}\right)
+\]
+
+\end_inset
+
+where 
+\begin_inset Formula $p_{x}$
+\end_inset
+
+ and 
+\begin_inset Formula $p_{\lambda}$
+\end_inset
+
+ are the Newton updates for 
+\begin_inset Formula $x$
+\end_inset
+
+ and 
+\begin_inset Formula $\lambda$
+\end_inset
+
+ respectively.
+ By subtracting 
+\begin_inset Formula $\lambda^{T}C$
+\end_inset
+
+ from both sides of the Newton-KKT system, we can obtain a related system
+\begin_inset Formula 
+\[
+\left(\begin{array}{cc}
+\nabla_{xx}\mathcal{L} & -C\\
+C & 0
+\end{array}\right)\left(\begin{array}{c}
+p_{x}\\
+\lambda_{k+1}
+\end{array}\right)=\left(\begin{array}{c}
+-\nabla f\\
+-c
+\end{array}\right).
+\]
+
+\end_inset
+
+We now approximate the hessian of the Lagrangian using a quasinewton approximant
+, 
+\begin_inset Formula 
+\[
+\left(\begin{array}{cc}
+B_{k} & -C\\
+C & 0
+\end{array}\right)\left(\begin{array}{c}
+p_{x}\\
+\lambda_{k+1}
+\end{array}\right)=\left(\begin{array}{c}
+-\nabla f\\
+-c
+\end{array}\right),
+\]
+
+\end_inset
+
+where 
+\begin_inset Formula $B_{k}$
+\end_inset
+
+ is to be updated via 
 \end_layout
 
 \end_body

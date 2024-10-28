@@ -489,16 +489,20 @@ class BFGSController is NewtonController {
     self._ogradient = self.gradient() 
   }
 
-  next() {
-    var sk = self.get() - self._ox
-    var yk = self.gradient() - self._ogradient
-
+  update(sk, yk) {
     var u = self.B*sk 
     var yksk = yk.inner(sk)
     var sku = sk.inner(u)
     if (yksk==0 || sku==0) { self.start(); return }
 
     self.B += yk*yk.transpose()/yksk - u*u.transpose()/sku
+  }
+
+  next() {
+    var sk = self.get() - self._ox
+    var yk = self.gradient() - self._ogradient
+
+    self.update(sk,yk)
   }
 }
 
@@ -519,15 +523,19 @@ class InvBFGSController is BFGSController {
     return -self.B*g 
   }
 
-  next() {
-    var sk = self.get() - self._ox
-    var yk = self.gradient() - self._ogradient
-
+  update(sk, yk) {
     var v = yk.inner(sk)
     if (v==0) { self.B=self.I; return }
     var U = self.I - yk*sk.transpose()/v
 
     self.B = U.transpose()*self.B*U + sk*sk.transpose()/v
+  }
+
+  next() {
+    var sk = self.get() - self._ox
+    var yk = self.gradient() - self._ogradient
+
+    self.update(sk, yk)
   }
 }
 
@@ -587,13 +595,17 @@ class LBFGSController is InvBFGSController {
     return -self._hmul(self.gradient())
   }
 
+  update(sk, yk) {
+    self._storage.append((sk, yk, sk.inner(yk), yk.inner(yk)))
+
+    if (self._storage.count()>self.maxhistorylength) self._storage = self._popfirst(self._storage)
+  }
+
   next() { // Update our estimate of the inverse Hessian
     var sk = self.get() - self._ox
     var yk = self.gradient() - self._ogradient
 
-    self._storage.append((sk, yk, sk.inner(yk), yk.inner(yk)))
-
-    if (self._storage.count()>self.maxhistorylength) self._storage = self._popfirst(self._storage)
+    self.update(sk, yk) 
   }
 }
 

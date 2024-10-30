@@ -1,8 +1,8 @@
 // Lagrange multiplier adapter
 
 import optimize4 
-import "../examples/loop.morpho" for Loop
-var adapter = Loop().build() 
+//import "../examples/loop.morpho" for Loop
+//var adapter = Loop().build() 
 
 var _OptUnConsErr = Error("OpUncons", "Problem is unconstrained; this adapter is intended for constrained problems.")
 

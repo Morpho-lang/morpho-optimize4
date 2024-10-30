@@ -86,7 +86,7 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
   gradient() { // Gradient of Lagrangian is [ df - lambda_i dc_i , -c_i] 
     var c = self.constraintVector()
 
-    return Matrix([[self.varGradient()],[-c]]) 
+    return Matrix([[self.varGradient()],[c]]) 
   } 
 
   hessian() { // Hessian of Lagrangian is the kkt matrix 

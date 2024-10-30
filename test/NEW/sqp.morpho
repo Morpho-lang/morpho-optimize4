@@ -1,227 +1,25 @@
 // SQP method
 
-
 import optimize4 
+
 import "../examples/loop.morpho" for Loop
 var example = Loop()
 var adapter = example.build() 
 
+//import "../examples/singleequalityconstraint.morpho" for ConstrainedFunctionExample
+//var example = ConstrainedFunctionExample()
+//var adapter = example.build()
+
 var _OptUnConsErr = Error("OpUncons", "Problem is unconstrained; this adapter is intended for constrained problems.")
 var _OptUnCons = Error("OptUnCons", "Method not appropriate for unconstrained problems: Use a different Controller.")
 
-//import "../examples/singleequalityconstraint.morpho" for ConstrainedFunctionExample
-//var adapter = ConstrainedFunctionExample().build()
+import "lagrangemultiplieradapter.morpho"
+import "sqpcontroller.morpho"
 
-class LagrangeMultiplierAdapter is OptimizationAdapter {
-  init(adapter) { 
-    self.adapter = adapter
-    var n = self.constraintVector().count() 
-    self.lambda = Matrix(n)
-  }
-
-  set(x) { // Get parameters, stripping off lagrange multipliers
-    var n = x.count()
-    var nvars = self.adapter.get().count()
-    self.adapter.set(x[0...nvars,0])
-    self.lambda = x[nvars...n,0] // Store lagrange multipliers on this adapter
-  }
-
-  get() { // Get parameters, joining real parameters with lagrange multipliers
-    var x = self.adapter.get()
-    return Matrix([[x], [self.lambda]]) 
-  }
-
-  _counteq(cv) { // Counts the number of equality constraints
-    var nc = self.adapter.countEqualityConstraints()
-    var neq = 0
-    for (c, k in cv) {
-      if (k>=nc) break
-      if (ismatrix(c)) neq+=c.count()
-      else neq+=1
-    }  
-    return neq
-  }
-
-  _flatten(v) {
-    var l = []
-    for (c in v) {
-      if (ismatrix(c)) for (x in c) l.append(x)
-      else l.append(c)
-    }
-    return Matrix(l)
-  } 
-
-  _checkineq(c, neq) {
-    for (k in neq...c.count()) {
-      if (c[k]>0) c[k]=0
-    }
-  }
-
-  constraintVector() {
-    var cv = self.adapter.constraintValue()
-
-    if (!cv) _OptUnConsErr.warning()
-
-    var v = self._flatten(cv)
-    var neq = self._counteq(cv)
-    self._checkineq(v, neq)
-
-    return v 
-  }
-
-  setLagrangeMultipliers(lambda) {
-    self.lambda = lambda
-  }
-
-  lagrangeMultipliers() {
-    return self.lambda 
-  }
-
-  value() { // Lagrangian function = f - lambda_i c_i
-    var f = self.adapter.value() 
-    var c = self.constraintVector()
-
-    return f - self.lambda.inner(c)  
-  }
-
-  varGradient() { // Gradient of lagrangian wrt original degrees of freedom
-    var grad = self.adapter.gradient()
-    var cgrad = self.adapter.constraintGradient()
-
-    for (cg,k in cgrad) grad -= self.lambda[k]*cg
-
-    return grad 
-  }
-
-  gradient() { // Gradient of Lagrangian is [ df - lambda_i dc_i , c_i] 
-    var c = self.constraintVector()
-
-    return Matrix([[self.varGradient()],[c]]) 
-  } 
-
-  hessian() { // Hessian of Lagrangian is the kkt matrix 
-    var h = self.adapter.hessian()    
-
-    var chess = self.adapter.constraintHessian() 
-    for (ch,k in chess) h -= self.lambda[k]*ch
-
-    var cg = self.adapter.constraintGradient()
-    var C = Matrix([cg])
-
-    return Matrix([[h, -C],[C.transpose(), 0]])
-  }
-}
-
-//adapter.set(Matrix([0.2,-1]))
-
-class SQPController is OptimizationController {
-  init(adapter, quiet=false, verbosity=nil, penalty=1) {
-    super.init(adapter, quiet=quiet, verbosity=verbosity)
-
-    if (!self.isConstrained()) _OptUnCons.throw()
-
-    self.penalty = penalty // Initial penalty for linesearch
-  }
-
-  gradient() { // Ensure the gradient of the Lagrangian is reported
-    return self.ladapter.gradient()
-  }
-
-  start() {
-    self.ladapter = LagrangeMultiplierAdapter(self.adapter)
-    self.lbfgs = LBFGSController(self.ladapter)
-    self.lbfgs.start() 
-  }
-
-  begin() {
-    self._ox = self.get() 
-    self._ogradient = self.adapter.gradient()
-  }
-
-  solve() {
-    // Evaluate all elements of the KKT matrix
-    var g = self.ladapter.varGradient() 
-    var c = self.ladapter.constraintVector()
-    var cg = self.adapter.constraintGradient()
-    var C = Matrix([cg])
-    var Ct = C.transpose()
-
-    // Form the Schur complement
-    var HC = self.lbfgs._hmul(C)
-    var S = Ct*HC 
-
-    // Apply the formula to invert the KKT system
-    var Hg = self.lbfgs._hmul(g)
-
-    var Sinvc = c/S
-    var SinvCt = (Ct*Hg)/S
-
-    var HCSinvCt = self.lbfgs._hmul(C*SinvCt)
-    var HCCSc = self.lbfgs._hmul(C*Sinvc)
-
-    return -Matrix([ [Hg - HCSinvCt + HCCSc],
-                     [- SinvCt + Sinvc] ])
-  }
-
-  _choosePenalty(dirn) {
-    var maxpenalty=max(self.ladapter.lagrangeMultipliers())
-    if (maxpenalty>self.penalty) self.penalty = 2*maxpenalty
-
-    return self.penalty
-  }
-
-  linesearch(dirn) {
-    var x0 = self.adapter.get()
-    var ndof = x0.count() 
-    var xdirn = dirn[0...ndof]
-
-    var mu = self._choosePenalty(xdirn)
-
-    var padapt = L1PenaltyAdapter(self.adapter, penalty=mu)
-    var ls = DirectedLineSearchController(padapt, direction=xdirn)
-    ls.step()
-
-    self.adapter.set(x0)
-
-    return ls.stepsize
-  }
-
-  step() {
-    var x0 = self.ladapter.get()
-    var ndof = self.adapter.get().count()
-
-    var d = self.solve() // Find search direction
-    var alpha = self.linesearch(d) 
-    self.ladapter.set(x0 + alpha*d)
-
-    self.stepsize = alpha 
-  }
-
-  constraintNorm() {
-    return PenaltyAdapter(self.adapter).constraintVector().norm(1)
-  }
-
-  reportStepsize() { 
-    return "|constraints|=${self.constraintNorm()}" 
-  }
-
-  next() {
-    // Note that we choose yk = grad L(x+alpha d, lambda k+1)-grad L(x, lambda k+1)
-    // i.e. holding lambda constant
-    var sk = self.get() - self._ox
-    var yk = self.adapter.gradient() - self._ogradient
-    self.lbfgs.update(sk, yk)
-  }
-}
-
-// Note that I think we are only estimating the hessian of the obj. function 
-// in the above, not the hessian of the Lagrangian. 
-// Change: 
-// l129: self._ogradient = self.ladapter.varGradient()
-// l190: var yk = self.ladapter.varGradient() - self._ogradient
-
-var control = SQPController(adapter, penalty=10)
+var control = SQPController(adapter)
 control.optimize(500)
 
 //print control.ladapter.get()
-example.visualize()
+//example.visualize()
+
+//print control.kkt().eigenvalues() 

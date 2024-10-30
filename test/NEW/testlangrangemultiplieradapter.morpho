@@ -1,0 +1,19 @@
+// Test the lagrange multiplier adapter
+
+import optimize4 
+import "lagrangemultiplieradapter.morpho"
+
+import "../examples/singleequalityconstraint.morpho" for ConstrainedFunctionExample
+var adapter = ConstrainedFunctionExample().build()
+
+adapter.set(Matrix([0.2,-1]))
+
+var ladapter = LagrangeMultiplierAdapter(adapter) 
+
+print ladapter.value() // expect: -2.12
+
+print (ladapter.gradient() - Matrix([-0.2, -0.8, -0.96])).norm() < 1e-5
+// expect: true
+
+print (ladapter.hessian() - Matrix([[4, 1, 0.4], [1, 2, -2], [0.4, -2, 0]])).norm() < 1e-6
+// expect: true

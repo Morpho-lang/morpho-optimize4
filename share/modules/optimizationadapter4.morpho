@@ -246,7 +246,7 @@ class FunctionAdapter is OptimizationAdapter {
 
       for (var i=0; i<n; i+=1) {
         var x0 = x[i]
-        var epsx = self._stepsize(_epsfd, x0)
+        var epsx = self._stepsize(_epshess, x0)
 
         // Diagonal entries see Abramowitz and Stegun 1972, p. 884, 25.3.23, O(h^2)
         x[i]=x0+epsx
@@ -260,7 +260,7 @@ class FunctionAdapter is OptimizationAdapter {
         // Off diagonal entries Abramowitz and Stegun 1972, p. 884, 25.3.26 O(h^2)
         for (var j=0; j<i; j+=1) {
           var y0 = x[j]            
-          var epsy = self._stepsize(_epsfd, y0)
+          var epsy = self._stepsize(_epshess, y0)
 
           x[i]=x0+epsx; x[j]=y0+epsy
           var frr = apply(f, x)

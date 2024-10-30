@@ -2,11 +2,14 @@
 
 import optimize4 
 
+var _OptUnConsErr = Error("OpUncons", "Problem is unconstrained; this adapter is intended for constrained problems.")
+
 class LagrangeMultiplierAdapter is OptimizationAdapter {
   init(adapter) { 
     self.adapter = adapter
     var n = self.constraintVector().count() 
     self.lambda = Matrix(n)
+    for (i in 0...n) self.lambda[i]=1
   }
 
   set(x) { // Get parameters, stripping off lagrange multipliers
@@ -86,7 +89,7 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
   gradient() { // Gradient of Lagrangian is [ df - lambda_i dc_i , -c_i] 
     var c = self.constraintVector()
 
-    return Matrix([[self.varGradient()],[c]]) 
+    return Matrix([[self.varGradient()],[-c]]) 
   } 
 
   hessian() { // Hessian of Lagrangian is the kkt matrix 
@@ -98,6 +101,6 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
     var cg = self.adapter.constraintGradient()
     var C = Matrix([cg])
 
-    return Matrix([[h, -C],[C.transpose(), 0]])
+    return Matrix([[h, -C],[-C.transpose(), 0]])
   }
 }

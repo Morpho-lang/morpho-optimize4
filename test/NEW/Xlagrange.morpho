@@ -26,6 +26,7 @@ class ConstrainedNewtonController is OptimizationController {
   }
 
   solve() {
+    
     return self.newton.direction() // Obtain search direction from Newton step
   }
 
@@ -54,8 +55,8 @@ class ConstrainedNewtonController is OptimizationController {
 
   step() {
     var x0 = self.ladapter.get()
-
     var d = self.solve()
+
     var alpha = self.linesearch(d) 
 
     self.ladapter.set(x0 + alpha*d) 

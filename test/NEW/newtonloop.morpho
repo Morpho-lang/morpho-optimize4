@@ -1,0 +1,14 @@
+// Lagrange multiplier adapter
+
+import optimize4 
+
+import "constrainednewtoncontroller.morpho"
+
+import "../examples/loop.morpho" for Loop
+var example = Loop()
+var adapter = example.build() 
+
+var opt = ConstrainedNewtonController(adapter) 
+opt.optimize(10)
+
+example.visualize() 

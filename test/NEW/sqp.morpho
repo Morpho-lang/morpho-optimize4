@@ -3,12 +3,13 @@
 import optimize4 
 
 import "../examples/loop.morpho" for Loop
-var example = Loop()
-var adapter = example.build() 
+//var example = Loop()
+//var adapter = example.build() 
 
-//import "../examples/singleequalityconstraint.morpho" for ConstrainedFunctionExample
-//var example = ConstrainedFunctionExample()
-//var adapter = example.build()
+import "../examples/singleequalityconstraint.morpho" for ConstrainedFunctionExample
+var example = ConstrainedFunctionExample()
+var adapter = example.build()
+adapter.set(Matrix([0.2,-1]))
 
 var _OptUnConsErr = Error("OpUncons", "Problem is unconstrained; this adapter is intended for constrained problems.")
 var _OptUnCons = Error("OptUnCons", "Method not appropriate for unconstrained problems: Use a different Controller.")

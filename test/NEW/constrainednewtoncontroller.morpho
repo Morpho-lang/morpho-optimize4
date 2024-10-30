@@ -1,0 +1,19 @@
+// Constrained Newton Controller
+
+import optimize4 
+import "lagrangemultiplieradapter.morpho"
+
+class ConstrainedNewtonController is OptimizationController {
+  init(adapter, quiet=false, verbosity=nil, penalty=1) {
+    super.init(adapter, quiet=quiet, verbosity=verbosity)
+    self.penalty = penalty // Initial penalty for linesearch    
+  }
+
+  optimize(n) {
+    self.ladapter = LagrangeMultiplierAdapter(self.adapter)
+    self.padapter = L1PenaltyAdapter(self.adapter)
+    var ls = DirectedLineSearchController(self.padapter)
+    var newton = NewtonController(self.ladapter, linesearch=ls)
+    newton.optimize(n)
+  }
+}

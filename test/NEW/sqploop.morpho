@@ -13,6 +13,6 @@ var control = SQPController(adapter)
 control.optimize(500)
 
 //print control.ladapter.get()
-example.visualize()
+//example.visualize()
 
 //print control.kkt().eigenvalues() 

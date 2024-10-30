@@ -2,6 +2,9 @@
 
 import optimize4 
 
+var _OptUnConsErr = Error("OpUncons", "Problem is unconstrained; this adapter is intended for constrained problems.")
+var _OptUnCons = Error("OptUnCons", "Method not appropriate for unconstrained problems: Use a different Controller.")
+
 class SQPController is OptimizationController {
   init(adapter, quiet=false, verbosity=nil, penalty=1) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)

@@ -7,6 +7,7 @@ var example = Loop()
 var adapter = example.build() 
 
 var _OptUnConsErr = Error("OpUncons", "Problem is unconstrained; this adapter is intended for constrained problems.")
+var _OptUnCons = Error("OptUnCons", "Method not appropriate for unconstrained problems: Use a different Controller.")
 
 //import "../examples/singleequalityconstraint.morpho" for ConstrainedFunctionExample
 //var adapter = ConstrainedFunctionExample().build()
@@ -114,7 +115,15 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
 //adapter.set(Matrix([0.2,-1]))
 
 class SQPController is OptimizationController {
-  gradient() {
+  init(adapter, quiet=false, verbosity=nil, penalty=1) {
+    super.init(adapter, quiet=quiet, verbosity=verbosity)
+
+    if (!self.isConstrained()) _OptUnCons.throw()
+
+    self.penalty = penalty // Initial penalty for linesearch
+  }
+
+  gradient() { // Ensure the gradient of the Lagrangian is reported
     return self.ladapter.gradient()
   }
 
@@ -154,14 +163,21 @@ class SQPController is OptimizationController {
                      [- SinvCt + Sinvc] ])
   }
 
+  _choosePenalty(dirn) {
+    var maxpenalty=max(self.ladapter.lagrangeMultipliers())
+    if (maxpenalty>self.penalty) self.penalty = 2*maxpenalty
+
+    return self.penalty
+  }
+
   linesearch(dirn) {
-    var padapt = L1PenaltyAdapter(self.adapter, penalty=10)
-
     var x0 = self.adapter.get()
-
     var ndof = x0.count() 
     var xdirn = dirn[0...ndof]
 
+    var mu = self._choosePenalty(xdirn)
+
+    var padapt = L1PenaltyAdapter(self.adapter, penalty=mu)
     var ls = DirectedLineSearchController(padapt, direction=xdirn)
     ls.step()
 
@@ -181,7 +197,13 @@ class SQPController is OptimizationController {
     self.stepsize = alpha 
   }
 
-  reportstepsize() { return "stepsize=${self.stepsize}" }
+  constraintNorm() {
+    return PenaltyAdapter(self.adapter).constraintVector().norm(1)
+  }
+
+  reportStepsize() { 
+    return "|constraints|=${self.constraintNorm()}" 
+  }
 
   next() {
     // Note that we choose yk = grad L(x+alpha d, lambda k+1)-grad L(x, lambda k+1)
@@ -198,8 +220,8 @@ class SQPController is OptimizationController {
 // l129: self._ogradient = self.ladapter.varGradient()
 // l190: var yk = self.ladapter.varGradient() - self._ogradient
 
-var control = SQPController(adapter)
-control.optimize(100)
+var control = SQPController(adapter, penalty=10)
+control.optimize(500)
 
 //print control.ladapter.get()
 example.visualize()

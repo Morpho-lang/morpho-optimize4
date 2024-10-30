@@ -1,0 +1,81 @@
+// Lagrange multiplier adapter
+
+import optimize4 
+import "../examples/loop.morpho" for Loop
+var adapter = Loop().build() 
+
+var _OptUnConsErr = Error("OpUncons", "Problem is unconstrained; this adapter is intended for constrained problems.")
+
+import "../examples/singleequalityconstraint.morpho" for ConstrainedFunctionExample
+var adapter = ConstrainedFunctionExample().build()
+
+import "lagrangemultiplieradapter.morpho"
+
+adapter.set(Matrix([0.2,-1]))
+
+class ConstrainedNewtonController is OptimizationController {
+  init(adapter, quiet=false, verbosity=nil, penalty=1) {
+    super.init(adapter, quiet=quiet, verbosity=verbosity)
+    self.penalty = penalty // Initial penalty for linesearch    
+  }
+
+  start() {
+    self.ladapter = LagrangeMultiplierAdapter(self.adapter)
+    self.newton = NewtonController(self.ladapter)
+    self.newton.start() 
+  }
+
+  solve() {
+    return self.newton.direction() // Obtain search direction from Newton step
+  }
+
+  _choosePenalty(dirn) {
+    var maxpenalty=max(self.ladapter.lagrangeMultipliers())
+    if (maxpenalty>self.penalty) self.penalty = 2*maxpenalty
+
+    return self.penalty
+  }
+
+  linesearch(dirn) {
+    var x0 = self.adapter.get()
+    var ndof = x0.count() 
+    var xdirn = dirn[0...ndof]
+
+    var mu = self._choosePenalty(xdirn)
+
+    var padapt = L1PenaltyAdapter(self.adapter, penalty=mu)
+    var ls = DirectedLineSearchController(padapt, direction=xdirn)
+    ls.step()
+
+    self.adapter.set(x0)
+
+    return ls.stepsize
+  }
+
+  step() {
+    var x0 = self.ladapter.get()
+
+    var d = self.solve()
+    var alpha = self.linesearch(d) 
+
+    self.ladapter.set(x0 + alpha*d) 
+    self.stepsize = alpha 
+  }
+
+/*  constraintNorm() {
+    return PenaltyAdapter(self.adapter).constraintVector().norm(1)
+  }
+
+  reportStepsize() { 
+    return "|constraints|=${self.constraintNorm()}" 
+  } */
+}
+
+print adapter.get()
+
+var opt = ConstrainedNewtonController(adapter) 
+opt.optimize(10)
+
+print opt.ladapter.get()
+
+print opt.ladapter.hessian()

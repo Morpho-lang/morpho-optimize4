@@ -12,3 +12,5 @@ adapter.set(Matrix([0.2,-1]))
 
 var control = SQPController(adapter)
 control.optimize(500)
+
+print control.kkt()

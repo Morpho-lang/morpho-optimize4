@@ -3,7 +3,7 @@
 import optimize4 
 
 import "../examples/loop.morpho" for Loop
-var example = Loop()
+var example = Loop(Np=20)
 var adapter = example.build() 
 
 import "lagrangemultiplieradapter.morpho"

@@ -29,7 +29,7 @@ class SQPController is OptimizationController {
     self._ogradient = self.ladapter.varGradient() 
   }
 
-  hessian() {
+  invHessian() {
     var x = self.adapter.get() 
     var n = x.count() 
     var h = []
@@ -42,7 +42,7 @@ class SQPController is OptimizationController {
   }
 
   kkt() { // Estimate kkt matrix explicitly
-    var h = self.hessian()
+    var h = self.invHessian().inverse() // We have to reconstruct the inv. hessian and invert it
 
     var cg = self.adapter.constraintGradient()
     var C = Matrix([cg])

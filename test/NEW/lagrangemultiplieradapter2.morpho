@@ -1,0 +1,145 @@
+// Lagrange multiplier adapter
+
+import optimize4 
+
+var _OptUnConsErr = Error("OpUncons", "Problem is unconstrained; this adapter is intended for constrained problems.")
+var _OptNoHessErr = Error("OptNoHess", "Method requires a hessian.")
+
+class LagrangeMultiplierAdapter is OptimizationAdapter {
+  init(adapter) { 
+    self.adapter = adapter
+    self.lambda = self._initialLagrangeMultipliers() 
+  }
+
+  _initialLagrangeMultipliers() { // Initialize lagrange multipliers to 1
+    var cv = self.adapter.constraintValue()
+    var lambda = []
+    for (c in cv) {
+      if (ismatrix(c)) lambda.append(1+Matrix(c.count())) 
+      else lambda.append(1)
+    }
+    return lambda
+  }
+
+  set(x) { 
+    var n = x.count()
+    var nvars = self.adapter.get().count()
+    self.adapter.set(x[0...nvars,0])
+    self.lambda = self._unflatten(x[nvars...n,0], self.lambda) 
+  }
+
+  get() { // Get parameters, joining real parameters with lagrange multipliers
+    var x = self.adapter.get()
+    return Matrix([[x], [self._flatten(self.lambda)]]) 
+  }
+
+  _unflatten(Matrix v, shape) { // Converts a Vector into a list of scalars and vectors according to a given shape
+    var l = []
+    var n = 0 
+    for (u, k in shape) {
+      if (ismatrix(u)) {
+        var m = u.count()
+        l.append(v[n...n+m,0])
+        n+=m
+      } else {
+        l.append(v[n])
+        n+=1
+      }
+    }
+
+    return l 
+  }  
+
+  _flatten(v) { // Flattens a list of scalars and vectors into a Vector
+    var l = []
+    for (c in v) {
+      if (ismatrix(c)) for (x in c) l.append(x)
+      else l.append(c)
+    }
+    return Matrix(l)
+  } 
+
+  setLagrangeMultipliers(lambda) {
+    self.lambda = self._unflatten(lambda, self.lambda)
+  }
+
+  lagrangeMultipliers() {
+    return self._flatten(self.lambda)
+  }
+
+  _zeroIneq(Matrix m) {
+    for (c, k in m) {
+      if (c>0) m[k] = 0
+    }
+    return m 
+  }
+
+  _zeroIneq(u) {
+    if (u>0) return 0
+    return u
+  }
+
+  _checkIneq(c) { 
+    var neq = self.adapter.countEqualityConstraints()
+    for (k in neq...c.count()) {
+      c[k] = self._zeroIneq(c[k])
+    }
+  }
+
+  _inner(Matrix u, Matrix v) {
+    return u.inner(v)
+  }
+
+  _inner(u, v) {
+    return u*v
+  }
+
+  inner(c) { // Takes the inner product of the list c with the lagrange multipliers
+    var total = 0 
+    for (u,k in c) {
+      total+=self._inner(self.lambda[k], u)
+    }
+    return total
+  }
+
+  value() { // Lagrangian function = f - lambda_i c_i
+    var f = self.adapter.value() 
+    var c = self.adapter.constraintValue()
+    self._checkIneq(c)
+
+    return f - self.inner(c)
+  }
+
+  varGradient() { // Gradient of lagrangian wrt original degrees of freedom
+    var grad = self.adapter.gradient()
+    var cgrad = self.adapter.constraintGradient()
+
+    for (cg, k in cgrad) grad -= cg*self.lambda[k]
+
+    return grad 
+  }
+
+  gradient() { // Gradient of Lagrangian is [ df - lambda_i dc_i , -c_i] 
+    var c = self.adapter.constraintValue()
+    self._checkIneq(c)
+    var cv = self._flatten(c)
+
+    return Matrix([[self.varGradient()],[-cv]]) 
+  } 
+
+  hessian() { // Hessian of Lagrangian is the kkt matrix 
+    var h = self.adapter.hessian()   
+    if (!h) _OptNoHessErr.throw() 
+
+    var chess = self.adapter.constraintHessian() 
+    for (ch,k in chess) {
+      if (!ch) _OptNoHessErr.throw("Constraint ${ch.clss()} does not provide a hessian.")
+      h -= self.lambda[k]*ch
+    }
+
+    var cg = self.adapter.constraintGradient()
+    var C = Matrix([cg])
+
+    return Matrix([[h, -C],[-C.transpose(), 0]])
+  }
+}

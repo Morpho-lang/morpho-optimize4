@@ -1,0 +1,24 @@
+// Test the lagrange multiplier adapter
+
+import optimize4 
+import "lagrangemultiplieradapter2.morpho"
+
+import "../examples/constrainedloop.morpho" for ConstrainedLoop
+var example = ConstrainedLoop(Np=10)
+var adapter = example.build()
+
+var ladapter = LagrangeMultiplierAdapter(adapter) 
+
+print ladapter.value() 
+
+var ll = ladapter.get() 
+ladapter.set(ll)
+var uu = ladapter.get() 
+
+print (ll-uu).norm() 
+
+print ladapter.varGradient()
+
+print ladapter.gradient()
+
+//example.visualize() 

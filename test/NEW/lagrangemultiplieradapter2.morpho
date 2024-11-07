@@ -8,7 +8,7 @@ var _OptNoHessErr = Error("OptNoHess", "Method requires a hessian.")
 class LagrangeMultiplierAdapter is OptimizationAdapter {
   init(adapter) { 
     self.adapter = adapter
-    self.lambda = self._initialLagrangeMultipliers() 
+    self._initialLagrangeMultipliers() 
   }
 
   _initialLagrangeMultipliers() { // Initialize lagrange multipliers to 1
@@ -18,7 +18,17 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
       if (ismatrix(c)) lambda.append(1+Matrix(c.count())) 
       else lambda.append(1)
     }
-    return lambda
+    self.lambda=lambda
+    self._checkLagrangeMultipliers()
+  }
+
+  _checkLagrangeMultipliers() { // Zeros lagrange multipliers for inactive
+    var cv = self.adapter.constraintValue() 
+    
+    self._checkIneq(cv, self.lambda)
+
+    print Matrix([[self._flatten(cv),self._flatten(self.lambda)]])
+    @
   }
 
   set(x) { 
@@ -26,6 +36,7 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
     var nvars = self.adapter.get().count()
     self.adapter.set(x[0...nvars,0])
     self.lambda = self._unflatten(x[nvars...n,0], self.lambda) 
+    self._checkLagrangeMultipliers()
   }
 
   get() { // Get parameters, joining real parameters with lagrange multipliers
@@ -67,22 +78,23 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
     return self._flatten(self.lambda)
   }
 
-  _zeroIneq(Matrix m) {
+  _zeroIneq(Matrix m, Matrix out) {
     for (c, k in m) {
-      if (c>0) m[k] = 0
+      if (c>=0) out[k] = 0
     }
-    return m 
+    return out 
   }
 
-  _zeroIneq(u) {
-    if (u>0) return 0
-    return u
+  _zeroIneq(u, out) {
+    if (u>=0) return 0
+    return out
   }
 
-  _checkIneq(c) { 
+  _checkIneq(c, out) { // Checks whether entries in c are inside the feasible 
+                       // region and sets the corresponding entry in out to zero
     var neq = self.adapter.countEqualityConstraints()
     for (k in neq...c.count()) {
-      c[k] = self._zeroIneq(c[k])
+      out[k]=self._zeroIneq(c[k], out[k])
     }
   }
 
@@ -96,16 +108,14 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
 
   inner(c) { // Takes the inner product of the list c with the lagrange multipliers
     var total = 0 
-    for (u,k in c) {
-      total+=self._inner(self.lambda[k], u)
-    }
+    for (u,k in c) total+=self._inner(self.lambda[k], u)
     return total
   }
 
   value() { // Lagrangian function = f - lambda_i c_i
     var f = self.adapter.value() 
     var c = self.adapter.constraintValue()
-    self._checkIneq(c)
+    self._checkIneq(c, c)
 
     return f - self.inner(c)
   }

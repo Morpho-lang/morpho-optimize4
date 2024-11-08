@@ -8,21 +8,22 @@ import "lagrangemultiplieradapter2.morpho"
 //var example = ConstrainedLoop(Np=10)
 //var adapter = example.build()
 
-import "../examples/twoinequalityconstraints.morpho"
+import "../examples/constrainedfunction.morpho"
 var example = ConstrainedFunctionExample()
 var adapter = example.build() 
 
-adapter.set(Matrix([0.5,0.5]))
+adapter.set(Matrix([-0.2,0.5,1.1]))
+
+print adapter.constraintValue()
 
 var ladapter = LagrangeMultiplierAdapter(adapter) 
 
+print ladapter.value() 
+
 print ladapter.lagrangeMultipliers()
 
+/*
 
-
-System.exit() 
-
-print ladapter.value() 
 
 var ll = ladapter.get() 
 ladapter.set(ll)
@@ -34,4 +35,6 @@ print ladapter.varGradient()
 
 print ladapter.gradient()
 
-//example.visualize() 
+print ladapter.lagrangeMultipliers()
+
+//example.visualize() */

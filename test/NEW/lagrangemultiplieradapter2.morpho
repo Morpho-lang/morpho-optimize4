@@ -123,7 +123,7 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
 
   gradient() { // Gradient of Lagrangian is [ df - lambda_i dc_i , -c_i] 
     var c = self.adapter.constraintValue()
-    self._checkIneq(c)
+    self._checkIneq(c, c)
     var cv = self._flatten(c)
 
     return Matrix([[self.varGradient()],[-cv]]) 

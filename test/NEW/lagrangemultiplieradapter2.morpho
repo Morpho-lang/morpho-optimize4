@@ -13,22 +13,14 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
 
   _initialLagrangeMultipliers() { // Initialize lagrange multipliers to 1
     var cv = self.adapter.constraintValue()
-    var lambda = []
-    for (c in cv) {
-      if (ismatrix(c)) lambda.append(1+Matrix(c.count())) 
-      else lambda.append(1)
-    }
-    self.lambda=lambda
+    self.lambda = []
+    for (c in cv) self.lambda.append(1+0*c)
     self._checkLagrangeMultipliers()
   }
 
-  _checkLagrangeMultipliers() { // Zeros lagrange multipliers for inactive
+  _checkLagrangeMultipliers() { // Zeros lagrange multipliers for inactive constraints
     var cv = self.adapter.constraintValue() 
-    
     self._checkIneq(cv, self.lambda)
-
-    print Matrix([[self._flatten(cv),self._flatten(self.lambda)]])
-    @
   }
 
   set(x) { 

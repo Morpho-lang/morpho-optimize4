@@ -195,11 +195,16 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
     var dli = 0 // Index into dl 
     for (c, k in cv) {
       if (ismatrix(c)) {
-        Error.throw("NOT IMPLEMENTED")
+        for (u in c) {
+          if (k<neq || u<0) {
+            out.append(dl[dli])
+            dli += 1 
+          } else out.append(0)
+        }
       } else {
         if (k<neq || c<0) {
           out.append(dl[dli])
-          dli +=1 
+          dli += 1 
         } else out.append(0)
       }
     }

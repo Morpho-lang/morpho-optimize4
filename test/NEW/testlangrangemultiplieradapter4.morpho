@@ -4,16 +4,10 @@ import optimize4
 
 import "lagrangemultiplieradapter2.morpho"
 
-/*
-import "../examples/constrainedloop.morpho" for ConstrainedLoop
-var example = ConstrainedLoop(Np=10, L=0.8)*/
-
-import "../examples/loop.morpho" for Loop
-var example = Loop(Np=10)
+import "../examples/thomson.morpho" for Thomson
+var example = Thomson(Np=20)
 
 var adapter = example.build()
-
-example.visualize()
 
 import "sqpcontroller2.morpho"
 
@@ -21,7 +15,7 @@ print adapter.constraintValue()
 
 var control = SQPController(adapter)
 
-control.optimize(50) 
+control.optimize(100) 
 //print adapter.get() 
 print "lambda:"
 print control.ladapter.lagrangeMultipliers()

@@ -9,7 +9,7 @@ import "../examples/constrainedloop.morpho" for ConstrainedLoop
 var example = ConstrainedLoop(Np=10, L=0.8)*/
 
 import "../examples/loop.morpho" for Loop
-var example = Loop(Np=10)
+var example = Loop(Np=20)
 
 var adapter = example.build()
 
@@ -21,9 +21,12 @@ print adapter.constraintValue()
 
 var control = SQPController(adapter)
 
-control.optimize(100) 
+control.optimize(500) 
 //print adapter.get() 
 print "lambda:"
 print control.ladapter.lagrangeMultipliers()
+
+var K = control.kkt()
+print K.eigenvalues() 
 
 //example.visualize()

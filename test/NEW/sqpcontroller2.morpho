@@ -48,7 +48,7 @@ class SQPController is OptimizationController {
     var C = Matrix([cg])
     var Ct = C.transpose()
 
-    return Matrix([[h,-C],[Ct,0]]) 
+    return Matrix([[h,-C],[-Ct,0]]) 
   }
 
   solve() {

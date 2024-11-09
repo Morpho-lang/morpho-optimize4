@@ -130,7 +130,7 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
   } 
 
   hessian() { // Hessian of Lagrangian is the kkt matrix 
-    var h = self.adapter.hessian()   
+/*    var h = self.adapter.hessian()   
     if (!h) _OptNoHessErr.throw() 
 
     var chess = self.adapter.constraintHessian() 
@@ -142,6 +142,67 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
     var cg = self.adapter.constraintGradient()
     var C = Matrix([cg])
 
-    return Matrix([[h, -C],[-C.transpose(), 0]])
+    return Matrix([[h, -C],[-C.transpose(), 0]])*/
   }
+
+  _checkConstraintValue(Matrix u, isEq, out) {
+    for (c in u) {
+      if (isEq || c<0) out.append(c)
+    }
+  }
+
+  _checkConstraintValue(u, isEq, out) {
+    if (isEq || u<0) out.append(u)
+  }
+
+  activeConstraintValue() {
+    var cv = self.adapter.constraintValue()
+    var neq = self.adapter.countEqualityConstraints()
+    var l = []
+    for (c, k in cv) {
+      self._checkConstraintValue(c, k<neq, l)
+    }
+    return Matrix(l)
+  }
+
+  _checkConstraintGradient(Matrix u, grad, isEq, out) {
+    Error.throw("NOT IMPLEMENTED")
+    for (c, k in u) {
+      if (isEq || c<0) out.append(grad)
+    }
+  }
+
+  _checkConstraintGradient(u, grad, isEq, out) {
+    if (isEq || u<0) out.append(grad)
+  }
+
+  activeConstraintGradient() {
+    var cv = self.adapter.constraintValue()
+    var cgrad = self.adapter.constraintGradient()
+    var neq = self.adapter.countEqualityConstraints()
+    var l = []
+    for (c, k in cv) {
+      self._checkConstraintGradient(c, cgrad[k], k<neq, l)
+    }
+    return l 
+  }
+
+  activeUpdate(dl) { // Promote update onto active set
+    var cv = self.adapter.constraintValue()
+    var neq = self.adapter.countEqualityConstraints()
+    var out = []
+    var dli = 0 // Index into dl 
+    for (c, k in cv) {
+      if (ismatrix(c)) {
+        Error.throw("NOT IMPLEMENTED")
+      } else {
+        if (k<neq || c<0) {
+          out.append(dl[dli])
+          dli +=1 
+        } else out.append(0)
+      }
+    }
+    return Matrix(out)
+  }
+
 }

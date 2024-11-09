@@ -12,15 +12,24 @@ import "../examples/constrainedfunction.morpho"
 var example = ConstrainedFunctionExample()
 var adapter = example.build() 
 
-adapter.set(Matrix([-0.2,0.5,1.1]))
+import "sqpcontroller2.morpho"
+
+adapter.set(Matrix([-0.2,0.5,0.1]))
 
 print adapter.constraintValue()
 
-var ladapter = LagrangeMultiplierAdapter(adapter) 
+var control = SQPController(adapter)
 
-print ladapter.value() 
+control.optimize(10) 
 
-print ladapter.lagrangeMultipliers()
+print control.ladapter.lagrangeMultipliers()
+
+adapter.set(Matrix([-0.2,0.5,0.1]))
+
+var control = PenaltyController(adapter)
+
+control.optimize(10) 
+
 
 /*
 

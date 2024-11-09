@@ -90,13 +90,8 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
     }
   }
 
-  _inner(Matrix u, Matrix v) {
-    return u.inner(v)
-  }
-
-  _inner(u, v) {
-    return u*v
-  }
+  _inner(Matrix u, Matrix v) { return u.inner(v) }
+  _inner(u, v) { return u*v }
 
   inner(c) { // Takes the inner product of the list c with the lagrange multipliers
     var total = 0 
@@ -130,6 +125,7 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
   } 
 
   hessian() { // Hessian of Lagrangian is the kkt matrix 
+    Error.throw("NOT IMPLEMENTED")
 /*    var h = self.adapter.hessian()   
     if (!h) _OptNoHessErr.throw() 
 
@@ -166,9 +162,14 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
   }
 
   _checkConstraintGradient(Matrix u, grad, isEq, out) {
-    Error.throw("NOT IMPLEMENTED")
-    for (c, k in u) {
-      if (isEq || c<0) out.append(grad)
+    if (isEq) {
+      out.append(grad)
+    } else {
+      var l = []
+      for (c, k in u) {
+        if (isEq || c<0) l.append(grad.column(k))
+      }
+      out.append(Sparse([l]))
     }
   }
 

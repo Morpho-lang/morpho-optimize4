@@ -4,9 +4,9 @@ import optimize4
 
 import "lagrangemultiplieradapter2.morpho"
 
-/*
-import "../examples/constrainedloop.morpho" for ConstrainedLoop
-var example = ConstrainedLoop(Np=10, L=0.8)*/
+
+//import "../examples/constrainedloop.morpho" for ConstrainedLoop
+//var example = ConstrainedLoop(Np=10, L=0.5)
 
 import "../examples/loop.morpho" for Loop
 var example = Loop(Np=20)

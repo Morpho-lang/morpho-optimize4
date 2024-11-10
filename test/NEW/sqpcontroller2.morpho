@@ -138,6 +138,7 @@ class SQPController is OptimizationController {
     // i.e. holding lambda constant
     var sk = self.get() - self._ox
     var yk = self.ladapter.varGradient() - self._ogradient
+
     self.lbfgs.update(sk, yk)
   }
 }

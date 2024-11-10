@@ -89,6 +89,25 @@ class DelegateAdapter is OptimizationAdapter {
 }
 
 /* --------------------------
+ * DeconstrainAdapter class
+ * -------------------------- */ 
+
+/** An DeconstrainAdapter strips out any constraints */
+
+class DeconstrainAdapter is OptimizationAdapter {
+  init(adapter) {
+    self.adapter = adapter
+  }
+
+  set(x) { self.adapter.set(x) }
+  get() { return self.adapter.get() }
+
+  value() { return self.adapter.value() }
+  gradient() { return self.adapter.gradient() }
+  hessian() { return self.adapter.hessian() }
+}
+
+/* --------------------------
  * ProxyAdapter class
  * -------------------------- */ 
 

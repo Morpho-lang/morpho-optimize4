@@ -523,6 +523,10 @@ class InvBFGSController is BFGSController {
     return -self.B*g 
   }
 
+  _hmul(p) {
+    return self.B*p
+  }
+
   update(sk, yk) {
     var v = yk.inner(sk)
     if (v==0) { self.B=self.I; return }

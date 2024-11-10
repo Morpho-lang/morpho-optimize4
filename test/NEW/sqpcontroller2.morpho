@@ -20,7 +20,7 @@ class SQPController is OptimizationController {
 
   start() {
     self.ladapter = LagrangeMultiplierAdapter(self.adapter)
-    self.lbfgs = LBFGSController(self.ladapter)
+    self.lbfgs = LBFGSController(DeconstrainAdapter(self.adapter))
     self.lbfgs.start() 
   }
 

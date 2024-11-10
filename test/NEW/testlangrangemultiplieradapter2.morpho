@@ -20,7 +20,7 @@ print adapter.constraintValue()
 
 var control = SQPController(adapter)
 
-control.optimize(10) 
+control.optimize(20) 
 print adapter.get() 
 print "lambda:"
 print control.ladapter.lagrangeMultipliers()

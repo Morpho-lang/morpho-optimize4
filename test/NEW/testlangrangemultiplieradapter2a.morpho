@@ -1,0 +1,20 @@
+// Test the lagrange multiplier adapter
+
+import optimize4 
+
+import "lagrangemultiplieradapter2.morpho"
+
+import "../examples/inactive.morpho"
+var example = ConstrainedFunctionExample()
+var adapter = example.build() 
+adapter.set(Matrix([0,0]))
+
+import "sqpcontroller2.morpho"
+
+var control = SQPController(adapter)
+
+control.optimize(10) 
+print adapter.get() 
+print "lambda:"
+print control.ladapter.lagrangeMultipliers()
+

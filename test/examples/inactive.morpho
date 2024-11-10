@@ -1,0 +1,33 @@
+// Example of a function with four inequality constraints
+// Only two of which are active
+// from Nocedal and Wright Example 12.6
+
+import optimize4
+
+class ConstrainedFunctionExample {
+  init() { 
+  }
+
+  buildAdapter() { 
+    fn func(x, y) {
+      return (x-3/2)^2 + (y-1/2)^4
+    }
+
+    fn c1(x, y) { return 1 - x - y }
+    fn c2(x, y) { return 1 - x + y }
+    fn c3(x, y) { return 1 + x - y }
+    fn c4(x, y) { return 1 + x + y }
+
+    self.adapter = FunctionAdapter(func, start=Matrix([0, 0]), constraints=[c1, c2, c3, c4], equalitycount=0)
+    return self.adapter
+  }
+
+  build() { // Setup the problem and return an Adapter
+    return self.buildAdapter()
+  }
+
+  check() { 
+    var soln = Matrix([0,0])
+    return (self.adapter.get() - soln).norm()
+  }
+}

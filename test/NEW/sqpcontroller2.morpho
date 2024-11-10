@@ -54,7 +54,16 @@ class SQPController is OptimizationController {
   solve() {
     // Evaluate all elements of the KKT matrix
     var g = self.ladapter.varGradient() 
+
+    var Hg = self.lbfgs._hmul(g) 
+
     var c = self.ladapter.activeConstraintValue()
+
+    if (c.count()==0) { // Special case if the active set is empty
+      return -Matrix([ [ Hg ],
+                       [ 0*self.ladapter.lagrangeMultipliers() ] ])
+    }
+
     var cg = self.ladapter.activeConstraintGradient()
 
     var C = Matrix([cg])
@@ -63,9 +72,6 @@ class SQPController is OptimizationController {
     // Form the Schur complement
     var HC = self.lbfgs._hmul(C)
     var S = Ct*HC 
-
-    // Apply the formula to invert the KKT system
-    var Hg = self.lbfgs._hmul(g)
 
     var Sinvc = c/S
     var SinvCt = (Ct*Hg)/S

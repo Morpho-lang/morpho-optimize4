@@ -1,0 +1,23 @@
+// Test the lagrange multiplier adapter
+
+import optimize4 
+
+import "lagrangemultiplieradapter2.morpho"
+
+import "../examples/nematic.morpho" for Nematic
+var example = Nematic()
+
+var adapter = example.build()
+
+import "sqpcontroller2.morpho"
+
+print adapter.constraintValue()
+
+var control = SQPController(adapter)
+
+control.optimize(100) 
+//print adapter.get() 
+//print "lambda:"
+//print control.ladapter.lagrangeMultipliers()
+
+example.visualize()

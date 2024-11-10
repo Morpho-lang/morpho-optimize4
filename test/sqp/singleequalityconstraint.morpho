@@ -1,9 +1,7 @@
 // SQP method
 
 import optimize4 
-
-import "lagrangemultiplieradapter.morpho"
-import "sqpcontroller.morpho"
+import "sqp.morpho"
 
 import "../examples/singleequalityconstraint.morpho" for ConstrainedFunctionExample
 var example = ConstrainedFunctionExample()

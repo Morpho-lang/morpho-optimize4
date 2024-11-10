@@ -1,0 +1,23 @@
+// Loop problem solved with SQP
+
+import optimize4 
+
+import "sqp.morpho"
+
+import "../examples/loop.morpho" for Loop
+var example = Loop()
+var adapter = example.build()
+
+var control = SQPController(adapter)
+
+control.optimize(500) 
+
+print "lambda:"
+print control.ladapter.lagrangeMultipliers()
+
+print control.ladapter.value() 
+
+var K = control.kkt()
+print K.eigenvalues() 
+
+example.visualize()

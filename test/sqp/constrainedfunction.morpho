@@ -1,0 +1,18 @@
+// Constrained function example solved with SQP
+
+import optimize4 
+
+import "sqp.morpho"
+
+import "../examples/constrainedfunction.morpho"
+var example = ConstrainedFunctionExample()
+var adapter = example.build() 
+
+adapter.set(Matrix([-0.2,0.5,0.1]))
+
+var control = SQPController(adapter)
+
+control.optimize(20) 
+print adapter.get() 
+print "lambda:"
+print control.ladapter.lagrangeMultipliers()

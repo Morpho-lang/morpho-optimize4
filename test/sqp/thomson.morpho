@@ -1,0 +1,19 @@
+// Thomson problem solved with SQP
+
+import optimize4 
+
+import "sqp.morpho"
+
+import "../examples/thomson.morpho" for Thomson
+var example = Thomson()
+
+var adapter = example.build()
+
+var control = SQPController(adapter)
+
+control.optimize(500) 
+
+print "lambda:"
+print control.ladapter.lagrangeMultipliers()
+
+example.visualize()

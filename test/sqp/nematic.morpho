@@ -1,0 +1,15 @@
+// Nematic example
+
+import optimize4 
+
+import "sqp.morpho"
+
+import "../examples/nematic.morpho" for Nematic
+var example = Nematic()
+var adapter = example.build()
+
+var control = SQPController(adapter)
+
+control.optimize(100) 
+
+example.visualize()

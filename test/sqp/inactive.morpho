@@ -1,15 +1,13 @@
-// Test the lagrange multiplier adapter
+// Active constraint problem
 
 import optimize4 
 
-import "lagrangemultiplieradapter2.morpho"
+import "sqp.morpho"
 
 import "../examples/inactive.morpho"
 var example = ConstrainedFunctionExample()
 var adapter = example.build() 
 adapter.set(Matrix([0.5,0.1]))
-
-import "sqpcontroller2.morpho"
 
 var control = SQPController(adapter)
 

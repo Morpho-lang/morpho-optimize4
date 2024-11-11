@@ -1,0 +1,17 @@
+// Test penalty method on Q tensor problem
+
+import optimize4
+
+import "../examples/qtactoid.morpho"
+
+var example = QTactoid()
+var adapt = example.build()
+
+for (n in 1..1) {
+    if (n>1) adapt = example.refine() 
+
+    var control = PenaltyController(adapt, mu0=10^n)
+    control.optimize(20) 
+} 
+
+Show(example.visualize())

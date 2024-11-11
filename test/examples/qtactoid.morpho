@@ -77,7 +77,7 @@ fn visualizeDirector(m, nn, dl, aspectratio=0.3) {
  * ------------------------------------------------ */
 
 class QTactoid {
-  init() {
+  init(tau=10, omega=0.01) {
     self.Alandau = 1000  // L1 
     self.alpha   = 0.042*self.Alandau   // N m^-2 K^-1
     self.b       = -0.64*self.Alandau   // N m^-2
@@ -95,8 +95,8 @@ class QTactoid {
     // var pitch  = Pi/2 // between 0 and 2pi
     self.L4      = 0
 
-    self.tau     = 10    // Surface tension
-    self.omega   = 0.01  // Anchoring parameter
+    self.tau     = tau    // Surface tension
+    self.omega   = omega  // Anchoring parameter
   }
 
   initialMesh() { 

@@ -308,6 +308,7 @@ class SQPController is OptimizationController {
     var mu = self._choosePenalty(xdirn)
 
     var padapt = L1PenaltyAdapter(self.adapter, penalty=mu)
+
     var ls = DirectedLineSearchController(padapt, direction=xdirn)
     ls.step()
 

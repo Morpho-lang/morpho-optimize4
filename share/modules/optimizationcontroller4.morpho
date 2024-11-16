@@ -269,6 +269,7 @@ class DirectedLineSearchController is LineSearchController {
     var d = self.direction()
     self.df = self.adapter.directionalDerivative(d) 
     if (self.df>0) self.warning(_OptLnSrchDrn)
+    return self.df
   }
 
   hasConverged() { return false } // Prevent evaluation of gradient

@@ -18,6 +18,7 @@ var _OptCons = Error("OptCons", "Method is not appropriate for constrained probl
 var _OptUnCons = Error("OptUnCons", "Method not appropriate for unconstrained problems: Use a different Controller.")
 var _OptNoGrad = Error("OptNoGrad", "Method requires a gradient.")
 var _OptNoHess = Error("OptNoHess", "Method requires a hessian.")
+var _OptHessSng = Error("OptHessSng", "Hessian is singular.")
 
 /* --------------------------
  * Reporting levels 
@@ -573,6 +574,7 @@ class LBFGSController is InvBFGSController {
     for (k in n-1..0:-1) { // Start with most recent
       var z = self._storage[k]
       var sk = z[0], yk = z[1], rho = 1/z[2]
+      if (isinf(rho)) _OptHessSng.throw() 
 
       alpha[k] = rho * sk.transpose()*q //sk.inner(q)
       q-=yk*alpha[k]
@@ -580,9 +582,11 @@ class LBFGSController is InvBFGSController {
 
     var zl = self._storage[-1] // Last 
     var r = (zl[2]/zl[3])*q // (sk.yk)/(yk.yk)
+    if (zl[3]==0) _OptHessSng.throw() 
 
     for (z, k in self._storage) { // Work forwards
       var sk = z[0], yk = z[1], rho = 1/z[2]
+      if (isinf(rho)) _OptHessSng.throw() 
 
       var beta = rho * yk.transpose()*r// rho*yk.inner(r)
       r+=sk*(alpha[k]-beta)

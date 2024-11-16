@@ -8,6 +8,8 @@ import "../examples/loop.morpho" for Loop
 var example = Loop()
 var adapter = example.build()
 
+example.visualize()
+
 var control = SQPController(adapter)
 
 control.optimize(500) 

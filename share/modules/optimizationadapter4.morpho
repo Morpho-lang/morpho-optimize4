@@ -648,7 +648,9 @@ class ProblemAdapter is OptimizationAdapter {
   } 
 
   _zeroInactiveVal(val) { // Zero out any constraints that are in the feasible region
-    for (v, k in val) if (v>0) val[k]=0
+    for (v, k in val) {
+      if (v>0) val[k]=0
+    }
   }
 
   localConstraintValue(onesided=false) {

@@ -5,18 +5,6 @@ import meshgen
 import optimize4
 import plot 
 
-fn visualize(n) { // Visualize a director field
-    var g = Graphics()
-    var m = n.mesh() 
-    var ll = Length().total(m)/m.count(1)/2
-    print ll 
-    for (id in 0...m.count()) {
-        var x = m.vertexposition(id)
-        g.display(Cylinder(x-ll*n[0,id],x+ll*n[0,id],aspectratio=0.2,color=White))
-    }
-    return g 
-}
-
 class Nematic {
   init() {
     self.mesh = nil 
@@ -63,8 +51,20 @@ class Nematic {
     return self.buildAdapter()
   }
 
+  visualizeDirector(n) { // Visualize a director field
+    var g = Graphics()
+    var m = n.mesh() 
+    var ll = Length().total(m)/m.count(1)/2
+    print ll 
+    for (id in 0...m.count()) {
+        var x = m.vertexposition(id)
+        g.display(Cylinder(x-ll*n[0,id],x+ll*n[0,id],aspectratio=0.2,color=White))
+    }
+    return g 
+  }
+
   visualize() { 
-    Show(plotmesh(self.mesh, grade=1)+visualize(self.n))
+    Show(plotmesh(self.mesh, grade=1)+visualizeDirector(self.n))
   }
 }
 

@@ -210,7 +210,6 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
     }
     return Matrix(out)
   }
-
 }
 
 class SQPController is OptimizationController {

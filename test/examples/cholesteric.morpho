@@ -3,7 +3,7 @@ import meshtools
 import plot
 import optimize4
 
-class Cholesteric {
+class CholestericExample {
   init(L=0.5) {
     self.L=L
   }
@@ -22,7 +22,7 @@ class Cholesteric {
     self.substrate.addgrade(1)
   }
 
-  setupProblem() {
+  buildProblem() {
     self.problem = OptimizationProblem(self.mesh)
 
     var lnem = Nematic(self.director)
@@ -37,8 +37,16 @@ class Cholesteric {
     self.problem.addlocalconstraint(ln, field=self.director, target=1)
   }
 
-  setupAdapter() {
+  buildAdapter() {
     return ProblemAdapter(self.problem, self.director)
+  }
+
+  build() {
+    self.initialMesh()
+    self.initialField()
+    self.initialSelection()
+    self.buildProblem()
+    return self.buildAdapter()
   }
 
   visualize() {
@@ -51,23 +59,5 @@ class Cholesteric {
       g.display(Cylinder(x-self.director[i]*dl, x+self.director[i]*dl, aspectratio=0.3))
     }
     return g
-  }
-}
-
-class CholestericExample {
-  init() {
-    self.sim = Cholesteric() 
-    self.sim.initialMesh()
-    self.sim.initialField()
-    self.sim.initialSelection()
-  }
-
-  build() { // Setup the problem and return an Adapter
-    self.sim.setupProblem()
-    return self.sim.setupAdapter()
-  }
-
-  visualize() {
-    Show(self.sim.visualize())
   }
 }

@@ -1,0 +1,48 @@
+
+import meshtools
+import plot 
+import optimize4 
+
+class CubeExample {
+  initialMesh() {
+    self.mesh = PolyhedronMesh([ [-0.5, -0.5, -0.5],
+                         [ 0.5, -0.5, -0.5],
+                         [-0.5,  0.5, -0.5],
+                         [ 0.5,  0.5, -0.5],
+                         [-0.5, -0.5,  0.5],
+                         [ 0.5, -0.5,  0.5],
+                         [-0.5,  0.5,  0.5],
+                         [ 0.5,  0.5,  0.5]],
+                       [ [0,1,3,2], [4,5,7,6],
+                         [0,1,5,4], [3,2,6,7],
+                         [0,2,6,4], [1,3,7,5] ])
+  }
+
+  buildProblem() { // Set up the problen
+    self.problem=OptimizationProblem(self.mesh)
+    self.problem.addenergy(Area())
+    self.problem.addconstraint(VolumeEnclosed())
+  } 
+
+  buildAdapter() {
+    return ProblemAdapter(self.problem, self.mesh)
+  }
+
+  build() { // Setup the problem and return an Adapter
+    self.initialMesh()
+    self.initialField()
+    self.buildProblem()
+    return self.buildAdapter()
+  }
+
+  refine() {
+    var mr=MeshRefiner([self.mesh])
+    var refmap = mr.refine()
+    self.mesh = refmap[self.mesh]
+    self.buildProblem()
+  }
+
+  visualize() {
+    return plotmesh(self.mesh, grade=[1,2])
+  }
+}

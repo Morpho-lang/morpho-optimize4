@@ -1,0 +1,25 @@
+
+import optimize4 
+import "sqp.morpho"
+import "../examples/cube.morpho" for CubeExample
+import plot 
+
+var Nlevels = 1
+
+var example = CubeExample() 
+example.initialMesh()
+
+for (i in 1..Nlevels) {
+  print "===Level ${i}==="
+  example.buildProblem()
+  var adapt = example.buildAdapter() 
+  var opt = SQPController(adapt)
+  opt.optimize(200)
+
+  if (i==Nlevels) break
+  example.refine()
+}
+
+Show(example.visualize())
+
+// Currently, SQP fails for this problem

@@ -4,7 +4,7 @@ import meshtools
 import optimize4
 import plot 
 
-class Loop {
+class LoopExample {
   init(Np=20) {
     self.Np = Np
     self.mesh = nil 

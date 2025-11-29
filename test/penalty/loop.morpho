@@ -1,7 +1,7 @@
 
 import "../examples/loop.morpho"
 
-var example = Loop()
+var example = LoopExample()
 var adapt = example.build()
 
 var control = PenaltyController(adapt)

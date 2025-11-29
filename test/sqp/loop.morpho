@@ -4,8 +4,8 @@ import optimize4
 
 import "sqp.morpho"
 
-import "../examples/loop.morpho" for Loop
-var example = Loop()
+import "../examples/loop.morpho" for LoopExample
+var example = LoopExample()
 var adapter = example.build()
 
 example.visualize()

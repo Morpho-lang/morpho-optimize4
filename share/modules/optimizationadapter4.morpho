@@ -16,6 +16,8 @@ var _OptTrgtLstEmptyErr = Error("OptTrgtLstEmpty", "List of optimization targets
 var _OptNoPrblmErr = Error("OptNoPrblm", "ProblemAdapter must be initialized with an OptimizationProblem.")
 var _OptPrblmTrgtErr = Error("OptPrblmTrgt", "ProblemAdapter must be initialized with Meshes or Fields as targets.")
 
+var _OptEvlFled = Error("OptFnctnlEvlFld", "Evaluation of functional failed.")
+
 var _OptNonDiffErr = Error("OptNonDiff", "Objective function is nondifferentiable; use a Controller that avoids differentiation.")
 
 /* -------------------------
@@ -551,6 +553,7 @@ class ProblemAdapter is OptimizationAdapter {
   evaluateFunctional(func, method, ...args) { 
     if (func.selection) args.append(func.selection)
     var result = apply(method, args)
+    if (isnil(result)) _OptEvlFled.throw("Evaluation of functional ${method} failed.")
     if (func.prefactor) result*=func.prefactor
     return result
   }

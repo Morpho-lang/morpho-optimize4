@@ -1,0 +1,73 @@
+
+import meshtools
+import plot
+import optimize4
+
+class Cholesteric {
+  init(L=0.5) {
+    self.L=L
+  }
+
+  initialMesh(dx=0.1) {
+    self.mesh = AreaMesh(fn (u, v) [u, v, 0], -self.L..self.L:dx, -self.L..self.L:dx)
+    self.mesh.addgrade(1)
+  }
+
+  initialField() {
+    self.director = Field(self.mesh, Matrix([1,0,0]))
+  }
+
+  initialSelection() {
+    self.substrate = Selection(self.mesh, fn (x,y,z) abs(y-(-self.L))<0.001 || abs(y-(self.L))<0.001)
+    self.substrate.addgrade(1)
+  }
+
+  setupProblem() {
+    self.problem = OptimizationProblem(self.mesh)
+
+    var lnem = Nematic(self.director)
+    lnem.pitch = Pi/2
+    self.problem.addenergy(lnem)
+
+    // Impose planar degenerate anchoring by penalizing ny
+    var lanch = LineIntegral(fn (x, n) n[1]^2, self.director)
+    self.problem.addenergy(lanch, selection=self.substrate)
+
+    var ln=NormSq(self.director)
+    self.problem.addlocalconstraint(ln, field=self.director, target=1)
+  }
+
+  setupAdapter() {
+    return ProblemAdapter(self.problem, self.director)
+  }
+
+  visualize() {
+    var v = self.mesh.vertexmatrix()
+    var dl = Length().total(self.mesh)/self.mesh.count(1)/3
+    var nv = v.dimensions()[1]
+    var g = Graphics()
+    for (i in 0...nv) {
+      var x = v.column(i)
+      g.display(Cylinder(x-self.director[i]*dl, x+self.director[i]*dl, aspectratio=0.3))
+    }
+    return g
+  }
+}
+
+class CholestericExample {
+  init() {
+    self.sim = Cholesteric() 
+    self.sim.initialMesh()
+    self.sim.initialField()
+    self.sim.initialSelection()
+  }
+
+  build() { // Setup the problem and return an Adapter
+    self.sim.setupProblem()
+    return self.sim.setupAdapter()
+  }
+
+  visualize() {
+    Show(self.sim.visualize())
+  }
+}

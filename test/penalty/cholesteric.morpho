@@ -1,0 +1,13 @@
+// Test penalty method on an optimization problem
+
+import optimize4
+
+import "../examples/cholesteric.morpho" for CholestericExample
+
+var example = CholestericExample()
+var adapt = example.build()
+
+var control = PenaltyController(adapt)
+control.optimize(20) 
+
+example.visualize()

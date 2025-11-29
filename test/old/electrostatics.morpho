@@ -1,0 +1,19 @@
+
+import optimize
+import plot 
+import "../examples/electrostatics.morpho" for ElectrostaticsExample
+
+var Nlevels = 11
+
+var example = ElectrostaticsExample() 
+example.build()
+
+for (i in 1..Nlevels) {
+  print "===Refinement level ${i}==="
+  var opt = FieldOptimizer(example.problem, example.phi)
+  opt.conjugategradient(1000)
+  example.report() 
+  if (i<Nlevels) example.refine() 
+}
+
+Show(example.visualize())

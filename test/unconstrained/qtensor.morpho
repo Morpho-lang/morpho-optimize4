@@ -1,4 +1,4 @@
-// Test penalty method on Q tensor problem
+// Test LBFGS on Q tensor problem
 
 import optimize4
 

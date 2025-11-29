@@ -1,0 +1,86 @@
+// Solve Laplace's equation on a square domain by minimizing |grad V|^2
+import meshtools
+import plot
+import optimize4
+
+class ElectrostaticsExample {
+  init(L=1, delta=0.25) {
+    self.delta=delta // Mesh spacing
+    self.L = L // Size of domain
+  }
+
+  initialMesh() {
+    // Create the mesh
+    self.mesh = AreaMesh(fn (u,v) [ u, v, 0 ], -self.L/2..self.L/2:self.delta, -self.L/2..self.L/2:self.delta)
+    self.mesh.addgrade(1)
+  }
+
+  initialSelection() {
+    // Create boundaries and select edges, building up from selecting vertices
+    var bnd = Selection(self.mesh, boundary=true)
+    var bnd1 = Selection(self.mesh, fn (x,y,z) abs(x+self.L/2)<0.01 || abs(y+self.L/2)<0.01)
+    var bnd2 = Selection(self.mesh, fn (x,y,z) abs(x-self.L/2)<0.01 || abs(y-self.L/2)<0.01)
+    for (b in [bnd, bnd1, bnd2]) b.addgrade(1)
+
+    self.bnd1=bnd.intersection(bnd1)
+    self.bnd2=bnd.intersection(bnd2)
+  }
+
+  initialField() { // Create field
+    self.phi = Field(self.mesh, fn (x,y,z) 0)
+  }
+
+  buildProblem() {
+    // Set up the problem
+    self.problem = OptimizationProblem(self.mesh)
+
+    var le = GradSq(self.phi)
+    self.problem.addenergy(le)
+
+    var v1 = 0, v2 = 1
+    var lt1 = LineIntegral(fn (x, v) (v-v1)^2, self.phi)
+    self.problem.addenergy(lt1, selection=self.bnd1, prefactor=100)
+
+    var lt2 = LineIntegral(fn (x, v) (v-v2)^2, self.phi)
+    self.problem.addenergy(lt2, selection=self.bnd2, prefactor=100)
+  }
+
+  buildAdapter() { 
+    self.adapter = ProblemAdapter(self.problem, self.phi)
+    return self.adapter
+  }
+
+  build() { // Setup the problem and return an Adapter
+    self.initialMesh()
+    self.initialSelection()
+    self.initialField()
+    self.buildProblem()
+    return self.buildAdapter()
+  }
+
+  refine() {
+    // Select elements that have an above average contribution to the energy
+    var en = GradSq(self.phi).integrand(self.phi) // energy in each element
+    var mean = en.sum()/en.count() // mean energy per element
+    var srefine = Selection(self.mesh)
+    for (id in 0...en.count()) if (en[0,id]>1.5*mean) srefine[2,id]=true // identify large contributions
+
+    // Refine
+    var ref = MeshRefiner([self.mesh, self.phi, self.bnd1, self.bnd2])
+    var refmap = ref.refine(selection=srefine) // perform the refinement
+    for (el in [self.problem]) el.update(refmap) // update the problem
+    self.mesh = refmap[self.mesh] // update all our variables
+    self.phi = refmap[self.phi]
+    self.bnd1 = refmap[self.bnd1]
+    self.bnd2 = refmap[self.bnd2]
+    equiangulate(self.mesh)
+  }
+
+  report() {
+    print "Mesh has ${self.mesh.count(2)} elements"
+  }
+
+  visualize() {
+    return plotfield(self.phi, style="interpolate") + plotmesh(self.mesh, grade=1)
+  } 
+}

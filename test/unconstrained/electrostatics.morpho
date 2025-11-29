@@ -1,0 +1,21 @@
+// Test LBFGS on electrostatics problem
+
+import optimize4
+
+import "../examples/electrostatics.morpho"
+
+var Nlevels = 11
+
+var example = ElectrostaticsExample() 
+example.build()
+
+for (i in 1..Nlevels) {
+  print "===Refinement level ${i}==="
+  var adapt = example.buildAdapter()
+  var opt=LBFGSController(adapt)
+  opt.optimize(100)
+  example.report() 
+  if (i<Nlevels) example.refine() 
+}
+
+Show(example.visualize())

@@ -1,0 +1,21 @@
+
+import optimize4
+import plot 
+import "sqp.morpho"
+
+import "../examples/wrap.morpho" for WrapExample
+
+var example = WrapExample()
+example.build() 
+
+var Nlevels = 3
+for (i in 1..Nlevels) {
+  var adapt = example.buildAdapter()
+  var opt = SQPController(adapt)
+  opt.optimize(1000)
+  if (i<Nlevels) { example.refine() }
+}
+
+print example.mesh
+
+Show(example.visualize())

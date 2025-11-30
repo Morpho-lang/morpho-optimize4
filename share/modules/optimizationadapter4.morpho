@@ -343,7 +343,7 @@ class FunctionAdapter is OptimizationAdapter {
 /* Mixin that provides constraintVector(), which converts the results of constraintValue() 
    into a single vector of values. */
 
-class ConstraintVector {
+class ConstraintVectorMixin {
   constraintVector() {
     var cv = self.adapter.constraintValue()
 
@@ -392,7 +392,7 @@ class ConstraintVector {
       F = f + mu *|c|^2 + mu* |d-|^2 
    Used to implement the penalty method */
 
-class PenaltyAdapter is OptimizationAdapter with ConstraintVector {
+class PenaltyAdapter is OptimizationAdapter with ConstraintVectorMixin {
   init(adapter, penalty=1) { 
     self.adapter = adapter
     self.penalty = penalty 
@@ -462,7 +462,7 @@ class PenaltyAdapter is OptimizationAdapter with ConstraintVector {
       F = |c|^2 + |d-|^2 
    Used to reproject a solution back onto the feasible set */
 
-class ReprojectionAdapter is DeconstrainAdapter with ConstraintVector {
+class ReprojectionAdapter is DeconstrainAdapter with ConstraintVectorMixin {
   value() { // F = |c|^2 + |d-|^2 
     var v = self.constraintVector() 
     return v.inner(v)

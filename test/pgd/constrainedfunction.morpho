@@ -1,0 +1,31 @@
+
+import "../examples/constrainedfunction.morpho" for ConstrainedFunctionExample, c 
+
+var example = ConstrainedFunctionExample()
+var adapt = example.build()
+
+var x0 = adapt.get()
+
+print "====PENALTY========================"
+adapt.set(x0)
+var opt = PenaltyController(adapt)
+opt.optimize(100)
+
+var pensol = adapt.get() 
+
+print "====PGD========================"
+adapt.set(x0)
+var opt = ProjectedGradientDescentController(adapt, steplimit=0.01) 
+opt.optimize(100) 
+
+var pgdsol = adapt.get() 
+
+var labels = ["Penalty", "PGD"]
+
+for (sol, k in [pensol, pgdsol]) {
+  print "Results for ${labels[k]}:"
+  print sol 
+  adapt.set(sol)
+  print "Value: ${adapt.value()}"
+  print "Constraint value: ${adapt.constraintValue()}"
+}

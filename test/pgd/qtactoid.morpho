@@ -1,0 +1,16 @@
+
+import "../examples/qtactoid.morpho"
+
+var example = QTactoid()
+var adapt = example.build()
+
+var Nlevels = 3
+
+for (n in 1..Nlevels) {
+    if (n>1) adapt = example.refine() 
+
+    var control = ProjectedGradientDescentController(adapt)
+    control.optimize(1000) 
+} 
+
+Show(example.visualize())

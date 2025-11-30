@@ -1,0 +1,12 @@
+
+import optimize4
+
+import "../examples/nematic.morpho"
+
+var example = Nematic()
+var adapt = example.build()
+
+var control = ProjectedGradientDescentController(adapt)
+control.optimize(1000) 
+
+example.visualize()

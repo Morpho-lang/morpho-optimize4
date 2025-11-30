@@ -1,0 +1,26 @@
+
+import optimize4
+import "../examples/twoinequalityconstraints.morpho" for ConstrainedFunctionExample
+
+var example = ConstrainedFunctionExample()
+var adapt = example.build()
+adapt.set(Matrix([2.2,-0.5]))
+
+var x0 = adapt.get()
+
+print "====PGD========================"
+adapt.set(x0)
+var opt = ProjectedGradientDescentController(adapt, mu=100) 
+opt.optimize(100) 
+
+var pgdsol = adapt.get() 
+
+var labels = ["PGD"]
+
+for (sol, k in [pgdsol]) {
+  print "Results for ${labels[k]}:"
+  print sol 
+  adapt.set(sol)
+  print "Value: ${adapt.value()}"
+  print "Constraint value: ${adapt.constraintValue()}"
+}

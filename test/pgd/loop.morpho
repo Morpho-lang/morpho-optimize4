@@ -1,0 +1,10 @@
+
+import "../examples/loop.morpho"
+
+var example = LoopExample()
+var adapt = example.build()
+
+var control = ProjectedGradientDescentController(adapt)
+control.optimize(10000) 
+
+example.visualize() 

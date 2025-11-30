@@ -1,0 +1,23 @@
+
+import plot 
+import optimize4 
+import "../examples/wrap.morpho" for WrapExample
+
+var example = WrapExample()
+example.build()
+example.refine()
+example.refine()
+example.build()
+
+print "====PGD========================"
+var Nlevels = 1
+for (i in 1..Nlevels) {
+  var adapt = example.buildAdapter()
+  var opt = ProjectedGradientDescentController(adapt, steplimit=0.1)
+  opt.optimize(10000)
+  if (i<Nlevels) { example.refine() }
+}
+
+print example.mesh
+
+Show(example.visualize())

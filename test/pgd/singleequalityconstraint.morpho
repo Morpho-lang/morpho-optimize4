@@ -1,0 +1,32 @@
+
+import "projectedgradientdescentcontroller.morpho"
+
+var example = ConstrainedFunctionExample()
+var adapt = example.build()
+adapt.set(Matrix([2.2,-0.5]))
+
+var x0 = adapt.get()
+
+print "====PENALTY========================"
+adapt.set(x0)
+var opt = PenaltyController(adapt)
+opt.optimize(100)
+
+var pensol = adapt.get() 
+
+print "====PGD========================"
+adapt.set(x0)
+var opt = ProjectedGradientDescentController(adapt) 
+opt.optimize(100) 
+
+var pgdsol = adapt.get() 
+
+var labels = ["Penalty", "PGD"]
+
+for (sol, k in [pensol, pgdsol]) {
+  print "Results for ${labels[k]}:"
+  print sol 
+  adapt.set(sol)
+  print "Value: ${adapt.value()}"
+  print "Constraint value: ${adapt.constraintValue()}"
+}

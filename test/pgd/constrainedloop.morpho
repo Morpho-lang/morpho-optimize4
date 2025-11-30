@@ -1,0 +1,12 @@
+
+import plot 
+import optimize4 
+import "../examples/constrainedloop.morpho" for ConstrainedLoop
+
+var example = ConstrainedLoop()
+var adapt = example.build()
+
+var control = ProjectedGradientDescentController(adapt)
+control.optimize(1000) 
+
+example.visualize() 

@@ -1,0 +1,12 @@
+
+import plot 
+import optimize4 
+import "../examples/cholesteric.morpho" for CholestericExample
+
+var example = CholestericExample()
+var adapt = example.build()
+
+var control = ProjectedGradientDescentController(adapt)
+control.optimize(10000) 
+
+Show(example.visualize())

@@ -624,9 +624,11 @@ class LBFGSController is InvBFGSController {
 
 /* -----------------------------------------
  * PenaltyController
- * 
- * Implements a penalty method
  * ----------------------------------------- */ 
+
+/** Implements a penalty method. Converts a constrained problem into an unconstrained problem 
+    using a PenaltyAdapter. Solves a sequence of subproblems with increasing penalty parameter
+    until convergence criteria and constraint goal has been achieved. */
 
 class PenaltyController is OptimizationController {
   init(adapter, quiet=false, verbosity=nil, controller=nil, mu0=1, mumul=10.0) {
@@ -675,5 +677,103 @@ class PenaltyController is OptimizationController {
     if (!self.checkVerbosity(_OptNormal)) return 
     
     print "==Penalty iteration ${iter}: mu=${self.mu} |constraints|=${self.constraintNorm()}"
+  }
+}
+
+/* -----------------------------------------
+ * ProjectedGradientDescentController
+ * ----------------------------------------- */ 
+
+/** Implements projected gradient descent. Performs gradient descent steps with linesearches: 
+    * Subtracts off any component of the gradient in the constrained direction to help maintain feasibility
+    * Line search uses an L1PenaltyAdapter as a merit function
+    * Performs a reprojection step after each iteration */
+
+class ProjectedGradientDescentController is OptimizationController {
+  init(adapter, quiet=false, verbosity=nil, maxconstraintsteps=100, mu=2, steplimit=nil) {
+    super.init(adapter, quiet=quiet, verbosity=verbosity)
+    self.maxconstraintsteps=maxconstraintsteps
+    if (!self.isConstrained()) _OptUnCons.throw()
+    self.mu = mu
+    self.steplimit = steplimit
+    self._gradient = nil 
+  }
+
+  reproject() { // Perform reprojection
+    var opt = LBFGSController(self.rpadapter, quiet=true)
+    opt.optimize(self.maxconstraintsteps)
+  }
+
+  start() {
+    self.rpadapter = ReprojectionAdapter(self.adapter)
+    reproject()
+  }
+
+  _eliminate(A, ix) { // Eliminate variable ix by zeroing out the associated row and column, replace with 1 on diagonal
+    var dim = A.dimensions()[0]
+    for (i in 0...dim) {
+      A[i,ix]=0
+      A[ix,i]=0
+    }
+    A[ix,ix]=1
+  }
+
+  _checkInequalityConstraints(A, b) {
+    var cv = self.adapter.constraintValue()
+    var cvec = self.rpadapter._flatten(cv)
+    var neq = self.rpadapter._counteq(cv)
+
+    for (i in neq...cvec.count()) {
+      if (cvec[i]>=0) { 
+        b[i]=0
+        _eliminate(A, i)
+      }
+    }
+  }
+
+  direction() {
+    var g = self.adapter.gradient()
+    var dg = self.adapter.constraintGradient()   
+    var C = Matrix([dg])
+    var Ct = C.transpose()
+
+    var Ctg = Ct*g
+    var CtC = Ct*C
+
+    // Check for inactive constraints
+    if (self.adapter.countInequalityConstraints()>0) _checkInequalityConstraints(CtC, Ctg)
+
+    // Project off the constraint directions
+    var lambda=Ctg/CtC
+    g -= C*lambda
+    self._gradient = g    
+
+    return -g // Return the downward direction
+  }
+
+  linesearch(dirn) {
+    var x0 = self.adapter.get() 
+    var mu = self.mu 
+    var padapt = L1PenaltyAdapter(self.adapter, penalty=mu)
+    var ls = DirectedLineSearchController(padapt, direction=dirn)
+    ls.step()
+    if (self.steplimit && ls.stepsize>self.steplimit) {
+      self.adapter.set(x0 + self.steplimit*ls.direction())
+    }
+  }
+
+  step() {
+    var d = direction() // Search direction 
+    linesearch(d)
+    reproject() 
+  }
+
+  gradient() { // Ensure we report most recent value of the projected gradient
+    if (isnil(self._gradient)) self.direction() 
+    return self._gradient
+  }
+
+  reportStepsize() { 
+    return "|constraints|=${self.rpadapter.constraintVector().norm(1)}" 
   }
 }

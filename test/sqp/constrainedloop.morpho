@@ -1,0 +1,13 @@
+
+import "../examples/constrainedloop.morpho"
+import "sqp.morpho"
+
+var example = ConstrainedLoop()
+var adapt = example.build()
+
+var control = SQPController(adapt)
+control.optimize(100) 
+
+example.visualize() 
+
+// Fails on this problem

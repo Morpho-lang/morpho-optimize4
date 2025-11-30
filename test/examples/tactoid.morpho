@@ -5,7 +5,7 @@ import meshgen
 import optimize4
 import plot 
 
-fn visualize(n) {
+fn visualizeDirector(n) {
     var g = Graphics()
     var m = n.mesh() 
     var ll = Length().total(m)/m.count(1)/2
@@ -75,6 +75,6 @@ class Tactoid {
   }
 
   visualize() { 
-    Show(plotmesh(self.mesh, grade=1)+visualize(self.n))
+    Show(plotmesh(self.mesh, grade=1)+visualizeDirector(self.n))
   }
 }

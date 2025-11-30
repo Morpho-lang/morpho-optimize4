@@ -414,6 +414,11 @@ class PenaltyAdapter is OptimizationAdapter {
     return grad
   }
 
+  directionalDerivative(d) {
+    var df = self.gradient() 
+    return df.inner(d) 
+  }
+
   hessian() { // hessian Q = hessian f + 2*mu*g*hessian g + 2*mu*(dg \outer dg)
     var hess = self.adapter.hessian() 
     if (!hess) _OptNoHessErr.throw() 

@@ -1,0 +1,42 @@
+
+import meshtools
+import plot
+import optimize4 
+
+class CatenoidExample {
+  init(r=1.0, ratio=0.4, L=nil) {
+    self.r = r
+    self.ratio = ratio
+    self.L = L 
+    if (isnil(L)) self.L = 2*r*ratio 
+  }
+
+  initialMesh() { // Generate a tube / cylindrical mesh
+    var mesh = AreaMesh(fn (u, v) [self.r*cos(u), v, self.r*sin(u)], 
+                    -Pi...Pi:Pi/10,
+                    -self.L/2..self.L/2:self.L/5, 
+                    closed=[true,false])
+    mesh.addgrade(1)
+    self.mesh = mesh
+  }
+
+  initialSelection() { // Select the boundary
+    self.bnd = Selection(self.mesh, boundary=true)
+  }
+
+  setupProblem() { // Define the optimizataion problem
+    self.problem = OptimizationProblem(self.mesh)
+    var area = Area() // Add the area energy using the built-in Area functional
+    self.problem.addenergy(area)
+  }
+
+  setupAdapter() {
+    var padapt = ProblemAdapter(self.problem, self.mesh)
+    var fixix = padapt.selectionToIndexList(self.bnd, self.mesh)
+    return FixAdapter(padapt, fixix)
+  }
+
+  visualize() {
+    return plotselection(self.mesh, self.bnd, grade=1)
+  }
+}

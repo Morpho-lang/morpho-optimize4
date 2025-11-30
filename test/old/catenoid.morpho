@@ -1,0 +1,17 @@
+
+import plot
+import optimize
+
+import "../examples/catenoid.morpho" for CatenoidExample
+
+var sim = CatenoidExample(ratio=0.6) 
+sim.initialMesh()
+sim.initialSelection()
+sim.setupProblem() 
+
+var opt = ShapeOptimizer(sim.problem, sim.mesh)
+opt.fix(sim.bnd)
+opt.conjugategradient(1000)
+
+Show(sim.visualize())
+

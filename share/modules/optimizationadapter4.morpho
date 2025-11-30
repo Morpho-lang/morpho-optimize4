@@ -9,6 +9,7 @@
 var _OptConsCountErr = Error("OptConsCount", "More equality constraints specified than provided.")
 var _OptUnConsErr = Error("OpUncons", "Problem is unconstrained; this adapter is intended for constrained problems.")
 var _OptNoHessErr = Error("OptNoHess", "Method requires a hessian.")
+var _OptHessErr = Error("OptHess", "Adapter cannot be used with methods that require a hessian.")
 
 var _OptNoActiveFuncErr = Error("OptNoActiveFunc", "Problem has no active functionals.")
 var _OptTrgtLstEmptyErr = Error("OptTrgtLstEmpty", "List of optimization targets is empty.")
@@ -179,162 +180,46 @@ class ProxyAdapter is DelegateAdapter {
 }
 
 /* -------------------------
- * FunctionAdapter 
+ * FixAdapter 
  * ------------------------- */
 
-/* Adapts a provided function (and an optional gradient and hessian) 
-   to the OptimizationAdapter interface */
+/* Fixes selected variables in a problem, preventing them from being changed.
+   Their gradients are also set to zero. */
 
-var _epsfd=(1e-16)^(1/3) // Optimal relative stepsize for cell centered gradient
-var _epshess=(1e-16)^(1/4) // Optimal relative stepsize for cell centered hessian
-
-class FunctionAdapter is OptimizationAdapter {
-  init(target, gradient=nil, hessian=nil, start=nil, 
-               constraints=nil, constraintgradients=nil, constrainthessians=nil,
-               equalitycount=nil) {
-    super.init(target)
-    self.x = start
-    
-    self.gradfn = gradient 
-    if (!gradient) self.gradfn = self._numericalgrad(self.target) // Use FD if no grad provided
-
-    self.hessianfn = hessian
-    if (!hessian) self.hessianfn = self._numericalhessian(self.target) // Use FD if no hessian provided
-
-    self.constraints = constraints
-
-    self.constraintcount = 0 
-    if (constraints) self.constraintcount = self.constraints.count()
-    self.equalitycount = self.constraintcount // By default, all constraints are equality constraints
-    if (equalitycount) self.equalitycount = equalitycount
-
-    if (self.equalitycount>self.constraintcount) _OptConsCountErr.throw()
-
-    self.constraintgradfn = constraintgradients
-    if (self.constraints && !self.constraintgradfn) {
-      var lst = []
-      for (c in self.constraints) lst.append(self._numericalgrad(c))
-      self.constraintgradfn = lst 
-    }
-
-    self.constrainthessianfn = constrainthessians
-    if (self.constraints && !self.constrainthessianfn) {
-      var lst = []
-      for (c in self.constraints) lst.append(self._numericalhessian(c))
-      self.constrainthessianfn = lst 
-    }
+class FixAdapter is DelegateAdapter {
+  init(adapter, List fix) {
+    super.init(adapter)
+    self.fix = fix 
   }
 
-  _listify(x) { // Converts an enumerable to a list
-    var l = []
-    for (e in x) l.append(e)
-    return l 
+  init(adapter, Int fix) {
+    self.init(adapter, [fix])
   }
 
-  _stepsize(eps, x) { // Select stepsize for finite differences
-    var h=eps
-    var xx=abs(x)
-    if (xx>1) h*=xx // Scale
-
-    var temp = x+h  // Ensure we obtain an FP representable number
-    return temp - x 
+  set(x) { // Fixed variables are copied across
+    var ox = self.get() 
+    for (i in self.fix) x[i] = ox[i]
+    self.adapter.set(x)
   }
 
-  _numericalgrad(f) { // Construct a numerical gradient as a closure 
-    fn numericalgradfn(...x) {
-      var n = x.count()
-      var grad = Matrix(n)
-
-      for (var i=0; i<n; i+=1) {
-        var x0 = x[i]
-        var eps = self._stepsize(_epsfd, x0)
-        x[i]=x0+eps
-        var fr = apply(f, x)
-        x[i]=x0-eps
-        var fl = apply(f, x)
-        grad[i]=(fr-fl)/(2*eps)
-      }
-
-      return grad 
-    }
-    return numericalgradfn
+  _zeroElements(g) {
+    for (i in self.fix) g[i]=0
   }
 
-  _numericalhessian(f) {
-    fn numericalhessianfn(...x) {
-      var n = x.count()
-      var hess = Matrix(n,n)
-      var f0 = apply(f, x)
-
-      for (var i=0; i<n; i+=1) {
-        var x0 = x[i]
-        var epsx = self._stepsize(_epshess, x0)
-
-        // Diagonal entries see Abramowitz and Stegun 1972, p. 884, 25.3.23, O(h^2)
-        x[i]=x0+epsx
-        var fr = apply(f, x)
-        x[i]=x0-epsx
-        var fl = apply(f, x)
-        x[i]=x0
-
-        hess[i,i]=(fr+fl-2*f0)/(epsx*epsx)
-
-        // Off diagonal entries Abramowitz and Stegun 1972, p. 884, 25.3.26 O(h^2)
-        for (var j=0; j<i; j+=1) {
-          var y0 = x[j]            
-          var epsy = self._stepsize(_epshess, y0)
-
-          x[i]=x0+epsx; x[j]=y0+epsy
-          var frr = apply(f, x)
-          x[i]=x0-epsx; x[j]=y0-epsy
-          var fll = apply(f, x)
-          x[i]=x0-epsx; x[j]=y0+epsy
-          var flr = apply(f, x)
-          x[i]=x0+epsx; x[j]=y0-epsy
-          var frl = apply(f, x)
-          x[i]=x0; x[j]=y0
-
-          hess[i,j]=hess[j,i]=(frr+fll-flr-frl)/(epsx*epsy)/4
-        }
-      }
-
-      return hess  
-    } 
-    return numericalhessianfn 
+  gradient() { // Set the gradient of any fixed variables to zero 
+    var grad = self.adapter.gradient() 
+    _zeroElements(grad)
+    return grad 
   }
 
-  set(x) { self.x = x }
-  get() { return self.x }
-
-  value() { return apply(self.target, self._listify(self.x)) }
-  gradient() { return apply(self.gradfn, self._listify(self.x)) }
-  hessian() { return apply(self.hessianfn, self._listify(self.x)) }
-
-  countConstraints() { return self.constraintcount }
-  countEqualityConstraints() { return self.equalitycount }
-
-  constraintMap(list) {
-    var val = []
-    for (c, k in list) val.append( apply(c, self._listify(self.x)) )
-    return val 
-  } 
-
-  constraintValue() { 
-    if (!self.constraints) return nil 
-    return self.constraintMap(self.constraints)
-  }   
-
-  constraintGradient() { 
-    if (!self.constraints) return nil 
-    return self.constraintMap(self.constraintgradfn)
+  constraintGradient() {
+    var grad = self.adapter.constraintGradient() 
+    for (c in grad) _zeroElements(c)
+    return grad
   }
 
-  constraintHessian() { 
-    if (!self.constraints) return nil 
-
-    if (!self.constraints) return nil 
-    return self.constraintMap(self.constrainthessianfn)
-  }
+  hessian() { _OptHessErr.throw() }
+  constraintHessian() { _OptHessErr.throw() } 
 }
 
 /* -------------------------
@@ -710,10 +595,210 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
 }
 
 /* -------------------------
+ * FunctionAdapter 
+ * ------------------------- */
+
+/* Adapts a provided function (and an optional gradient and hessian) 
+   to the OptimizationAdapter interface */
+
+var _epsfd=(1e-16)^(1/3) // Optimal relative stepsize for cell centered gradient
+var _epshess=(1e-16)^(1/4) // Optimal relative stepsize for cell centered hessian
+
+class FunctionAdapter is OptimizationAdapter {
+  init(target, gradient=nil, hessian=nil, start=nil, 
+               constraints=nil, constraintgradients=nil, constrainthessians=nil,
+               equalitycount=nil) {
+    super.init(target)
+    self.x = start
+    
+    self.gradfn = gradient 
+    if (!gradient) self.gradfn = self._numericalgrad(self.target) // Use FD if no grad provided
+
+    self.hessianfn = hessian
+    if (!hessian) self.hessianfn = self._numericalhessian(self.target) // Use FD if no hessian provided
+
+    self.constraints = constraints
+
+    self.constraintcount = 0 
+    if (constraints) self.constraintcount = self.constraints.count()
+    self.equalitycount = self.constraintcount // By default, all constraints are equality constraints
+    if (equalitycount) self.equalitycount = equalitycount
+
+    if (self.equalitycount>self.constraintcount) _OptConsCountErr.throw()
+
+    self.constraintgradfn = constraintgradients
+    if (self.constraints && !self.constraintgradfn) {
+      var lst = []
+      for (c in self.constraints) lst.append(self._numericalgrad(c))
+      self.constraintgradfn = lst 
+    }
+
+    self.constrainthessianfn = constrainthessians
+    if (self.constraints && !self.constrainthessianfn) {
+      var lst = []
+      for (c in self.constraints) lst.append(self._numericalhessian(c))
+      self.constrainthessianfn = lst 
+    }
+  }
+
+  _listify(x) { // Converts an enumerable to a list
+    var l = []
+    for (e in x) l.append(e)
+    return l 
+  }
+
+  _stepsize(eps, x) { // Select stepsize for finite differences
+    var h=eps
+    var xx=abs(x)
+    if (xx>1) h*=xx // Scale
+
+    var temp = x+h  // Ensure we obtain an FP representable number
+    return temp - x 
+  }
+
+  _numericalgrad(f) { // Construct a numerical gradient as a closure 
+    fn numericalgradfn(...x) {
+      var n = x.count()
+      var grad = Matrix(n)
+
+      for (var i=0; i<n; i+=1) {
+        var x0 = x[i]
+        var eps = self._stepsize(_epsfd, x0)
+        x[i]=x0+eps
+        var fr = apply(f, x)
+        x[i]=x0-eps
+        var fl = apply(f, x)
+        grad[i]=(fr-fl)/(2*eps)
+      }
+
+      return grad 
+    }
+    return numericalgradfn
+  }
+
+  _numericalhessian(f) {
+    fn numericalhessianfn(...x) {
+      var n = x.count()
+      var hess = Matrix(n,n)
+      var f0 = apply(f, x)
+
+      for (var i=0; i<n; i+=1) {
+        var x0 = x[i]
+        var epsx = self._stepsize(_epshess, x0)
+
+        // Diagonal entries see Abramowitz and Stegun 1972, p. 884, 25.3.23, O(h^2)
+        x[i]=x0+epsx
+        var fr = apply(f, x)
+        x[i]=x0-epsx
+        var fl = apply(f, x)
+        x[i]=x0
+
+        hess[i,i]=(fr+fl-2*f0)/(epsx*epsx)
+
+        // Off diagonal entries Abramowitz and Stegun 1972, p. 884, 25.3.26 O(h^2)
+        for (var j=0; j<i; j+=1) {
+          var y0 = x[j]            
+          var epsy = self._stepsize(_epshess, y0)
+
+          x[i]=x0+epsx; x[j]=y0+epsy
+          var frr = apply(f, x)
+          x[i]=x0-epsx; x[j]=y0-epsy
+          var fll = apply(f, x)
+          x[i]=x0-epsx; x[j]=y0+epsy
+          var flr = apply(f, x)
+          x[i]=x0+epsx; x[j]=y0-epsy
+          var frl = apply(f, x)
+          x[i]=x0; x[j]=y0
+
+          hess[i,j]=hess[j,i]=(frr+fll-flr-frl)/(epsx*epsy)/4
+        }
+      }
+
+      return hess  
+    } 
+    return numericalhessianfn 
+  }
+
+  set(x) { self.x = x }
+  get() { return self.x }
+
+  value() { return apply(self.target, self._listify(self.x)) }
+  gradient() { return apply(self.gradfn, self._listify(self.x)) }
+  hessian() { return apply(self.hessianfn, self._listify(self.x)) }
+
+  countConstraints() { return self.constraintcount }
+  countEqualityConstraints() { return self.equalitycount }
+
+  constraintMap(list) {
+    var val = []
+    for (c, k in list) val.append( apply(c, self._listify(self.x)) )
+    return val 
+  } 
+
+  constraintValue() { 
+    if (!self.constraints) return nil 
+    return self.constraintMap(self.constraints)
+  }   
+
+  constraintGradient() { 
+    if (!self.constraints) return nil 
+    return self.constraintMap(self.constraintgradfn)
+  }
+
+  constraintHessian() { 
+    if (!self.constraints) return nil 
+
+    if (!self.constraints) return nil 
+    return self.constraintMap(self.constrainthessianfn)
+  }
+}
+
+/* -------------------------
+ * FixSelectionMixin
+ * ------------------------- */
+
+/** Mixin used to help identify indices to fix from a selection */
+
+class FixSelectionMixin {
+  _indexOffsets() { // Construct a dictionary of offsets for each target
+    var offsetDict = Dictionary() 
+    Int ix = 0
+    for (t in self.target) {
+      offsetDict[t]=ix
+      ix+=self.count(t)
+    }
+    return offsetDict
+  }
+
+  _dimension(Mesh m) { return m.vertexmatrix().dimensions()[0] }
+  _dimension(Field f) { return f.prototype().count() }
+
+  _idToIndex(Mesh target, Int id) { return _dimension(target)*id }
+  _idToIndex(Field target, Int id) { Error("NtImplmntd", "Indexing field elements not implemented").throw() }
+
+  selectionToIndexList(Selection sel, target, components=nil) {
+    var offsetDict = _indexOffsets()
+    var ixoffset = offsetDict[target]
+
+    var dim = _dimension(target)
+
+    var list = []
+    for (id in sel.idlistforgrade(0)) {
+      var ix = _idToIndex(target, id)
+      for (i in 0...dim) {
+        if (isobject(components) && !components.contains(i)) continue // Skip anything not in the components list 
+        list.append(ixoffset+ix+i)
+      }
+    }
+    return list
+  }
+}
+
+/* -------------------------
  * ProblemAdapter
  * ------------------------- */
 
-class ProblemAdapter is OptimizationAdapter {
+class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
   init(OptimizationProblem problem, ...target, mesh=nil) {
     self.problem = problem 
     self.target = [] // Keep track of optimization targets 

@@ -1,0 +1,16 @@
+
+import plot
+
+import "../examples/catenoid.morpho"
+
+var sim = CatenoidExample(ratio=0.6) 
+sim.initialMesh()
+sim.initialSelection()
+sim.setupProblem()
+
+var adapt = sim.setupAdapter()
+var opt = LBFGSController(adapt)
+opt.optimize(1000)
+
+Show(sim.visualize())
+

@@ -337,22 +337,24 @@ class FunctionAdapter is OptimizationAdapter {
 }
 
 /* -------------------------
- * PenaltyAdapter
+ * ConstraintVector
  * ------------------------- */
 
-/* Converts a constrained optimization problem into an unconstrained one */
+/* Mixin that provides constraintVector(), which converts the results of constraintValue() 
+   into a single vector of values. */
 
-class PenaltyAdapter is OptimizationAdapter {
-  init(adapter, penalty=1) { 
-    self.adapter = adapter
-    self.penalty = penalty 
+class ConstraintVector {
+  constraintVector() {
+    var cv = self.adapter.constraintValue()
+
+    if (!cv) _OptUnConsErr.warning()
+
+    var v = self._flatten(cv)
+    var neq = self._counteq(cv)
+    self._checkineq(v, neq)
+
+    return v 
   }
-
-  setpenalty(penalty) { self.penalty = penalty }
-  penalty() { return self.penalty }
-
-  set(x) { self.adapter.set(x) }
-  get() { return self.adapter.get() }
 
   _counteq(cv) { // Counts the number of equality constraints
     var nc = self.adapter.countEqualityConstraints()
@@ -379,18 +381,28 @@ class PenaltyAdapter is OptimizationAdapter {
       if (c[k]>0) c[k]=0
     }
   }
+}
 
-  constraintVector() {
-    var cv = self.adapter.constraintValue()
+/* -------------------------
+ * PenaltyAdapter
+ * ------------------------- */
 
-    if (!cv) _OptUnConsErr.warning()
+/* Converts a constrained optimization problem into an unconstrained one 
+   by including constraints 
+      F = f + mu *|c|^2 + mu* |d-|^2 
+   Used to implement the penalty method */
 
-    var v = self._flatten(cv)
-    var neq = self._counteq(cv)
-    self._checkineq(v, neq)
-
-    return v 
+class PenaltyAdapter is OptimizationAdapter with ConstraintVector {
+  init(adapter, penalty=1) { 
+    self.adapter = adapter
+    self.penalty = penalty 
   }
+
+  setpenalty(penalty) { self.penalty = penalty }
+  penalty() { return self.penalty }
+
+  set(x) { self.adapter.set(x) }
+  get() { return self.adapter.get() }
 
   value() { // Q = f + mu*c^2 + mu*d-^2
     var f = self.adapter.value() 
@@ -438,6 +450,30 @@ class PenaltyAdapter is OptimizationAdapter {
     }
 
     return hess
+  }
+}
+
+/* -------------------------
+ * ReprojectionAdapter
+ * ------------------------- */
+
+/* Converts a constrained optimization problem into an unconstrained one 
+   consisting purely of the 2-norm of the constraints. 
+      F = |c|^2 + |d-|^2 
+   Used to reproject a solution back onto the feasible set */
+
+class ReprojectionAdapter is DeconstrainAdapter with ConstraintVector {
+  value() { // F = |c|^2 + |d-|^2 
+    var v = self.constraintVector() 
+    return v.inner(v)
+  }
+  
+  gradient() { // grad F = 2*g*grad g
+    var v = self.constraintVector()   
+    var dg = self.adapter.constraintGradient()   
+    var c = Matrix([dg])
+
+    return 2*c*v  
   }
 }
 

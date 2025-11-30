@@ -37,8 +37,8 @@ fn _decolumnize(matrix, dim) { // Reshape a matrix from a column matrix to a rec
  * OptimizationAdapter class
  * -------------------------- */ 
 
-/* OptimizationAdapters provide a common interface that enables optimization algorithms to obtain 
-   necessary information about the an optimization problem. */
+/** OptimizationAdapters provide a common interface that enables optimization algorithms to obtain 
+    necessary information about the an optimization problem. */
 
 class OptimizationAdapter {
   init(target) { self.target = target }
@@ -94,7 +94,8 @@ class DelegateAdapter is OptimizationAdapter {
  * DeconstrainAdapter class
  * -------------------------- */ 
 
-/** An DeconstrainAdapter strips out any constraints */
+/** An DeconstrainAdapter converts a constrained problem to an unconstrained problem, 
+    ignoring any constraints */
 
 class DeconstrainAdapter is OptimizationAdapter {
   init(adapter) {
@@ -340,8 +341,8 @@ class FunctionAdapter is OptimizationAdapter {
  * ConstraintVector
  * ------------------------- */
 
-/* Mixin that provides constraintVector(), which converts the results of constraintValue() 
-   into a single vector of values. */
+/** Mixin that provides constraintVector(), which converts the results of constraintValue() 
+    into a single vector of values. */
 
 class ConstraintVectorMixin {
   constraintVector() {
@@ -387,10 +388,10 @@ class ConstraintVectorMixin {
  * PenaltyAdapter
  * ------------------------- */
 
-/* Converts a constrained optimization problem into an unconstrained one 
-   by including constraints 
-      F = f + mu *|c|^2 + mu* |d-|^2 
-   Used to implement the penalty method */
+/** Converts a constrained optimization problem into an unconstrained one 
+    by including constraints 
+       F = f + mu *|c|^2 + mu* |d-|^2 
+    Used to implement the penalty method */
 
 class PenaltyAdapter is OptimizationAdapter with ConstraintVectorMixin {
   init(adapter, penalty=1) { 
@@ -457,10 +458,10 @@ class PenaltyAdapter is OptimizationAdapter with ConstraintVectorMixin {
  * ReprojectionAdapter
  * ------------------------- */
 
-/* Converts a constrained optimization problem into an unconstrained one 
-   consisting purely of the 2-norm of the constraints. 
-      F = |c|^2 + |d-|^2 
-   Used to reproject a solution back onto the feasible set */
+/** Converts a constrained optimization problem into an unconstrained one 
+    consisting purely of the 2-norm of the constraints. 
+       F = |c|^2 + |d-|^2 
+    Used to reproject a solution back onto the feasible set */
 
 class ReprojectionAdapter is DeconstrainAdapter with ConstraintVectorMixin {
   value() { // F = |c|^2 + |d-|^2 
@@ -481,12 +482,12 @@ class ReprojectionAdapter is DeconstrainAdapter with ConstraintVectorMixin {
  * L1PenaltyAdapter
  * ------------------------- */
 
-/* Converts a constrained optimization problem into an unconstrained one 
-   using an L1 norm: 
-      F = f + mu*|c| + mu*|d-| 
-   The resulting function is nondifferentiable, but does admit a 
-   directional derivative. 
-   Commonly used as a merit function. */
+/** Converts a constrained optimization problem into an unconstrained one 
+    using an L1 norm: 
+       F = f + mu*|c| + mu*|d-| 
+    The resulting function is nondifferentiable, but does admit a 
+    directional derivative. 
+    Commonly used as a merit function. */
 
 class L1PenaltyAdapter is PenaltyAdapter {
   value() { // F = f + mu*|c| + mu*|d-|

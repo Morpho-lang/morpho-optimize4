@@ -1,10 +1,8 @@
 // Loop problem solved with SQP
 
 import optimize4 
-
-import "sqp.morpho"
-
 import "../examples/loop.morpho" for LoopExample
+
 var example = LoopExample()
 var adapter = example.build()
 

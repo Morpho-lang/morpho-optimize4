@@ -1,10 +1,8 @@
 // Constrained function example solved with SQP
 
 import optimize4 
-
-import "sqp.morpho"
-
 import "../examples/constrainedfunction.morpho"
+
 var example = ConstrainedFunctionExample()
 var adapter = example.build() 
 

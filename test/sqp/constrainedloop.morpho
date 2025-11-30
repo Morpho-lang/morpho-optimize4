@@ -1,6 +1,6 @@
 
+import optimize4
 import "../examples/constrainedloop.morpho"
-import "sqp.morpho"
 
 var example = ConstrainedLoop()
 var adapt = example.build()

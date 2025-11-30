@@ -1,10 +1,8 @@
 // Thomson problem solved with SQP
 
 import optimize4 
-
-import "sqp.morpho"
-
 import "../examples/thomson.morpho" for Thomson
+
 var example = Thomson()
 
 var adapter = example.build()

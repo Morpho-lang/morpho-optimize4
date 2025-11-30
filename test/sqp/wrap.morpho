@@ -1,8 +1,6 @@
 
 import optimize4
 import plot 
-import "sqp.morpho"
-
 import "../examples/wrap.morpho" for WrapExample
 
 var example = WrapExample()

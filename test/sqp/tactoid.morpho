@@ -1,10 +1,8 @@
 // Tactoid example
 
 import optimize4 
-
-import "sqp.morpho"
-
 import "../examples/tactoid.morpho" for Tactoid
+
 var example = Tactoid()
 var adapter = example.build()
 

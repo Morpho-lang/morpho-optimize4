@@ -1,9 +1,8 @@
 // SQP method
 
-import optimize4 
-import "sqp.morpho"
-
+import optimize4
 import "../examples/singleequalityconstraint.morpho" for ConstrainedFunctionExample
+
 var example = ConstrainedFunctionExample()
 var adapter = example.build()
 adapter.set(Matrix([0.2,-1]))

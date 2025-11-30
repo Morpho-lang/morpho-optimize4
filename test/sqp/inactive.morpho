@@ -1,10 +1,8 @@
 // Active constraint problem
 
 import optimize4 
-
-import "sqp.morpho"
-
 import "../examples/inactive.morpho"
+
 var example = ConstrainedFunctionExample()
 var adapter = example.build() 
 adapter.set(Matrix([0.5,0.1]))

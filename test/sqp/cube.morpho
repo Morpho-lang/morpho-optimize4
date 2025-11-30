@@ -1,6 +1,5 @@
 
 import optimize4 
-import "sqp.morpho"
 import "../examples/cube.morpho" for CubeExample
 import plot 
 

@@ -1,8 +1,6 @@
-// Test penalty method on Q tensor problem
+// Test SQP method on Q tensor problem
 
 import optimize4
-
-import "sqp.morpho"
 import "../examples/qtactoid.morpho"
 
 var example = QTactoid(omega=0.1, tau=10)

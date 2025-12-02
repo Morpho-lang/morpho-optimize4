@@ -595,14 +595,89 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
 }
 
 /* -------------------------
+ * FiniteDifferenceAdapter 
+ * ------------------------- */
+
+var _epsfd=(1e-16)^(1/3) // Optimal relative stepsize for cell centered gradient
+var _epshess=(1e-16)^(1/4) // Optimal relative stepsize for cell centered hessian
+
+class FiniteDifferenceAdapter is DelegateAdapter {
+  _stepsize(eps, x) { // Select stepsize for finite differences
+    var h=eps
+    var xx=abs(x)
+    if (xx>1) h*=xx // Scale
+
+    var temp = x+h  // Ensure we obtain an FP representable number
+    return temp - x 
+  }
+
+  gradient() {
+    var x=self.get()
+    var dim = x.count()
+    var grad = x.clone()
+
+    for (i in 0...dim) {
+      var eps = self._stepsize(_epsfd, x0)
+      var temp = x[i]
+      x[i]=temp+eps; self.set(x)
+      var fr=self.value()
+      x[i]=temp-eps; self.set(x)
+      var fl=self.value()
+      x[i]=temp; self.set(x)
+      grad[i]=(fr-fl)/(2*eps)
+    }
+
+    return grad
+  }
+
+  hessian() {
+    fn _hessianelement(x, i, j) {
+      var eps = self._stepsize(_epshess, x0)
+      if (i==j) {
+        var temp=x[i]
+        var fc=self.value()
+        x[i]=temp+eps; self.set(x)
+        var fr=self.value()
+        x[i]=temp-eps; self.set(x)
+        var fl=self.value()
+        x[i]=temp; self.set(x)
+        return (fr + fl - 2*fc)/(eps^2)
+      }
+
+      var tempi=x[i], tempj=x[j]
+      x[i]=tempi+eps; x[j]=tempj+eps; self.set(x)
+      var frr=self.value()
+      x[i]=tempi-eps; x[j]=tempj-eps; self.set(x)
+      var fll=self.value()
+      x[i]=tempi-eps; x[j]=tempj+eps; self.set(x)
+      var flr=self.value()
+      x[i]=tempi+eps; x[j]=tempj-eps; self.set(x)
+      var frl=self.value()
+      x[i]=tempi; x[j]=tempj; self.set(x)
+
+      return (frr + fll - flr - frl)/(4*eps^2)
+    }
+
+    var x=self.get()
+    var dim = x.count()
+    var hess = Matrix(dim, dim)
+
+    for (i in 0...dim) {
+      for (j in 0...dim) {
+        hess[i, j]=_hessianelement(x, i, j)
+      }
+    }
+
+    return hess
+  }
+}
+
+/* -------------------------
  * FunctionAdapter 
  * ------------------------- */
 
 /* Adapts a provided function (and an optional gradient and hessian) 
    to the OptimizationAdapter interface */
-
-var _epsfd=(1e-16)^(1/3) // Optimal relative stepsize for cell centered gradient
-var _epshess=(1e-16)^(1/4) // Optimal relative stepsize for cell centered hessian
 
 class FunctionAdapter is OptimizationAdapter {
   init(target, gradient=nil, hessian=nil, start=nil, 

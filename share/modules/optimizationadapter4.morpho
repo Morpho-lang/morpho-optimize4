@@ -617,13 +617,13 @@ class FiniteDifferenceAdapter is DelegateAdapter {
     var grad = x.clone()
 
     for (i in 0...dim) {
+      var x0 = x[i]
       var eps = self._stepsize(_epsfd, x0)
-      var temp = x[i]
-      x[i]=temp+eps; self.set(x)
+      x[i]=x0+eps; self.set(x)
       var fr=self.value()
-      x[i]=temp-eps; self.set(x)
+      x[i]=x0-eps; self.set(x)
       var fl=self.value()
-      x[i]=temp; self.set(x)
+      x[i]=x0; self.set(x)
       grad[i]=(fr-fl)/(2*eps)
     }
 
@@ -632,30 +632,32 @@ class FiniteDifferenceAdapter is DelegateAdapter {
 
   hessian() {
     fn _hessianelement(x, i, j) {
-      var eps = self._stepsize(_epshess, x0)
       if (i==j) {
-        var temp=x[i]
+        var x0=x[i]
+        var eps = self._stepsize(_epshess, x0)
         var fc=self.value()
-        x[i]=temp+eps; self.set(x)
+        x[i]=x0+eps; self.set(x)
         var fr=self.value()
-        x[i]=temp-eps; self.set(x)
+        x[i]=x0-eps; self.set(x)
         var fl=self.value()
-        x[i]=temp; self.set(x)
+        x[i]=x0; self.set(x)
         return (fr + fl - 2*fc)/(eps^2)
       }
 
-      var tempi=x[i], tempj=x[j]
-      x[i]=tempi+eps; x[j]=tempj+eps; self.set(x)
+      var x0i=x[i], x0j=x[j]
+      var epsi = self._stepsize(_epshess, x0i)
+      var epsj = self._stepsize(_epshess, x0j)
+      x[i]=x0i+epsi; x[j]=x0j+epsj; self.set(x)
       var frr=self.value()
-      x[i]=tempi-eps; x[j]=tempj-eps; self.set(x)
+      x[i]=x0i-epsi; x[j]=x0j-epsj; self.set(x)
       var fll=self.value()
-      x[i]=tempi-eps; x[j]=tempj+eps; self.set(x)
+      x[i]=x0i-epsi; x[j]=x0j+epsj; self.set(x)
       var flr=self.value()
-      x[i]=tempi+eps; x[j]=tempj-eps; self.set(x)
+      x[i]=x0i+epsi; x[j]=x0j-epsj; self.set(x)
       var frl=self.value()
-      x[i]=tempi; x[j]=tempj; self.set(x)
+      x[i]=x0i; x[j]=x0j; self.set(x)
 
-      return (frr + fll - flr - frl)/(4*eps^2)
+      return (frr + fll - flr - frl)/(4*epsi*epsj)
     }
 
     var x=self.get()

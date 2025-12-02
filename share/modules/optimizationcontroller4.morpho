@@ -661,6 +661,7 @@ class PenaltyController is OptimizationController {
   }
 
   next() {
+    if (self.hasConverged()) return
     self.adapter.setpenalty(self.mumul*self.adapter.penalty())
   }
 

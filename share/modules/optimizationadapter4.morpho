@@ -223,6 +223,55 @@ class FixAdapter is DelegateAdapter {
 }
 
 /* -------------------------
+ * DeflationAdapter
+ * ------------------------- */
+
+class DeflationAdapter is DelegateAdapter {
+  init(adapter, radius=1, eps=0.1) { 
+    self.radius = radius
+    self.adapter = adapter
+    self.solns = []
+    self.eps = eps 
+  }
+
+  addSolution(soln) { 
+    for (s in self.solns) {
+        print (s-soln).norm() 
+        if ((s-soln).norm() < self.eps) return 
+    }
+    self.solns.append(soln) 
+  }
+
+  countConstraints() { return self.adapter.countConstraints() + self.solns.count() }
+  countInequalityConstraints() { return self.adapter.countInequalityConstraints() + self.solns.count() }
+
+  constraintValue() { // (| x - xsoln |_2 /R - 1) -> feasible region > 0 
+    var x = self.get() 
+    var val = self.adapter.constraintValue()
+    for (s in self.solns) {
+        val.append(((x-s).norm()/self.radius-1))
+    }
+    return val 
+  }
+
+  constraintGradient() { // 
+    var x = self.get() 
+    var grad = self.adapter.constraintGradient()
+    for (s in self.solns) {
+        var dg = x-s
+        grad.append(dg/dg.norm()/self.radius)
+    }
+    return grad 
+  }
+
+  jiggle(eps=1e-8) {
+    var x = self.get() 
+    for (u, k in x) x[k]=u + eps*randomnormal()
+    self.set(x)
+  }
+}
+
+/* -------------------------
  * ConstraintVector
  * ------------------------- */
 

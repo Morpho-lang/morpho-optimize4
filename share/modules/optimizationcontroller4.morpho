@@ -631,7 +631,7 @@ class LBFGSController is InvBFGSController {
     until convergence criteria and constraint goal has been achieved. */
 
 class PenaltyController is OptimizationController {
-  init(adapter, quiet=false, verbosity=nil, controller=nil, mu0=1, mumul=10.0) {
+  init(adapter, quiet=false, verbosity=nil, controller=nil, mu0=1, mumul=10.0, subProblemMaxiterations=100) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)
 
     if (!self.isConstrained()) _OptUnCons.throw()
@@ -643,6 +643,8 @@ class PenaltyController is OptimizationController {
 
     self.controller = controller 
     if (!controller) self.controller = LBFGSController
+
+    self.subProblemMaxiterations=subProblemMaxiterations
   }
 
   begin() {
@@ -657,7 +659,7 @@ class PenaltyController is OptimizationController {
   }
 
   step() {
-    self.control.optimize(100) 
+    self.control.optimize(self.subProblemMaxiterations) 
   }
 
   next() {
@@ -698,15 +700,15 @@ class ProjectedGradientDescentController is OptimizationController {
     self.mu = mu
     self.steplimit = steplimit
     self._gradient = nil 
+    self.rpadapter = ReprojectionAdapter(self.adapter)
   }
 
   reproject() { // Perform reprojection
-    var opt = LBFGSController(self.rpadapter, quiet=true)
+    var opt = LBFGSController(self.rpadapter, quiet=false)
     opt.optimize(self.maxconstraintsteps)
   }
 
   start() {
-    self.rpadapter = ReprojectionAdapter(self.adapter)
     reproject()
   }
 

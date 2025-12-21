@@ -26,7 +26,7 @@ var _OptHessSng = Error("OptHessSng", "Hessian is singular.")
 
 var _OptSilent  = 0 // Only errors
 var _OptQuiet   = 1 // Warnings and errors only
-var _OptNormal  = 2 // Normal output including 
+var _OptNormal  = 2 // Normal output 
 var _OptVerbose = 3 // Additional debugging information
 
 var _OptVerbosity = { "silent" : _OptSilent,

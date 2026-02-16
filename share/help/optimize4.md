@@ -208,7 +208,7 @@ As in the Newton method, the search direction `d` at each iteration is obtained 
 
     H_BFGS.d = - g
 
-where  g is the gradient of the objective function. Note that H_BFGS is the BFGS estimate of the Hessian, rather than the Hessian itself. 
+where  g is the gradient of the objective function. Note that H\_BFGS is the BFGS estimate of the Hessian, rather than the Hessian itself. 
 
 Having found the search direction, the `BFGSController` performs a linesearch in that direction. See `NewtonController` for additional options to control this process. 
 
@@ -242,6 +242,13 @@ In addition to the standard options for an `OptimizationController`, you can con
 Increasing the history length may improve the estimate of the inverse hessian at the expense of memory and work per iteration. The default value of 10 has been found sufficient for many applications.
 
 ### ProjectedGradientDescentController
+[tagProjectedGradientDescentController]: # (ProjectedGradientDescentController)
+
+
 
 ### SQPController
+
+### PenaltyController
+[tagPenaltyController]: # (PenaltyController)
+
 

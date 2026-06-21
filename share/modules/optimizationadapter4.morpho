@@ -158,7 +158,7 @@ class ProxyAdapter is DelegateAdapter {
 
   constraintValue() { return self._compute("_constraintValue", self.adapter.constraintValue, 3) }
   constraintGradient() { return self._compute("_constraintGradient", self.adapter.constraintGradient, 4) }
-  constraintHessian() { return self._compute("_constraintHessian", self.adapter.constraintHessian, 4) }
+  constraintHessian() { return self._compute("_constraintHessian", self.adapter.constraintHessian, 5) }
 
   countEvals() { // Returns the evaluation count
     return self.count 
@@ -795,6 +795,7 @@ class FunctionAdapter is OptimizationAdapter {
         x[i]=x0-eps
         var fl = apply(f, x)
         grad[i]=(fr-fl)/(2*eps)
+        x[i]=x0
       }
 
       return grad 

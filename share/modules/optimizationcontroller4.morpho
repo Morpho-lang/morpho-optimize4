@@ -247,9 +247,13 @@ class LineSearchController is GradientDescentController {
         if (success) break
         t*=self.beta
     }
-    if (!success) self.warning(_OptLnSrchStpsz)
-
-    self.stepsize=t
+    if (!success) {
+      self.warning(_OptLnSrchStpsz)
+      self.set(x0)
+      self.stepsize = 0
+    } else {
+      self.stepsize = t
+    }
   }
 }
 
@@ -435,7 +439,7 @@ class NewtonController is OptimizationController {
     self.linesearch(d)
   }
 
-  reportstepsize() { return "stepsize=${self.lscontroller.stepsize}" }
+  reportStepsize() { return "stepsize=${self.lscontroller.stepsize}" }
 }
 
 /* -----------------------------------------

@@ -129,30 +129,35 @@ class OptimizationController is DelegateAdapter {
 
   start() { }           // Initialization at the beginning of an optimization
   begin() { }           // Calculate initial information for the iteration
-  step() { }            // Perform optimization step 
+  step() { return true } // Perform optimization step; return false on failure
   next() { }            // Calculate updated information
 
   record() {            // Record information about the iteration
     self._valuehistory.append(self.value())
   }
 
-  iterate() {  // Perform one optimization iteration
+  iterate() {  // Perform one optimization iteration; return step() success
     self.begin()  
-    self.step()
+    var success = self.step()
     self.next()
+    return success
   }
 
-  optimize(nsteps) { // Optimization loop
+  optimize(nsteps) { // Optimization loop; return true if converged
     self.start()
     self.record() 
+    if (self.hasConverged()) return true
+
     for (i in 1..nsteps) {
-      if (self.hasConverged()) return 
-      self.iterate() 
+      if (self.hasConverged()) return true
+      if (!self.iterate()) return false
       self.report(i)
       self.record()
     }
 
+    if (self.hasConverged()) return true
     self.warning(_OptMaxErr)
+    return false
   }
 
   isConstrained() { // Checks if a problem is constrained
@@ -197,6 +202,7 @@ class GradientDescentController is OptimizationController {
     var x = self.get() 
     x+=self.stepsize*self.direction()
     self.set(x)
+    return true
   }
 
   reportStepsize() { return "stepsize=${self.stepsize}" }
@@ -234,6 +240,11 @@ class LineSearchController is GradientDescentController {
     return self.value()
   }
 
+  _failLineSearch(x0) { // Restore parameters after a failed linesearch
+    self.set(x0)
+    self.stepsize = 0
+  }
+
   step() { // Perform a single linesearch
     self.expectedDescent()
     var t=1
@@ -249,11 +260,11 @@ class LineSearchController is GradientDescentController {
     }
     if (!success) {
       self.warning(_OptLnSrchStpsz)
-      self.set(x0)
-      self.stepsize = 0
+      self._failLineSearch(x0)
     } else {
       self.stepsize = t
     }
+    return success
   }
 }
 
@@ -279,8 +290,9 @@ class DirectedLineSearchController is LineSearchController {
   hasConverged() { return false } // Prevent evaluation of gradient
 
   optimize(n) { // Should only ever perform one step
-    self.step()
+    var success = self.step()
     self.record()
+    return success
   }
 }
 
@@ -314,7 +326,11 @@ class WolfeLineSearchController is LineSearchController {
     var flo = self.stepwith(x0, alphalo)
 
     for (_ in 1..self.maxsteps) {
-      if (self.verbose) print "  Zoom iteration ${_}: (${alphalo},${alphahi}) [${flo}, ${self.stepwith(x0, alphahi)}]"
+      if (self.verbose) {
+        var fhi = self.stepwith(x0, alphahi)
+        print "  Zoom iteration ${_}: (${alphalo},${alphahi}) [${flo}, ${fhi}]"
+      }
+
       var alpha = (alphalo+alphahi)/2 // Bisection
 
       var f = self.stepwith(x0, alpha)
@@ -331,7 +347,7 @@ class WolfeLineSearchController is LineSearchController {
         if (abs(dfalpha) <= self.c2*abs(df)) { // Curvature condition
           if (self.verbose) print "    Curvature condition succeeded alpha=${alpha.format("%.16g")}"
           self.stepsize = alpha 
-          return 
+          return true
         } else if (dfalpha*(alphahi-alphalo)>=0) {
           if (self.verbose) print "    Swap intervals"
           alphahi = alphalo 
@@ -344,6 +360,8 @@ class WolfeLineSearchController is LineSearchController {
     }
  
     self.warning(_OptLnSrchZm)
+    self._failLineSearch(x0)
+    return false
   }
 
   step() { // Perform a single linesearch; Alg. 3.5 of N&D
@@ -372,8 +390,7 @@ class WolfeLineSearchController is LineSearchController {
       if (abs(dfalpha) <= self.c2*abs(df)) { // Curvature test
         if (self.verbose) print "  Curvature test succeeded alpha=${alpha.format("%.16g")}"
         self.stepsize = alpha // Success
-        if (self.verbose) print self.adapter.get()
-        return 
+        return true
       }
 
       if (dfalpha>=0) { // Gradient is upward so reduce stepsize
@@ -389,6 +406,9 @@ class WolfeLineSearchController is LineSearchController {
     }
 
     if (self.verbose) print "Too many iterations in step."
+    self.warning(_OptLnSrchStpsz)
+    self._failLineSearch(x0)
+    return false
   }
 
   _interpolate(x0,x1,f0,f1,df0,df1) { // Cubic interpolation Nocedal p59
@@ -423,8 +443,9 @@ class NewtonController is OptimizationController {
   linesearch(dirn) {
     var x0 = self.adapter.get() /// <- If our space and linesearch space don't coincide
     self.lscontroller.setDirection(dirn)
-    self.lscontroller.step() 
+    var success = self.lscontroller.step() 
     self.adapter.set(x0+self.lscontroller.stepsize*dirn) /// <- If our space and linesearch space don't coincide
+    return success
   }
 
   direction() {
@@ -436,7 +457,7 @@ class NewtonController is OptimizationController {
 
   step() { 
     var d = self.direction()
-    self.linesearch(d)
+    return self.linesearch(d)
   }
 
   reportStepsize() { return "stepsize=${self.lscontroller.stepsize}" }
@@ -664,6 +685,7 @@ class PenaltyController is OptimizationController {
 
   step() {
     self.control.optimize(self.subProblemMaxiterations) 
+    return true
   }
 
   next() {
@@ -763,16 +785,18 @@ class ProjectedGradientDescentController is OptimizationController {
     var mu = self.mu 
     var padapt = L1PenaltyAdapter(self.adapter, penalty=mu)
     var ls = DirectedLineSearchController(padapt, direction=dirn)
-    ls.step()
+    var success = ls.step()
     if (self.steplimit && ls.stepsize>self.steplimit) {
       self.adapter.set(x0 + self.steplimit*ls.direction())
     }
+    return success
   }
 
   step() {
     var d = direction() // Search direction 
-    linesearch(d)
+    var success = linesearch(d)
     reproject() 
+    return success
   }
 
   gradient() { // Ensure we report most recent value of the projected gradient
@@ -883,7 +907,7 @@ class SQPController is OptimizationController {
     return self.penalty
   }
 
-  linesearch(dirn) { // Perform a linesearch on the original constrained problem, returning the stepsize
+  linesearch(dirn) { // Perform a linesearch on the original constrained problem
     var x0 = self.adapter.get()
     var ndof = x0.count() 
     var xdirn = dirn[0...ndof]
@@ -893,11 +917,12 @@ class SQPController is OptimizationController {
     var padapt = L1PenaltyAdapter(self.adapter, penalty=mu)
 
     var ls = DirectedLineSearchController(padapt, direction=xdirn)
-    ls.step()
+    var success = ls.step()
 
     self.adapter.set(x0)
+    self.stepsize = ls.stepsize
 
-    return ls.stepsize
+    return success
   }
 
   step() {
@@ -905,7 +930,8 @@ class SQPController is OptimizationController {
     var ndof = self.adapter.get().count()
 
     var d = self.solve() // Find search direction
-    var alpha = self.linesearch(d) // Find stepsize
+    var success = self.linesearch(d) // Find stepsize
+    var alpha = self.stepsize
 
     var dl = d.clone() // Evaluate gradient at new lagrange multipliers
     for (i in 0...ndof) dl[i]=0
@@ -914,7 +940,7 @@ class SQPController is OptimizationController {
 
     self.ladapter.set(x0 + alpha*d) // New set new value
 
-    self.stepsize = alpha 
+    return success
   }
 
   constraintNorm() {

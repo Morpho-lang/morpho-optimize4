@@ -236,7 +236,6 @@ class DeflationAdapter is DelegateAdapter {
 
   addSolution(soln) { 
     for (s in self.solns) {
-        print (s-soln).norm() 
         if ((s-soln).norm() < self.eps) return 
     }
     self.solns.append(soln) 
@@ -538,6 +537,15 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
     }
   }
 
+  _copyConstraints(cv) { // Copy constraint values before active-set modification
+    var l = []
+    for (c in cv) {
+      if (ismatrix(c)) l.append(c.clone())
+      else l.append(c)
+    }
+    return l 
+  }
+
   _inner(Matrix u, Matrix v) { return u.inner(v) }
   _inner(u, v) { return u*v }
 
@@ -549,7 +557,7 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
 
   value() { // Lagrangian function = f - lambda_i c_i
     var f = self.adapter.value() 
-    var c = self.adapter.constraintValue()
+    var c = self._copyConstraints(self.adapter.constraintValue())
     self._checkIneq(c, c)
 
     return f - self.inner(c)
@@ -565,7 +573,7 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
   }
 
   gradient() { // Gradient of Lagrangian is [ df - lambda_i dc_i , -c_i] 
-    var c = self.adapter.constraintValue()
+    var c = self._copyConstraints(self.adapter.constraintValue())
     self._checkIneq(c, c)
     var cv = self._flatten(c)
 

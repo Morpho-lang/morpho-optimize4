@@ -48,6 +48,6 @@ class ConstrainedLoop {
   }
 
   visualize() { 
-    Show(plotmesh(self.mesh, grade=[0,1]))
+    return plotmesh(self.mesh, grade=[0,1])
   }
 }

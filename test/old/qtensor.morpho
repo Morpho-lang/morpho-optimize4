@@ -1,6 +1,7 @@
 // Old optimizer on QTensor example
 
 import optimize
+import plot
 import "../examples/qtensor.morpho" for QTensor
 
 var example = QTensor()
@@ -12,4 +13,4 @@ for (i in 1..2) {
     opt.conjugategradient(1000)
 }
 
-example.visualize()
+Show(example.visualize())

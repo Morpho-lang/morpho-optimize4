@@ -1,6 +1,7 @@
 
 import optimize4
 
+import plot
 import "../examples/nematic.morpho"
 
 var example = Nematic()
@@ -9,4 +10,4 @@ var adapt = example.build()
 var control = ProjectedGradientDescentController(adapt)
 control.optimize(1000) 
 
-example.visualize()
+Show(example.visualize())

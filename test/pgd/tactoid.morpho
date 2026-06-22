@@ -1,6 +1,7 @@
 // Test PGD method on tactoid problem
 
 import optimize4
+import plot
 import "../examples/tactoid.morpho"
 
 var example = Tactoid()
@@ -9,4 +10,4 @@ var adapt = example.build()
 var control = ProjectedGradientDescentController(adapt)
 control.optimize(10000)  
 
-example.visualize()
+Show(example.visualize())

@@ -1,5 +1,6 @@
 
 import optimize4
+import plot
 import "../examples/cholesteric.morpho" for CholestericExample
 
 var example = CholestericExample()
@@ -8,4 +9,4 @@ var adapt = example.build()
 var control = SQPController(adapt)
 control.optimize(1000) 
 
-example.visualize()
+Show(example.visualize())

@@ -20,5 +20,3 @@ for (i in 1..Nlevels) {
 }
 
 Show(example.visualize())
-
-// Currently, SQP fails for this problem

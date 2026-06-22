@@ -58,6 +58,7 @@ class OptimizationAdapter {
   } 
 
   constraintValue() { return nil }    // Returns the value(s) of any constraints as a list of numbers and vectors
+  constraintValueForActiveSet() { return self.constraintValue() } // Unzeroed values for SQP active set
   constraintGradient() { return nil } // Returns the gradient(s) of any constraints as a list of vectors or matrices
   constraintHessian() { return nil }  // Returns the hessian(s) of any constraints as a list of matrices, or sublists
 }
@@ -87,6 +88,7 @@ class DelegateAdapter is OptimizationAdapter {
   countInequalityConstraints() { return self.adapter.countInequalityConstraints() }
 
   constraintValue() { return self.adapter.constraintValue() }
+  constraintValueForActiveSet() { return self.adapter.constraintValueForActiveSet() }
   constraintGradient() { return self.adapter.constraintGradient() }
   constraintHessian() { return self.adapter.constraintHessian() } 
 }
@@ -98,17 +100,13 @@ class DelegateAdapter is OptimizationAdapter {
 /** An DeconstrainAdapter converts a constrained problem to an unconstrained problem, 
     ignoring any constraints */
 
-class DeconstrainAdapter is OptimizationAdapter {
-  init(adapter) {
-    self.adapter = adapter
-  }
-
-  set(x) { self.adapter.set(x) }
-  get() { return self.adapter.get() }
-
-  value() { return self.adapter.value() }
-  gradient() { return self.adapter.gradient() }
-  hessian() { return self.adapter.hessian() }
+class DeconstrainAdapter is DelegateAdapter {
+  countConstraints() { return 0 }
+  countEqualityConstraints() { return 0 }
+  countInequalityConstraints() { return 0 }
+  constraintValue() { return nil }
+  constraintGradient() { return nil }
+  constraintHessian() { return nil }
 }
 
 /* --------------------------
@@ -157,6 +155,7 @@ class ProxyAdapter is DelegateAdapter {
   directionalDerivative(d) { return self.adapter.directionalDerivative(d) }
 
   constraintValue() { return self._compute("_constraintValue", self.adapter.constraintValue, 3) }
+  constraintValueForActiveSet() { return self.adapter.constraintValueForActiveSet() }
   constraintGradient() { return self._compute("_constraintGradient", self.adapter.constraintGradient, 4) }
   constraintHessian() { return self._compute("_constraintHessian", self.adapter.constraintHessian, 5) }
 
@@ -315,6 +314,30 @@ class ConstraintVectorMixin {
       if (c[k]>0) c[k]=0
     }
   }
+
+  _flattenConstraintGradients(dg, cv) { // Flatten constraint gradients to match _flatten(cv)
+    var l = []
+    for (c, k in cv) {
+      var g = dg[k]
+      if (ismatrix(c)) {
+        for (j in 0...c.count()) l.append(self._constraintGradientColumn(g, j))
+      } else {
+        l.append(self._constraintGradientColumn(g, 0))
+      }
+    }
+    return l 
+  }
+
+  _constraintGradientColumn(g, j) { return g.column(j) }
+
+  _directionalDot(Matrix g, Matrix d) { return g.inner(d) }
+  _directionalDot(Sparse g, Matrix d) { return (g.transpose()*d)[0] }
+
+  _l1subgradientSign(c, gdotd) { // Subgradient sign for |c| in an L1 merit function
+    if (c!=0) return sign(c)
+    if (gdotd!=0) return sign(gdotd)
+    return 0
+  }
 }
 
 /* -------------------------
@@ -437,9 +460,25 @@ class L1PenaltyAdapter is PenaltyAdapter {
 
   directionalDerivative(d) {
     var df = self.adapter.gradient() 
-    var c = self.constraintVector()
+    var cv = self.adapter.constraintValue()
+    if (!cv) return df.inner(d)
 
-    return df.inner(d) - self.penalty*c.norm(1)
+    var dg = self.adapter.constraintGradient()
+    var c = self._flatten(cv)
+    var neq = self._counteq(cv)
+    var raw = c.clone()
+    self._checkineq(c, neq)
+    var grads = self._flattenConstraintGradients(dg, cv)
+
+    var penaltyterm = 0
+    for (ci, k in c) {
+      if (k>=neq && raw[k]>0) continue // Inactive inequality; zeroed in constraintVector()
+      var gdotd = self._directionalDot(grads[k], d)
+      var sigma = self._l1subgradientSign(ci, gdotd)
+      penaltyterm += self.penalty * sigma * gdotd
+    }
+
+    return df.inner(d) + penaltyterm
   }
 }
 
@@ -580,74 +619,76 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
     return Matrix([[self.varGradient()],[-cv]]) 
   } 
 
-  _checkConstraintValue(Matrix u, isEq, out) {
-    for (c in u) {
-      if (isEq || c<0) out.append(c)
-    }
+  _isActive(u, isEq) { // Raw values: interior u>0 inactive; boundary u=0 or violated u<0 active
+    return isEq || u <= 0
   }
 
-  _checkConstraintValue(u, isEq, out) {
-    if (isEq || u<0) out.append(u)
+  _activeConstraintLists() { // [values, gradients] — one entry per active scalar constraint
+    var cv = self.adapter.constraintValueForActiveSet()
+    var cgrad = self.adapter.constraintGradient()
+    var neq = self.adapter.countEqualityConstraints()
+    var ac = []
+    var acg = []
+    for (c, k in cv) {
+      var isEq = k<neq
+      var g = cgrad[k]
+      if (ismatrix(c)) {
+        for (j in 0...c.count()) {
+          var u = c[j]
+          if (_isActive(u, isEq)) {
+            ac.append(u)
+            acg.append(g.column(j))
+          }
+        }
+      } else {
+        if (_isActive(c, isEq)) {
+          ac.append(c)
+          acg.append(g)
+        }
+      }
+    }
+    return [Matrix(ac), acg]
+  }
+
+  activeConstraintSystem() { // Active constraint values and gradients (one list build)
+    return _activeConstraintLists()
   }
 
   activeConstraintValue() {
-    var cv = self.adapter.constraintValue()
-    var neq = self.adapter.countEqualityConstraints()
-    var l = []
-    for (c, k in cv) {
-      self._checkConstraintValue(c, k<neq, l)
-    }
-    return Matrix(l)
-  }
-
-  _checkConstraintGradient(Matrix u, grad, isEq, out) {
-    if (isEq) {
-      out.append(grad)
-    } else {
-      var l = []
-      for (c, k in u) {
-        if (isEq || c<0) l.append(grad.column(k))
-      }
-      out.append(Sparse([l]))
-    }
-  }
-
-  _checkConstraintGradient(u, grad, isEq, out) {
-    if (isEq || u<0) out.append(grad)
+    return activeConstraintSystem()[0]
   }
 
   activeConstraintGradient() {
-    var cv = self.adapter.constraintValue()
-    var cgrad = self.adapter.constraintGradient()
-    var neq = self.adapter.countEqualityConstraints()
-    var l = []
-    for (c, k in cv) {
-      self._checkConstraintGradient(c, cgrad[k], k<neq, l)
-    }
-    return l 
+    return activeConstraintSystem()[1]
   }
 
   activeUpdate(dl) { // Promote update onto active set
-    var cv = self.adapter.constraintValue()
+    var cv = self.adapter.constraintValueForActiveSet()
     var neq = self.adapter.countEqualityConstraints()
     var out = []
     var dli = 0 // Index into dl 
     for (c, k in cv) {
+      var isEq = k<neq
       if (ismatrix(c)) {
         for (u in c) {
-          if (k<neq || u<0) {
+          if (_isActive(u, isEq)) {
             out.append(dl[dli])
             dli += 1 
           } else out.append(0)
         }
       } else {
-        if (k<neq || c<0) {
+        if (_isActive(c, isEq)) {
           out.append(dl[dli])
           dli += 1 
         } else out.append(0)
       }
     }
     return Matrix(out)
+  }
+
+  setActiveLagrangeMultipliers(lambdaActive) { // Set multipliers on the active set only
+    self.setLagrangeMultipliers(self.activeUpdate(lambdaActive))
+    self._checkLagrangeMultipliers()
   }
 }
 
@@ -1086,6 +1127,14 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
     return a.join(b).join(c).join(d)
   }
 
+  constraintValueForActiveSet() { // Raw local values for SQP active-set detection
+    var a = self.globalConstraintValue()
+    var b = self.localConstraintValue(zeroinactive=false)
+    var c = self.globalConstraintValue(onesided=true)
+    var d = self.localConstraintValue(onesided=true, zeroinactive=false)
+    return a.join(b).join(c).join(d)
+  }
+
   _checkOneSided(cons, onesided) {
     return ((onesided && cons.onesided) || (!onesided && !cons.onesided)) 
   }
@@ -1117,14 +1166,14 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
     }
   }
 
-  localConstraintValue(onesided=false) {
+  localConstraintValue(onesided=false, zeroinactive=true) {
     var cval=[]
     for (cons in self.localConstraints()) { 
       if (!self._checkOneSided(cons, onesided)) continue
 
       var val = self.integrandForFunctional(cons).transpose() 
       if (cons.has("target")) val-=cons.target
-      if (cons.onesided) self._zeroInactiveVal(val)
+      if (cons.onesided && zeroinactive) self._zeroInactiveVal(val)
       if (cons.selection) val = self._reduceIntegrandWithSelection(val, cons.selection)
 
       cval.append(val)

@@ -1,4 +1,5 @@
 
+import plot
 import "../examples/thomson.morpho"
 
 var example = Thomson()
@@ -7,4 +8,4 @@ var adapt = example.build()
 var control = ProjectedGradientDescentController(adapt, steplimit=0.005)
 control.optimize(10000) 
 
-example.visualize() 
+Show(example.visualize()) 

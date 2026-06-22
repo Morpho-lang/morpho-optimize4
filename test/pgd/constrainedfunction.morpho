@@ -1,5 +1,6 @@
 
-import "../examples/constrainedfunction.morpho" for ConstrainedFunctionExample, c 
+import optimize4
+import "../examples/constrainedfunction.morpho" for ConstrainedFunctionExample
 
 var example = ConstrainedFunctionExample()
 var adapt = example.build()

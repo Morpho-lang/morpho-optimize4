@@ -49,15 +49,18 @@ class CholestericExample {
     return self.buildAdapter()
   }
 
-  visualize() {
-    var v = self.mesh.vertexmatrix()
-    var dl = Length().total(self.mesh)/self.mesh.count(1)/3
-    var nv = v.dimensions()[1]
+  visualizeDirector() {
     var g = Graphics()
-    for (i in 0...nv) {
-      var x = v.column(i)
-      g.display(Cylinder(x-self.director[i]*dl, x+self.director[i]*dl, aspectratio=0.3))
+    var m = self.director.mesh()
+    var ll = Length().total(m)/m.count(1)/3
+    for (id in 0...m.count()) {
+      var x = m.vertexposition(id)
+      g.display(Cylinder(x-ll*self.director[0,id], x+ll*self.director[0,id], aspectratio=0.3, color=White))
     }
     return g
+  }
+
+  visualize() {
+    return plotmesh(self.mesh, grade=1)+visualizeDirector()
   }
 }

@@ -52,6 +52,6 @@ class Thomson {
     for (i in 0...self.mesh.count()) {
       g.display(Sphere(self.mesh.vertexposition(i),1/sqrt(self.Np)))
     }
-    Show(g) 
+    return g
   }
 }

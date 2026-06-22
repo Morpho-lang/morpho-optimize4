@@ -9,4 +9,4 @@ var adapt = example.build()
 var control = ProjectedGradientDescentController(adapt)
 control.optimize(1000) 
 
-example.visualize() 
+Show(example.visualize()) 

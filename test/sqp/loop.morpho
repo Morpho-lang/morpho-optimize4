@@ -1,12 +1,13 @@
 // Loop problem solved with SQP
 
 import optimize4 
+import plot
 import "../examples/loop.morpho" for LoopExample
 
 var example = LoopExample()
 var adapter = example.build()
 
-example.visualize()
+Show(example.visualize())
 
 var control = SQPController(adapter)
 
@@ -20,4 +21,4 @@ print control.ladapter.value()
 var K = control.kkt()
 print K.eigenvalues() 
 
-example.visualize()
+Show(example.visualize())

@@ -9,7 +9,7 @@ adapter.set(Matrix([0.5,0.1]))
 
 var control = SQPController(adapter)
 
-control.optimize(10) 
+control.optimize(25) 
 print adapter.get() 
 print "lambda:"
 print control.ladapter.lagrangeMultipliers()

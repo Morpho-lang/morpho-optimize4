@@ -1,5 +1,6 @@
 
-import "projectedgradientdescentcontroller.morpho"
+import optimize4
+import "../examples/singleequalityconstraint.morpho" for ConstrainedFunctionExample
 
 var example = ConstrainedFunctionExample()
 var adapt = example.build()

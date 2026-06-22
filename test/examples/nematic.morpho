@@ -64,7 +64,7 @@ class Nematic {
   }
 
   visualize() { 
-    Show(plotmesh(self.mesh, grade=1)+visualizeDirector(self.n))
+    return plotmesh(self.mesh, grade=1)+visualizeDirector(self.n)
   }
 }
 

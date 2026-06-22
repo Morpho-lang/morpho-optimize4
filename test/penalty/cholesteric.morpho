@@ -2,6 +2,7 @@
 
 import optimize4
 
+import plot
 import "../examples/cholesteric.morpho" for CholestericExample
 
 var example = CholestericExample()
@@ -10,4 +11,4 @@ var adapt = example.build()
 var control = PenaltyController(adapt)
 control.optimize(20) 
 
-example.visualize()
+Show(example.visualize())

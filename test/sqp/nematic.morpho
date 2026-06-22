@@ -1,6 +1,7 @@
 // Nematic example
 
 import optimize4 
+import plot
 import "../examples/nematic.morpho" for Nematic
 
 var example = Nematic()
@@ -10,4 +11,4 @@ var control = SQPController(adapter)
 
 control.optimize(100) 
 
-example.visualize()
+Show(example.visualize())

@@ -1,4 +1,5 @@
 
+import plot
 import "../examples/loop.morpho"
 
 var example = LoopExample()
@@ -7,4 +8,4 @@ var adapt = example.build()
 var control = PenaltyController(adapt)
 control.optimize(20) 
 
-example.visualize() 
+Show(example.visualize()) 

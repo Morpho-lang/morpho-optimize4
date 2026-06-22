@@ -1,6 +1,7 @@
 // Thomson problem solved with SQP
 
 import optimize4 
+import plot
 import "../examples/thomson.morpho" for Thomson
 
 var example = Thomson()
@@ -14,4 +15,4 @@ control.optimize(500)
 print "lambda:"
 print control.ladapter.lagrangeMultipliers()
 
-example.visualize()
+Show(example.visualize())

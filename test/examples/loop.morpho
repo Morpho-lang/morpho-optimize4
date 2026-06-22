@@ -38,6 +38,6 @@ class LoopExample {
   }
 
   visualize() {
-    Show(plotmesh(self.mesh))
+    return plotmesh(self.mesh)
   }
 }

@@ -19,6 +19,7 @@ var _OptUnCons = Error("OptUnCons", "Method not appropriate for unconstrained pr
 var _OptNoGrad = Error("OptNoGrad", "Method requires a gradient.")
 var _OptNoHess = Error("OptNoHess", "Method requires a hessian.")
 var _OptHessSng = Error("OptHessSng", "Hessian is singular.")
+var _OptLamCap = Error("OptLamCap", "SQP multiplier update exceeded lamcap; capping update.")
 
 /* --------------------------
  * Reporting levels 
@@ -90,16 +91,16 @@ class OptimizationController is DelegateAdapter {
 
   /* Convergence check */
 
-  hasConverged() {
-    // Convergence in value  |delta e|/|e| < etol or |delta e| < etol if e is < etol
-    if (self._valuehistory && self._valuehistory.count()>1) {
-      var f1=self._valuehistory[-1], f2=self._valuehistory[-2]
+  _valueStagnated() {
+    if (!self._valuehistory || self._valuehistory.count()<=1) return false
+    var f1=self._valuehistory[-1], f2=self._valuehistory[-2]
+    var de = abs(f1-f2)
+    if (abs(f1)>self.etol) de/=abs(f1)
+    return de < self.etol
+  }
 
-      // Compute relative change in value, or use absolute value if close to zero
-      var de = abs(f1-f2)
-      if (abs(f1)>self.etol) de/=(abs(f1))
-      if (de < self.etol) return true 
-    } 
+  hasConverged() {
+    if (_valueStagnated()) return true
 
     var g = self.gradient()
     if (g && g.norm()<self.gradtol) return true 
@@ -433,10 +434,11 @@ class WolfeLineSearchController is LineSearchController {
 
 class NewtonController is OptimizationController {
   init(adapter, quiet=false, verbosity=nil, linesearch=nil) {
+    var lsOpt = linesearch
     super.init(adapter, quiet=quiet, verbosity=verbosity)
     if (self.adapter.countConstraints()>0) _OptCons.throw()
-    if (isclass(linesearch)) self.lscontroller = linesearch(self.adapter, quiet=quiet, verbosity=self.verbosity)
-    else if (isobject(linesearch)) self.lscontroller = linesearch
+    if (isclass(lsOpt)) self.lscontroller = lsOpt(self.adapter, quiet=quiet, verbosity=self.verbosity)
+    else if (isobject(lsOpt)) self.lscontroller = lsOpt
     else self.lscontroller = LineSearchController(self.adapter, verbosity=self.verbosity)
   }
 
@@ -710,6 +712,62 @@ class PenaltyController is OptimizationController {
 }
 
 /* -----------------------------------------
+ * ReprojectionMixin
+ * ----------------------------------------- */
+
+/** Shared reprojection, constraint reporting, and L1 merit linesearch
+    for constrained controllers (PGD, SQP). */
+
+class ReprojectionMixin {
+  _initReprojection() {
+    self.rpadapter = ReprojectionAdapter(self.adapter)
+  }
+
+  _runReprojection() {
+    var quiet = false
+    if (self.has("_reprojectquiet")) quiet = self._reprojectquiet
+    LBFGSController(self.rpadapter, quiet=quiet).optimize(self.maxconstraintsteps)
+  }
+
+  reproject() { _runReprojection() }
+
+  constraintNorm() {
+    return self.rpadapter.constraintVector().norm(1)
+  }
+
+  reportStepsize() {
+    return "|constraints|=${self.constraintNorm()}"
+  }
+
+  _leastSquaresFromNormal(Ctg, CtC) { // λ from normal equations; nil if CtC is singular
+    var lambda = nil
+    try {
+      lambda = Ctg / CtC
+    } catch {
+      "LnAlgMtrxSnglr" : lambda = nil
+    }
+    return lambda
+  }
+
+  _leastSquaresMultipliers(g, dg) { // λ ≈ (CᵀC)⁻¹Cᵀg; nil if C is rank-deficient
+    if (!dg || dg.count()==0) return nil
+    var C = Matrix([dg])
+    var Ct = C.transpose()
+    return _leastSquaresFromNormal(Ct*g, Ct*C)
+  }
+
+  _l1Linesearch(xdirn, mu) {
+    var x0 = self.adapter.get()
+    var restore = self.has("_l1restore") && self._l1restore
+    var ls = DirectedLineSearchController(L1PenaltyAdapter(self.adapter, penalty=mu), direction=xdirn)
+    var success = ls.step()
+    if (restore) self.adapter.set(x0)
+    self.stepsize = ls.stepsize
+    return success
+  }
+}
+
+/* -----------------------------------------
  * ProjectedGradientDescentController
  * ----------------------------------------- */ 
 
@@ -718,20 +776,15 @@ class PenaltyController is OptimizationController {
     * Line search uses an L1PenaltyAdapter as a merit function
     * Performs a reprojection step after each iteration */
 
-class ProjectedGradientDescentController is OptimizationController {
+class ProjectedGradientDescentController is OptimizationController with ReprojectionMixin {
   init(adapter, quiet=false, verbosity=nil, maxconstraintsteps=100, mu=2, steplimit=nil) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)
-    self.maxconstraintsteps=maxconstraintsteps
     if (!self.isConstrained()) _OptUnCons.throw()
+    self.maxconstraintsteps = maxconstraintsteps
+    _initReprojection()
     self.mu = mu
     self.steplimit = steplimit
-    self._gradient = nil 
-    self.rpadapter = ReprojectionAdapter(self.adapter)
-  }
-
-  reproject() { // Perform reprojection
-    var opt = LBFGSController(self.rpadapter, quiet=false)
-    opt.optimize(self.maxconstraintsteps)
+    self._gradient = nil
   }
 
   start() {
@@ -762,32 +815,28 @@ class ProjectedGradientDescentController is OptimizationController {
 
   direction() {
     var g = self.adapter.gradient()
-    var dg = self.adapter.constraintGradient()   
+    var dg = self.adapter.constraintGradient()
     var C = Matrix([dg])
     var Ct = C.transpose()
-
     var Ctg = Ct*g
     var CtC = Ct*C
 
     // Check for inactive constraints
     if (self.adapter.countInequalityConstraints()>0) _checkInequalityConstraints(CtC, Ctg)
 
-    // Project off the constraint directions
-    var lambda=Ctg/CtC
-    g -= C*lambda
-    self._gradient = g    
+    var lambda = _leastSquaresFromNormal(Ctg, CtC)
+    if (lambda) g -= C*lambda
+    self._gradient = g
 
     return -g // Return the downward direction
   }
 
   linesearch(dirn) {
-    var x0 = self.adapter.get() 
-    var mu = self.mu 
-    var padapt = L1PenaltyAdapter(self.adapter, penalty=mu)
-    var ls = DirectedLineSearchController(padapt, direction=dirn)
-    var success = ls.step()
-    if (self.steplimit && ls.stepsize>self.steplimit) {
-      self.adapter.set(x0 + self.steplimit*ls.direction())
+    var x0 = self.adapter.get()
+    var success = _l1Linesearch(dirn, self.mu)
+    if (self.steplimit && self.stepsize>self.steplimit) {
+      self.adapter.set(x0 + self.steplimit*dirn)
+      self.stepsize = self.steplimit
     }
     return success
   }
@@ -800,12 +849,8 @@ class ProjectedGradientDescentController is OptimizationController {
   }
 
   gradient() { // Ensure we report most recent value of the projected gradient
-    if (isnil(self._gradient)) self.direction() 
+    if (isnil(self._gradient)) self.direction()
     return self._gradient
-  }
-
-  reportStepsize() { 
-    return "|constraints|=${self.rpadapter.constraintVector().norm(1)}" 
   }
 }
 
@@ -820,27 +865,94 @@ class ProjectedGradientDescentController is OptimizationController {
     Line search uses an L1PenaltyAdapter as a merit function
      */
 
-class SQPController is OptimizationController {
-  init(adapter, quiet=false, verbosity=nil, penalty=1) {
+class SQPController is OptimizationController with ReprojectionMixin {
+  init(adapter, quiet=false, verbosity=nil, penalty=1, maxconstraintsteps=100,
+       feasol=nil, reprojecttol=1e-5, relgradtol=0.005, relgraditers=20,
+       stagtol=1e-2, lamcap=100) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)
 
     if (!self.isConstrained()) _OptUnCons.throw()
 
     self.penalty = penalty // Initial penalty for linesearch
+    self.maxconstraintsteps = maxconstraintsteps
+    _initReprojection()
+    self._reprojectquiet = true
+    self._l1restore = true
+    self.feasol = feasol ? feasol : reprojecttol
+    self.relgradtol = relgradtol
+    self.relgraditers = relgraditers
+    self.stagtol = stagtol
+    self.lamcap = lamcap
+    self._relgradrun = 0
+  }
+
+  reproject() {
+    _runReprojection()
+    _syncMultipliers()
+  }
+
+  _clampMultipliers() { // Scale multipliers down if any exceed lamcap
+    var lam = self.ladapter.lagrangeMultipliers()
+    var m = _lamMax(lam)
+    if (m <= self.lamcap) return
+    self.ladapter.setLagrangeMultipliers(lam * (self.lamcap / m))
+  }
+
+  _syncMultipliers() { // Least-squares multiplier update on the active set
+    var active = self.ladapter.activeConstraintSystem()
+    var ac = active[0]
+    if (ac.count() == 0) {
+      self.ladapter.setLagrangeMultipliers(0*self.ladapter.lagrangeMultipliers())
+      return
+    }
+    var lambda = _leastSquaresMultipliers(self.adapter.gradient(), active[1])
+    if (!lambda) {
+      _clampMultipliers()
+      return
+    }
+    var m = _lamMax(lambda)
+    if (m > self.lamcap) lambda = lambda * (self.lamcap / m)
+    self.ladapter.setActiveLagrangeMultipliers(lambda)
+  }
+
+  _sqpFallbackDirection() { // LBFGS step on synced ∇L when Schur solve is singular
+    _syncMultipliers()
+    return -Matrix([ [self.lbfgs._hmul(self.ladapter.varGradient())],
+                     [0*self.ladapter.lagrangeMultipliers()] ])
   }
 
   gradient() { // Ensure the gradient of the Lagrangian is reported
     return self.ladapter.gradient()
   }
 
+  _lamMax(dl) { // Infinity norm of a multiplier update vector
+    var m = 0
+    for (v in dl) if (abs(v) > m) m = abs(v)
+    return m
+  }
+
+  _capMultiplierUpdate(dlraw) { // Scale Δλ to lamcap; warn if capped
+    var m = _lamMax(dlraw)
+    if (m <= self.lamcap) return dlraw
+    self.warning(_OptLamCap)
+    return dlraw * (self.lamcap / m)
+  }
+
   start() {
     self.ladapter = LagrangeMultiplierAdapter(self.adapter)
     self.lbfgs = LBFGSController(DeconstrainAdapter(self.adapter))
-    self.lbfgs.start() 
+    self.lbfgs.start()
+    self._relgradrun = 0
+    reproject()
+    self._grad0 = self.ladapter.varGradient().norm()
+    self._lastactive = self.ladapter.activeConstraintSystem()[0].count()
   }
 
   begin() {
     self._ox = self.get() 
+    var nactive = self.ladapter.activeConstraintSystem()[0].count()
+    if (nactive != self._lastactive) _syncMultipliers()
+    self._lastactive = nactive
     self._ogradient = self.ladapter.varGradient() 
   }
 
@@ -872,14 +984,15 @@ class SQPController is OptimizationController {
 
     var Hg = self.lbfgs._hmul(g) 
 
-    var c = self.ladapter.activeConstraintValue()
+    var active = self.ladapter.activeConstraintSystem()
+    var c = active[0]
 
     if (c.count()==0) { // Special case if the active set is empty
       return -Matrix([ [ Hg ],
                        [ 0*self.ladapter.lagrangeMultipliers() ] ])
     }
 
-    var cg = self.ladapter.activeConstraintGradient()
+    var cg = active[1]
 
     var C = Matrix([cg])
     var Ct = C.transpose()
@@ -888,41 +1001,53 @@ class SQPController is OptimizationController {
     var HC = self.lbfgs._hmul(C)
     var S = Ct*HC 
 
-    var Sinvc = c/S
-    var SinvCt = (Ct*Hg)/S
+    var Sinvc = nil
+    var SinvCt = nil
+    try {
+      Sinvc = c/S
+      SinvCt = (Ct*Hg)/S
+    } catch {
+      "LnAlgMtrxSnglr" : return _sqpFallbackDirection()
+    }
 
     var HCSinvCt = self.lbfgs._hmul(C*SinvCt)
     var HCCSc = self.lbfgs._hmul(C*Sinvc)
 
-    var dl = self.ladapter.activeUpdate(- SinvCt + Sinvc)
+    var dlraw = _capMultiplierUpdate(- SinvCt + Sinvc)
+    var dl = self.ladapter.activeUpdate(dlraw)
 
     return -Matrix([ [Hg - HCSinvCt + HCCSc],
                      [dl] ])
   }
 
-  _choosePenalty(dirn) {
-    var maxpenalty=max(self.ladapter.lagrangeMultipliers())
-    if (maxpenalty>self.penalty) self.penalty = 2*maxpenalty
+  _choosePenalty(xdirn) {
+    // L1 merit φ = f + μ|c|. Lower bound μ ≥ max|λ| (N&W §18.3).
+    var mu = max(self.penalty, max(self.ladapter.lagrangeMultipliers()))
 
-    return self.penalty
+    // Analytical descent: φ'(d) = ∇f·d + μ·(d|c|/dα); raise μ if objective rises along d
+    var dfd = self.adapter.gradient().inner(xdirn)
+    var dc = L1PenaltyAdapter(self.adapter, penalty=1).directionalDerivative(xdirn) - dfd
+    if (dc < 0 && dfd > 0 && mu < -dfd / dc) mu = 1.1 * (-dfd / dc)
+
+    // Nonlinear trial step: |Δf|/|c| at x+d (needed when linearization is poor, e.g. cube)
+    var x0 = self.adapter.get().clone()
+    var f0 = self.adapter.value()
+    self.adapter.set(x0 + xdirn)
+    var cnorm = PenaltyAdapter(self.adapter).constraintVector().norm(1)
+    if (cnorm > 0) {
+      var muTrial = abs(self.adapter.value() - f0) / cnorm + 1
+      if (muTrial > mu) mu = 1.1 * muTrial
+    }
+    self.adapter.set(x0)
+
+    return mu
   }
 
   linesearch(dirn) { // Perform a linesearch on the original constrained problem
-    var x0 = self.adapter.get()
-    var ndof = x0.count() 
+    var ndof = self.adapter.get().count()
     var xdirn = dirn[0...ndof]
-
     var mu = self._choosePenalty(xdirn)
-
-    var padapt = L1PenaltyAdapter(self.adapter, penalty=mu)
-
-    var ls = DirectedLineSearchController(padapt, direction=xdirn)
-    var success = ls.step()
-
-    self.adapter.set(x0)
-    self.stepsize = ls.stepsize
-
-    return success
+    return _l1Linesearch(xdirn, mu)
   }
 
   step() {
@@ -939,16 +1064,41 @@ class SQPController is OptimizationController {
     self._ogradient = self.ladapter.varGradient() 
 
     self.ladapter.set(x0 + alpha*d) // New set new value
+    var cn = PenaltyAdapter(self.adapter).constraintVector().norm(1)
+    if (cn > self.feasol) reproject()
+    else _syncMultipliers()
 
     return success
   }
 
-  constraintNorm() {
-    return PenaltyAdapter(self.adapter).constraintVector().norm(1)
+  hasConverged() {
+    var g = self.ladapter.varGradient()
+    if (!g) return false
+    var gn = g.norm()   // ||grad L|| (KKT stationarity)
+    var cn = self.constraintNorm() // reprojection L1 norm (primal feasibility)
+
+    if (cn > self.feasol) return false // not feasible enough to stop
+
+    if (gn < self.gradtol) return true // primary: KKT stationarity
+
+    // fallback: ||grad L|| plateaued vs start (e.g. tactoid)
+    if (self._grad0 > 0 && gn < self.relgradtol * self._grad0) {
+      self._relgradrun += 1
+      if (self._relgradrun >= self.relgraditers) return true
+    } else {
+      self._relgradrun = 0
+    }
+
+    // fallback: f stagnated while ||grad L|| moderate (not at large |grad|)
+    if (gn < self.stagtol && _valueStagnated()) return true
+
+    return false
   }
 
-  reportStepsize() { 
-    return "|constraints|=${self.constraintNorm()}" 
+  reportOptimality() {
+    var g = self.ladapter.varGradient()
+    if (!g) return ""
+    return "|grad|=${g.norm()}"
   }
 
   next() {

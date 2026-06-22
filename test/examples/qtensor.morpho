@@ -149,6 +149,6 @@ class QTensor {
     var splot = plotfield(S, style="interpolate", colormap = ViridisMap(), scalebar=ScaleBar(posn=[1.2,0,0]))
     var gnn=visualize(self.mesh, nn, 0.05)
 
-    Show(splot+gnn)
+    return splot+gnn
   }
 }

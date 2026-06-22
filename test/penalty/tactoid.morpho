@@ -2,6 +2,7 @@
 
 import optimize4
 
+import plot
 import "../examples/tactoid.morpho"
 
 var example = Tactoid()
@@ -10,4 +11,4 @@ var adapt = example.build()
 var control = PenaltyController(adapt, mu0=100)
 control.optimize(20)  
 
-example.visualize()
+Show(example.visualize())

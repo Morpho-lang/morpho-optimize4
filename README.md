@@ -1,21 +1,81 @@
 # morpho-optimize4
 
-This experimental package provides a new optimizer for morpho. We expect this to replace the current optimize package in morpho 0.6.
+A flexible optimization framework for [Morpho](https://morpho-lang.org/), intended to replace the built-in `optimize` package in Morpho 0.6. It supports unconstrained and constrained shape optimization on meshes and fields, with a composable adapter architecture and a range of optimization algorithms.
 
-## Installation and Prerequisites
+## Installation
 
-To install the package, clone this repository onto your computer in any convenient place:
+This package can be installed with the `morphopm` package manager. Run 
 
-    git clone https://github.com/morpho-lang/morpho-optimize4.git
+    morphopm install optimize4
+    
 
-then add the location of this repository to your .morphopackages file.
+from the Terminal app. 
 
-    echo PACKAGEPATH >> ~/.morphopackages 
+## Quick start
 
-where PACKAGEPATH is the location of the git repository. 
+The usual workflow is: define an `OptimizationProblem`, wrap it in a `ProblemAdapter`, and run an `OptimizationController`.
 
-You can then use the package in morpho as usual by including 
+```morpho
+import optimize4
+import meshtools
 
-    import optimize4
+// Mesh and problem
+var mesh = LineMesh(fn (t) [2*cos(t), sin(t)], -Pi...Pi:Pi/20, closed=true)
+var problem = OptimizationProblem(mesh)
+problem.addenergy(Length())
+problem.addconstraint(AreaEnclosed())
 
-in your code.
+// Optimize
+var adapter = ProblemAdapter(problem, mesh)
+var opt = SQPController(adapter)
+opt.optimize(500)
+```
+
+For unconstrained problems, use `LBFGSController` instead of `SQPController`.
+
+A fuller version of the loop example (fixed enclosed area, minimal perimeter) lives in [`test/examples/loop.morpho`](test/examples/loop.morpho); [`test/sqp/loop.morpho`](test/sqp/loop.morpho) shows it solved with SQP.
+
+## Architecture
+
+Three layers work together:
+
+| Layer | Role |
+|-------|------|
+| **`OptimizationProblem`** | Describes energies and constraints using Morpho functionals |
+| **`OptimizationAdapter`** | Uniform interface: parameters, objective, gradients, constraints. Adapters can be chained (penalty, fixing variables, caching, etc.) |
+| **`OptimizationController`** | Implements an algorithm (L-BFGS, SQP, PGD, …) using only the adapter interface |
+
+This separation lets algorithms stay independent of meshes and functionals, and lets you transform problems (e.g. penalty methods, Lagrange multipliers) without rewriting the solver.
+
+## Choosing a controller
+
+| Problem | Recommended controller | Notes |
+|---------|------------------------|-------|
+| Unconstrained | `LBFGSController` | Default for mesh/field problems; scales to large DOF counts |
+| Equality / inequality constraints | `SQPController` | Primary constrained solver; L-BFGS Hessian + active-set KKT |
+| Constrained, feasibility emphasis | `ProjectedGradientDescentController` | Gradient projection + reprojection each step |
+| Constrained, simple outer loop | `PenaltyController` | Repeated unconstrained solves with increasing penalty |
+| Small black-box test functions | `FunctionAdapter` + `LBFGSController` or `SQPController` | Analytical or finite-difference derivatives |
+| Education / debugging | `GradientDescentController`, `LineSearchController` | Fixed step or Armijo line search |
+
+Constrained controllers require constraints on the adapter (via `addconstraint` / `addlocalconstraint`). Unconstrained controllers will error if constraints are present unless you wrap the adapter (e.g. `PenaltyAdapter`, `DeconstrainAdapter`).
+
+## Examples and tests
+
+The [`test/examples/`](test/examples/) directory contains reference problems:
+
+- **loop** — minimize perimeter at fixed area
+- **thomson** — particles on a sphere (local constraints)
+- **cholesteric**, **nematic**, **tactoid**, **qtensor** — field and texture problems
+
+The same problems are exercised under [`test/sqp/`](test/sqp/), [`test/pgd/`](test/pgd/), and [`test/penalty/`](test/penalty/) with different controllers. Unit-style tests for adapters and line searches are in [`test/adapter/`](test/adapter/) and [`test/controllers/`](test/controllers/).
+
+## Documentation
+
+In-package help is in [`share/help/optimize4.md`](share/help/optimize4.md) (available through Morpho's help system after installation). It documents all public classes, adapters, and controllers.
+
+A longer manual is in [`docs/manual.lyx`](docs/manual.lyx) (LyX source).
+
+## Status
+
+This package is **experimental**. The API and algorithms are still evolving ahead of the Morpho 0.6 release. Feedback and bug reports are welcome via GitHub issues.

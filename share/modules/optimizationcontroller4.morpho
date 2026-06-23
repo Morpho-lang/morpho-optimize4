@@ -19,7 +19,6 @@ var _OptUnCons = Error("OptUnCons", "Method not appropriate for unconstrained pr
 var _OptNoGrad = Error("OptNoGrad", "Method requires a gradient.")
 var _OptNoHess = Error("OptNoHess", "Method requires a hessian.")
 var _OptHessSng = Error("OptHessSng", "Hessian is singular.")
-var _OptLamCap = Error("OptLamCap", "SQP multiplier update exceeded lamcap; capping update.")
 
 /* --------------------------
  * Reporting levels 
@@ -931,13 +930,6 @@ class SQPController is OptimizationController with ReprojectionMixin {
     return m
   }
 
-  _capMultiplierUpdate(dlraw) { // Scale Δλ to lamcap; warn if capped
-    var m = _lamMax(dlraw)
-    if (m <= self.lamcap) return dlraw
-    self.warning(_OptLamCap)
-    return dlraw * (self.lamcap / m)
-  }
-
   start() {
     self.ladapter = LagrangeMultiplierAdapter(self.adapter)
     self.lbfgs = LBFGSController(DeconstrainAdapter(self.adapter))
@@ -1013,7 +1005,7 @@ class SQPController is OptimizationController with ReprojectionMixin {
     var HCSinvCt = self.lbfgs._hmul(C*SinvCt)
     var HCCSc = self.lbfgs._hmul(C*Sinvc)
 
-    var dlraw = _capMultiplierUpdate(- SinvCt + Sinvc)
+    var dlraw = - SinvCt + Sinvc
     var dl = self.ladapter.activeUpdate(dlraw)
 
     return -Matrix([ [Hg - HCSinvCt + HCCSc],

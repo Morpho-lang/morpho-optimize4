@@ -7,8 +7,8 @@ var example = ConstrainedLoop()
 var adapt = example.build()
 
 var control = SQPController(adapt)
-control.optimize(100) 
+control.optimize(500)
 
-Show(example.visualize()) 
+print "f=${adapt.value()} |constraints|=${control.constraintNorm()}"
 
-// Fails on this problem
+Show(example.visualize())

@@ -505,7 +505,7 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
   }
 
   _checkLagrangeMultipliers() { // Zeros lagrange multipliers for inactive constraints
-    var cv = self.adapter.constraintValue() 
+    var cv = self.adapter.constraintValueForActiveSet()
     self._checkIneq(cv, self.lambda)
   }
 
@@ -558,13 +558,13 @@ class LagrangeMultiplierAdapter is OptimizationAdapter {
 
   _zeroIneq(Matrix m, Matrix out) {
     for (c, k in m) {
-      if (c>=0) out[k] = 0
+      if (c>0) out[k] = 0  // strict: u=0 is active (matches _isActive)
     }
     return out 
   }
 
   _zeroIneq(u, out) {
-    if (u>=0) return 0
+    if (u>0) return 0
     return out
   }
 

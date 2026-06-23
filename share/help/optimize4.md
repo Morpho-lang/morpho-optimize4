@@ -411,7 +411,7 @@ Increasing the history length may improve the estimate of the inverse hessian at
 ### PenaltyController
 [tagPenaltyController]: # (PenaltyController)
 
-Implements the classical penalty method for constrained problems. The adapter is wrapped in a `PenaltyAdapter` and a sequence of unconstrained subproblems is solved with increasing penalty parameter \(\mu\).
+Implements the classical penalty method for constrained problems. The adapter is wrapped in a `PenaltyAdapter` and a sequence of unconstrained subproblems is solved with increasing penalty parameter \(\mu\). This is often a method of choice for constrained problems, particularly those with inequality constraints.
 
     var opt = PenaltyController(adapter, mu0=1, mumul=10.0,
                                 subProblemMaxiterations=100,
@@ -431,7 +431,7 @@ Convergence requires both the inner controller's `hasConverged()` and \(\|c\|_1 
 
 Implements projected gradient descent for constrained problems:
 
-1. Compute a search direction by removing the component of the gradient along the constraint normals (least-squares multiplier estimate).
+1. Compute a search direction by removing the component of the gradient along the constraint normals.
 2. Line search using an `L1PenaltyAdapter` merit function with penalty `mu` (default `2`).
 3. Reproject onto the feasible set by minimizing \(\|c\|^2\) with L-BFGS (`maxconstraintsteps` iterations, default `100`).
 
@@ -442,7 +442,9 @@ Optional `steplimit` caps the accepted line search step. Reprojection runs autom
 ### SQPController
 [tagSQPController]: # (SQPController)
 
-Implements sequential quadratic programming for constrained problems. The method:
+Implements Sequential Quadratic Programming for constrained problems The method models the objective function at each step as a quadratic form and enforces constraints during optimization through Lagrange multipliers. This is often a method of choice for constrained optimization, and is particularly effective where there are a few global equality constraints. 
+
+Specifically, an SQPController:-
 
 1. Maintains Lagrange multipliers via an internal `LagrangeMultiplierAdapter` (`control.ladapter` after `start()`).
 2. Approximates the objective Hessian with L-BFGS on the unconstrained objective (`DeconstrainAdapter`).
@@ -462,7 +464,7 @@ Key options:
 * `feasol` / `reprojecttol` - tolerance on \(\|c\|_1\) for feasibility and reprojection triggering.
 * `relgradtol`, `relgraditers` - stop if \(\|\nabla L\|\) falls below `relgradtol` times its initial value for `relgraditers` consecutive iterations.
 * `stagtol` - alternative stop when the objective stagnates and \(\|\nabla L\|\) is moderate.
-* `lamcap` - maximum allowed magnitude of Lagrange multiplier updates.
+* `lamcap` - maximum allowed magnitude of Lagrange multipliers after least-squares sync on the active set.
 
 Diagnostic methods:
 

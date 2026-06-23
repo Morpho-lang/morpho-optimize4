@@ -3,7 +3,7 @@
 # Optimize4
 [tagOptimize4]: # (Optimize4)
 
-The `optimize4` package is a new and more powerful optimization package for morpho. It implements a much wider variety of possible algorithms than the previous `optimize` package. 
+The `optimize4` package is a new and more powerful optimization package for morpho. It implements a much wider variety of possible algorithms than the previous `optimize` package.
 
 The design is intended to be flexible, enabling customization of the choice of algorithm and easy incorporation of new algorithms by the developer or user. To use the package, simply import it into your morpho program as usual:
 
@@ -12,51 +12,125 @@ The design is intended to be flexible, enabling customization of the choice of a
 The package provides three main kinds of class that work together:
 
 * `OptimizationProblem` classes are used to describe a shape optimization problem to be solved.
-* `OptimizationAdapter` provide a uniform interface for optimization, setting and getting parameters and evaluating gradients etc. `OptimizationAdapter`s can also be used to transform one type of problem to another, e.g. a constrained problem to an unconstrained problem, facilitating the use of different optimization algorithms. 
-* `OptimizationController` classes implement an optimization algorithm or a useful subcomponent. Controllers work with a provided `OptimizationAdapter` to evaluate necessary quantities and direct how parameters are to be adjusted as the algorithm proceeds. 
+* `OptimizationAdapter` objects provide a uniform interface for optimization, setting and getting parameters and evaluating gradients etc. `OptimizationAdapter`s can also be used to transform one type of problem to another, e.g. a constrained problem to an unconstrained problem, facilitating the use of different optimization algorithms.
+* `OptimizationController` classes implement an optimization algorithm or a useful subcomponent. Controllers work with a provided `OptimizationAdapter` to evaluate necessary quantities and direct how parameters are to be adjusted as the algorithm proceeds.
+
+A typical workflow for a morpho problem is:
+
+    var problem = OptimizationProblem(mesh)
+    problem.addenergy(someFunctional)
+    problem.addconstraint(anotherFunctional)
+
+    var adapter = ProblemAdapter(problem, mesh)
+    var opt = LBFGSController(adapter)   // or SQPController(adapter) if constrained
+    opt.optimize(500)
 
 [showsubtopics]: # (subtopics)
+
+## OptimizationProblem
+[tagOptimizationProblem]: # (OptimizationProblem)
+
+An `OptimizationProblem` is a container that describes an optimization problem in terms of morpho functionals. It holds a reference mesh, optional fields, a list of energies that make up the objective function, and global and local constraints.
+
+Create a problem with a mesh:
+
+    var problem = OptimizationProblem(mesh)
+
+[showsubtopics]: # (subtopics)
+
+### Adding energies
+[tagaddenergy]: # (addenergy)
+
+Use `addenergy` to add a term to the objective function. The method returns an `Energy` object that can be modified after creation (for example, to set a `selection` or `prefactor`):
+
+    var en = problem.addenergy(functional, selection=nil, prefactor=nil)
+
+The total objective is the sum of all energy terms. Each energy wraps a morpho functional and evaluates it via `functional.total(mesh)` (and `functional.gradient` when gradients are required).
+
+### Adding constraints
+[tagaddconstraint]: # (addconstraint)
+[tagaddlocalconstraint]: # (addlocalconstraint)
+
+Global constraints are added with `addconstraint`. The constraint value is the total of the functional over the mesh (optionally restricted by a `selection`), minus an automatic target computed at the time the constraint is added:
+
+    var cons = problem.addconstraint(functional, selection=nil, field=nil)
+
+Local constraints apply at mesh elements (for example, a level-set constraint at each vertex). Use `addlocalconstraint`:
+
+    var cons = problem.addlocalconstraint(functional, selection=nil, field=nil,
+                                          onesided=false, target=0)
+
+Set `onesided=true` for inequality constraints of the form \(c(x) \le 0\). Equality constraints are the default.
+
+The returned `Constraint` objects expose `functional`, `target`, `selection`, `field`, and `onesided` properties.
 
 ## OptimizationAdapter
 [tagOptimizationAdapter]: # (OptimizationAdapter)
 [tagAdapter]: # (Adapter)
 
-The `OptimizationAdapter` class defines a standard interface for optimization problems. Adapter objects evaluate the value and derivatives of the objective function, as well as any constraints present. `OptimizationAdapter` objects can be chained together, to convert the problem into a more convenient form or other helpful effects. 
+The `OptimizationAdapter` class defines a standard interface for optimization problems. Adapter objects evaluate the value and derivatives of the objective function, as well as any constraints present. `OptimizationAdapter` objects can be chained together, to convert the problem into a more convenient form or other helpful effects.
 
-An `OptimizationAdapter` implements the following methods: 
+An `OptimizationAdapter` implements the following methods:
 
 * `set(x)` - Sets the parameters, supplied as a `Matrix`.
 * `get()`  - Retrieves the current parameters.
 * `value()` - Returns the value of the objective function.
 * `gradient()` - Returns the gradient of the objective function as a `Matrix`.
-* `countConstraints()` - Returns the total number of constraints present. 
-* `countEqualityConstraints()` - Returns the total number of equality constraints present. 
+* `countConstraints()` - Returns the total number of constraints present.
+* `countEqualityConstraints()` - Returns the total number of equality constraints present.
 * `countInequalityConstraints()` - Returns the total number of inequality constraints present.
-* `constraintValue()` - Returns a `List` of the values of the constraint functions. The list may contain values or `Matrix` objects with multiple values. 
+* `constraintValue()` - Returns a `List` of the values of the constraint functions. The list may contain values or `Matrix` objects with multiple values.
 * `constraintGradient()` - Returns a `List` of gradients of the constraint functions; each element is a `Matrix` with columns corresponding to the gradient of the constraint function.
 
 An `OptimizationAdapter` may also provide second derivative information:
 
-* `hessian()` - Returns the hessian of the objective function if available or `nil` otherwise. 
+* `hessian()` - Returns the hessian of the objective function if available or `nil` otherwise.
 * `constraintHessian()` - Returns a List containing the hessians of any constraints.
 
 [showsubtopics]: # (subtopics)
 
+### ProblemAdapter
+[tagProblemAdapter]: # (ProblemAdapter)
+
+A `ProblemAdapter` is the main adapter for morpho shape optimization problems. It connects an `OptimizationProblem` to the `OptimizationAdapter` interface, reading and writing degrees of freedom from one or more `Mesh` or `Field` targets.
+
+    var adapter = ProblemAdapter(problem, mesh)
+    var adapter = ProblemAdapter(problem, mesh, field)  // multiple targets
+
+The adapter:
+
+* Sums all energies in the problem for `value()` and accumulates gradients from `functional.gradient` (meshes) and `functional.fieldgradient` (fields).
+* Exposes global constraints, local constraints, and one-sided (inequality) constraints through `constraintValue()` and `constraintGradient()`.
+* Does not currently provide a Hessian; use quasi-Newton controllers such as `LBFGSController` or `SQPController`.
+
+Helper methods include `count()`, `energies()`, `constraints()`, `localConstraints()`, and `selectionToIndexList` (for building index lists to pass to `FixAdapter`).
+
+### FunctionAdapter
+[tagFunctionAdapter]: # (FunctionAdapter)
+
+A `FunctionAdapter` wraps plain morpho functions in the `OptimizationAdapter` interface. It is useful for test problems, prototyping, and problems not expressed as morpho functionals.
+
+    var adapt = FunctionAdapter(fn (x) x[0]^2 + x[1]^2,
+                                gradient=fn (x) Matrix([2*x[0], 2*x[1]]),
+                                start=Matrix([1, 1]))
+
+If `gradient` or `hessian` are omitted, finite-difference versions are constructed automatically. Constraints are supplied as lists of functions, with optional `constraintgradients`, `constrainthessians`, and `equalitycount` (the number of leading constraints treated as equalities; the remainder are inequalities).
+
 ### DelegateAdapter
 [tagDelegateAdapter]: # (DelegateAdapter)
 
-A `DelegateAdapter` implements the `OptimizationAdapter` interface, but simply redirects all of method calls to an second adapter.
+A `DelegateAdapter` implements the `OptimizationAdapter` interface, but simply redirects all of method calls to a second adapter.
 
-Initialize the `DelegateAdapter` with the adapter to redirect to: 
+Initialize the `DelegateAdapter` with the adapter to redirect to:
 
     var adapt = DelegateAdapter(targetAdapter)
 
 ### DeconstrainAdapter
 [tagDeconstrainAdapter]: # (DeconstrainAdapter)
 
-A `DeconstrainAdapter` converts a constrained problem to an unconstrained problem by ignoring the constraints. Calls to `countConstraints()` and similar methods always return `0`; calling `constraintValue()` and `constraintGradient()` return `nil`. 
+A `DeconstrainAdapter` converts a constrained problem to an unconstrained problem by ignoring the constraints. Calls to `countConstraints()` and similar methods always return `0`; calling `constraintValue()` and `constraintGradient()` return `nil`.
 
-This class is used to simplify access to the objective function without the presence of constraints, typically for use with another adapter or for use with a controller class that does not accept a constrained problem. 
+This class is used to simplify access to the objective function without the presence of constraints, typically for use with another adapter or for use with a controller class that does not accept a constrained problem.
 
 ### FixAdapter
 [tagFixAdapter]: # (FixAdapter)
@@ -67,35 +141,42 @@ Initialize the `FixAdapter` with a `List` of variables to be fixed:
 
     var fadapt = FixAdapter(adapt, [0,1,2])
 
+With a `ProblemAdapter`, use `selectionToIndexList` to obtain correct variable indices from a mesh selection:
+
+    var fix = adapter.selectionToIndexList(selection, mesh)
+    var fadapt = FixAdapter(adapter, fix)
+
 ### ProxyAdapter
 [tagProxyAdapter]: # (ProxyAdapter)
 
 A `ProxyAdapter` implements a cache: Calls to `value()`, `gradient()`, and other methods are returned from the cache if they have already been calculated, or are calculated as necessary. Every time `set()` is called with new parameters, the cache is cleared. This adapter therefore prevents multiple evaluation of potentially expensive quantities like the gradient or the hessian by `OptimizationController`s. Using a `ProxyAdapter` helps simplify writing an `OptimizationController`: there's no need to temporarily store these quantities within the controller, for example.
 
+`OptimizationController` automatically wraps adapters in a `ProxyAdapter` unless one is already present.
+
 A `ProxyAdapter` also keeps track of how many times the objective function value, gradient etc. are actually calculated. Print this information by calling the `report()` method:
 
     adapter.report()
 
-You may retrieve the data as a `List` by calling the `countEvals()` method: 
+You may retrieve the data as a `List` by calling the `countEvals()` method:
 
     var count = adapter.countEvals()
 
-The list is ordered as follows: `[no. value(), no. gradient(), no. hessian(), no. constraintValue(), no. constraintGradient(), no. constraintHessian()]` where each entry is the number of calls to the corresponding method. This information can be used, for example, to assess the performance of different algorithms on various problems for example. 
+The list is ordered as follows: `[no. value(), no. gradient(), no. hessian(), no. constraintValue(), no. constraintGradient(), no. constraintHessian()]` where each entry is the number of calls to the corresponding method. This information can be used, for example, to assess the performance of different algorithms on various problems for example.
 
 ### DeflationAdapter
 [tagDeflationAdapter]: # (DeflationAdapter)
 
-A `DeflationAdapter` is used to implement the "deflation" method of solution landscape exploration. It modifies a problem by adding additional inequality constraints: 
+A `DeflationAdapter` is used to implement the "deflation" method of solution landscape exploration. It modifies a problem by adding additional inequality constraints:
 
-    | x - xsoln |_2/R - 1 > 0 
+    | x - xsoln |_2/R - 1 > 0
 
-where `xsoln` is a previous solution to the optimization problem, and `R` is a deflation radius. The intent of the constraint is to prevent the optimizer reconverging on a previously known solution. The deflation radius is a metaparameter of the algorithm and must be tuned to the problem. 
+where `xsoln` is a previous solution to the optimization problem, and `R` is a deflation radius. The intent of the constraint is to prevent the optimizer reconverging on a previously known solution. The deflation radius is a metaparameter of the algorithm and must be tuned to the problem.
 
 Initialize a `DeflationAdapter` with a target adapter and deflation radius:
 
     var dadapt = DeflationAdapter(adapter, radius=1)
 
-Add a solution to the adapter: 
+Add a solution to the adapter:
 
     dadapt.addSolution(x) // typically use x = adapter.get()
 
@@ -106,50 +187,108 @@ A common strategy to move off a previous solution is to add random noise to the 
 ### PenaltyAdapter
 [tagPenaltyAdapter]: # (PenaltyAdapter)
 
-A `PenaltyAdapter` is used to convert a constrained problem into an unconstrained problem where the constraints are incorporated into a modified objective function: 
+A `PenaltyAdapter` is used to convert a constrained problem into an unconstrained problem where the constraints are incorporated into a modified objective function:
 
     f(x) = f_old(x) + mu |c|^2 + mu |d-|^2
 
-where c is the value of the equality constraint functions and |d-| is the value of active inequality constraints (i.e. only those that have negative values). The parameter `mu` is called the *penalty parameter* and effectively penalizes the deviation of the solution from the constraint. 
+where c is the value of the equality constraint functions and |d-| is the value of active inequality constraints (i.e. only those that have negative values). The parameter `mu` is called the *penalty parameter* and effectively penalizes the deviation of the solution from the constraint.
 
 Initialize a `PenaltyAdapter` with a given initial penalty:
 
     var padapt = PenaltyAdapter(targetAdapter, penalty=1)
 
+The penalty can be changed with `setpenalty(mu)` and read with `penalty()`. The adapter also provides `directionalDerivative(d)` for use in line searches.
+
+If a Hessian is required, the underlying adapter must supply `hessian()` and `constraintHessian()`.
+
 ### LagrangeMultiplierAdapter
+[tagLagrangeMultiplierAdapter]: # (LagrangeMultiplierAdapter)
+
+A `LagrangeMultiplierAdapter` augments the optimization variables with Lagrange multipliers, forming the Lagrangian
+
+    L(x, λ) = f(x) - λ · c(x)
+
+where inactive inequality constraints have their multipliers set to zero. The combined parameter vector is `[x; λ]`.
+
+    var ladapt = LagrangeMultiplierAdapter(adapter)
+
+Key methods:
+
+* `varGradient()` - gradient of the Lagrangian with respect to the original variables: \(\nabla f - C^\top \lambda\).
+* `lagrangeMultipliers()` / `setLagrangeMultipliers(lambda)` - get or set the multiplier vector.
+* `activeConstraintValue()` / `activeConstraintGradient()` - constraints on the current active set (equalities plus violated or tight inequalities).
+* `setActiveLagrangeMultipliers(lambda)` - update multipliers on the active set only.
+
+This adapter is used internally by `SQPController` (as `control.ladapter` after `start()`).
 
 ### ReprojectionAdapter
+[tagReprojectionAdapter]: # (ReprojectionAdapter)
+
+A `ReprojectionAdapter` defines an unconstrained objective consisting only of the squared constraint violation:
+
+    F(x) = |c|^2 + |d-|^2
+
+It ignores the original objective and is used to drive the solution back toward the feasible set. `ProjectedGradientDescentController` and `SQPController` use it internally for reprojection steps via L-BFGS minimization of `F`.
 
 ### L1PenaltyAdapter
 [tagL1PenaltyAdapter]: # (L1PenaltyAdapter)
 
-An `L1PenaltyAdapter` is similar to a `PenaltyAdapter` but uses the 1-norm rather than the 2-norm. 
+An `L1PenaltyAdapter` is similar to a `PenaltyAdapter` but uses the 1-norm rather than the 2-norm:
+
+    f(x) = f_old(x) + mu |c|_1 + mu |d-|_1
+
+The resulting function is nondifferentiable, so `gradient()` and `hessian()` throw errors. Instead, use `directionalDerivative(d)` for line searches along direction `d`. This merit function is used by `ProjectedGradientDescentController` and `SQPController` during constrained line searches.
+
+    var padapt = L1PenaltyAdapter(adapter, penalty=mu)
+    padapt.directionalDerivative(direction)
 
 ### FiniteDifferenceAdapter
 [tagFiniteDifferenceAdapter]: # (FiniteDifferenceAdapter)
 
-A `FiniteDifferenceAdapter` evaluates the gradient and hessian of the objective 
+A `FiniteDifferenceAdapter` wraps another adapter and supplies `gradient()` and `hessian()` by centered finite differences of `value()`, using appropriately scaled step sizes.
 
-### FunctionAdapter
+    var fdadapt = FiniteDifferenceAdapter(adapter)
 
-### ProblemAdapter
+Only `value()` (and constraint methods, if present on the underlying adapter) need to be implemented on the wrapped adapter. This is useful when analytical derivatives are unavailable, but can be very expensive for large parameter vectors.
 
-## OptimizationController 
+
+## OptimizationController
 [tagOptimizationController]: # (OptimizationController)
 
-The `OptimizationController` is a base class for implementing optimization algorithms. It provides a number of useful generic methods for checking convergence, reporting information consistently, etc. Developers should refer to the associated manual; here we explain settings common to all `OptimizationController`s. 
+The `OptimizationController` is a base class for implementing optimization algorithms. It provides a number of useful generic methods for checking convergence, reporting information consistently, etc.
 
-Success of an optimization is typically assessed by comparing convergence criteria to target tolerances. You can adjust these by setting the relevant properties of an `OptimizationController`.
+_Running an optimization_
 
-You can also control the level of output generated by the `OptimizationController`. To create an `OptimizationController` that suppresses output except for warnings and errors,
+Call `optimize(nsteps)` to run up to `nsteps` iterations. The method returns `true` if convergence criteria are met, `false` otherwise (including if a step fails or the iteration limit is reached without convergence).
+
+Each iteration follows the sequence `begin()` → `step()` → `next()`, with `report(iter)` and `record()` called by `optimize`. Subclasses override these hooks to implement specific algorithms.
+
+_Convergence tolerances_
+
+Success is typically assessed via `hasConverged()`. The base class checks:
+
+* `gradtol` (default `1e-6`) - stop when \(\|g\| <\) `gradtol`, where \(g\) is the gradient returned by `gradient()`.
+* `etol` (default `1e-8`) - stop when the relative change in objective value between successive iterations falls below `etol`.
+* `ctol` (default `1e-10`) - used by `PenaltyController` for constraint satisfaction.
+
+Adjust tolerances on the controller instance:
+
+    opt.gradtol = 1e-8
+    opt.etol = 1e-10
+
+Constrained controllers may override `hasConverged()` with additional criteria; see `SQPController` below.
+
+_Verbosity_
+
+You can control the level of output generated by the `OptimizationController`. To create an `OptimizationController` that suppresses output except for warnings and errors,
 
     var opt = OptimizationController(adapt, quiet=true)
 
 More fine-grained control is available through the `verbosity` option. For example:
 
-    var opt = OptimizationController(adapt, quiet="verbose")
+    var opt = OptimizationController(adapt, verbosity="verbose")
 
-produces verbose output, which contains additional information useful for debugging. Possible options include: 
+produces verbose output, which contains additional information useful for debugging. Possible options include:
 
 * "verbose" - Detailed output
 * "normal"  - Normal output, including the results at each iteration.
@@ -167,12 +306,34 @@ Implements the gradient descent algorithm with fixed stepsize, i.e. at each iter
 
 This is generally a toy algorithm; convergence is slow and not guaranteed. It is valuable for education and benchmarking purposes and occasionally useful for implementing other `OptimizationController`s.
 
+Only appropriate for unconstrained problems.
+
 ### LineSearchController
 [tagLineSearchController]: # (LineSearchController)
 
+Extends `GradientDescentController` with a backtracking Armijo line search. Starting from unit stepsize, the step is reduced by factor `beta` (default `0.5`) until the sufficient decrease condition
+
+    f(x + t d) < f(x) + alpha * t * (g · d)
+
+is satisfied, with `alpha` defaulting to `0.2`. The accepted stepsize is stored in `stepsize`.
+
+Options: `stepsize` (initial trial step), `alpha`, `beta`, `maxsteps` (default 50).
+
 ### DirectedLineSearchController
+[tagDirectedLineSearchController]: # (DirectedLineSearchController)
+
+Performs an Armijo line search along a fixed direction supplied at construction or via `setDirection(d)`. Uses `directionalDerivative(d)` on the adapter when available (required for nondifferentiable merit functions such as `L1PenaltyAdapter`).
+
+`optimize(n)` performs a single line search only; `hasConverged()` always returns `false` so gradient-based stopping is not applied.
 
 ### WolfeLineSearchController
+[tagWolfeLineSearchController]: # (WolfeLineSearchController)
+
+Implements a strong Wolfe line search (Nocedal & Wright, Ch. 3). Parameters include `c1` (Armijo constant, default `1e-3`), `c2` (curvature constant, default `0.9`), `stepsize` (initial trial), and `steplimit`. Verbose debugging output is printed when the controller verbosity is `"verbose"`.
+
+Can be passed to `NewtonController` as the `linesearch` argument:
+
+    var opt = NewtonController(adapter, linesearch=WolfeLineSearchController)
 
 ### NewtonController
 [tagNewtonController]: # (NewtonController)
@@ -185,34 +346,40 @@ Having found the search direction, the `NewtonController` performs a linesearch 
 
 While Newton's method converges rapidly from a good starting point, it can fail to converge from a poor one. It also requires hessian information, which is typically not available in `morpho` problems. Quasi-newton methods such as `LBFGSController` are hence recommended; these follow the same sequence as a `NewtonController`, but replace the hessian with an approximation.
 
-The linesearch process can be controlled by the user. By default, a `NewtonController` creates a `LineSearchController` to perform the search, but you can supply your own. For example, 
+The linesearch process can be controlled by the user. By default, a `NewtonController` creates a `LineSearchController` to perform the search, but you can supply your own. For example,
 
-    var opt = NewtonController(adapter, linesearch=WolfeLineSearchController) 
+    var opt = NewtonController(adapter, linesearch=WolfeLineSearchController)
 
 causes the `NewtonController` to create a `WolfeLineSearchController` to perform linesearches. You can control the settings of the linesearch by creating the controller yourself. This example performs a very loose linesearch by increasing `etol`:
 
-    var ls = LineSearchController(adapter) 
-    ls.etol = 1e-4 
-    var opt = NewtonController(adapter, linesearch=ls) 
+    var ls = LineSearchController(adapter)
+    ls.etol = 1e-4
+    var opt = NewtonController(adapter, linesearch=ls)
 
 ### ConjugateGradientController
+[tagConjugateGradientController]: # (ConjugateGradientController)
+
+Implements nonlinear conjugate gradient with Fletcher–Reeves \(\beta\) and restarts when \(\beta < 0\). Inherits line search behaviour from `NewtonController` but replaces the Newton direction with a conjugate gradient combination of the current and previous gradients.
+
+Requires an unconstrained problem and uses only first derivatives.
 
 ### BFGSController
 [tagBFGSController]: # (BFGSController)
 
-A `BFGSController` implements the Broyden–Fletcher–Goldfarb–Shanno (BFGS) algorithm for unconstrained optimization. BFGS is an example of a quasi-Newton method, offering superlinear convergence without the computational cost of evaluating the Hessian matrix. 
+A `BFGSController` implements the Broyden–Fletcher–Goldfarb–Shanno (BFGS) algorithm for unconstrained optimization. BFGS is an example of a quasi-Newton method, offering superlinear convergence without the computational cost of evaluating the Hessian matrix.
 
-The method iteratively builds an approximation to the Hessian matrix; the approximation is updated at each iteration from available gradient information. 
+The method iteratively builds an approximation to the Hessian matrix; the approximation is updated at each iteration from available gradient information.
 
 As in the Newton method, the search direction `d` at each iteration is obtained by solving:
 
     H_BFGS.d = - g
 
-where  g is the gradient of the objective function. Note that H\_BFGS is the BFGS estimate of the Hessian, rather than the Hessian itself. 
+where  g is the gradient of the objective function. Note that H\_BFGS is the BFGS estimate of the Hessian, rather than the Hessian itself.
 
-Having found the search direction, the `BFGSController` performs a linesearch in that direction. See `NewtonController` for additional options to control this process. 
+Having found the search direction, the `BFGSController` performs a linesearch in that direction. See `NewtonController` for additional options to control this process.
 
 ### InvBFGSController
+[tagInvBFGSController]: # (InvBFGSController)
 
 An `InvBFGSController` implements the BFGS algorithm, similar to `BFGSController`, except rather than estimating the hessian, it estimates the *inverse* hessian of the objective function instead. This leads to a more efficient algorithm, because an expensive linear solve
 
@@ -222,9 +389,9 @@ can be replaced by a matrix multiply
 
     d = - invH_BFGS.g
 
-Like a `BFGSController`, having found the search direction, the `InvBFGSController` performs a linesearch in that direction. See `NewtonController` for additional options to control this process. 
+Like a `BFGSController`, having found the search direction, the `InvBFGSController` performs a linesearch in that direction. See `NewtonController` for additional options to control this process.
 
-The `InvBFGSController` is typically useful only for problems with a small number of parameters due to the need to maintain an explicit inverse hessian matrix. Use the `LBFGSController` for large problems.  
+The `InvBFGSController` is typically useful only for problems with a small number of parameters due to the need to maintain an explicit inverse hessian matrix. Use the `LBFGSController` for large problems.
 
 ### LBFGSController
 [tagLBFGSController]: # (LBFGSController)
@@ -233,7 +400,7 @@ An `LBFGSController` implements the Limited-memory BFGS (LBFGS) algorithm for un
 
     d = - invH_BFGS.g
 
-by performing the matrix multiplication implicitly. Because it scales well with problem size, this is typically a preferred algorithm for unconstrained optimization. 
+by performing the matrix multiplication implicitly. Because it scales well with problem size, this is typically a preferred algorithm for unconstrained optimization.
 
 In addition to the standard options for an `OptimizationController`, you can control the history length maintained when you create an `LBFGSController`:
 
@@ -241,14 +408,64 @@ In addition to the standard options for an `OptimizationController`, you can con
 
 Increasing the history length may improve the estimate of the inverse hessian at the expense of memory and work per iteration. The default value of 10 has been found sufficient for many applications.
 
-### ProjectedGradientDescentController
-[tagProjectedGradientDescentController]: # (ProjectedGradientDescentController)
-
-
-
-### SQPController
-
 ### PenaltyController
 [tagPenaltyController]: # (PenaltyController)
 
+Implements the classical penalty method for constrained problems. The adapter is wrapped in a `PenaltyAdapter` and a sequence of unconstrained subproblems is solved with increasing penalty parameter \(\mu\).
+
+    var opt = PenaltyController(adapter, mu0=1, mumul=10.0,
+                                subProblemMaxiterations=100,
+                                controller=LBFGSController)
+
+Options:
+
+* `mu0` - initial penalty parameter (default `1`).
+* `mumul` - factor by which \(\mu\) is multiplied after each outer iteration (default `10`).
+* `subProblemMaxiterations` - maximum iterations per subproblem (default `100`).
+* `controller` - class used to solve each subproblem (default `LBFGSController`).
+
+Convergence requires both the inner controller's `hasConverged()` and \(\|c\|_1 <\) `ctol`. Outer iterations report `mu` and the constraint norm.
+
+### ProjectedGradientDescentController
+[tagProjectedGradientDescentController]: # (ProjectedGradientDescentController)
+
+Implements projected gradient descent for constrained problems:
+
+1. Compute a search direction by removing the component of the gradient along the constraint normals (least-squares multiplier estimate).
+2. Line search using an `L1PenaltyAdapter` merit function with penalty `mu` (default `2`).
+3. Reproject onto the feasible set by minimizing \(\|c\|^2\) with L-BFGS (`maxconstraintsteps` iterations, default `100`).
+
+    var opt = ProjectedGradientDescentController(adapter, mu=2, steplimit=nil)
+
+Optional `steplimit` caps the accepted line search step. Reprojection runs automatically at `start()` and after each `step()`.
+
+### SQPController
+[tagSQPController]: # (SQPController)
+
+Implements sequential quadratic programming for constrained problems. The method:
+
+1. Maintains Lagrange multipliers via an internal `LagrangeMultiplierAdapter` (`control.ladapter` after `start()`).
+2. Approximates the objective Hessian with L-BFGS on the unconstrained objective (`DeconstrainAdapter`).
+3. Solves the KKT system for the active constraint set each step (Schur complement), with fallback to a pure L-BFGS step on \(\nabla L\) if the system is singular.
+4. Line searches along the primal direction using an adaptive L1 merit function.
+5. Reprojects when constraint violation exceeds `feasol` (default `1e-5`).
+
+    var opt = SQPController(adapter, penalty=1, maxconstraintsteps=100,
+                            reprojecttol=1e-5, relgradtol=0.005,
+                            relgraditers=20, stagtol=1e-2, lamcap=100)
+    opt.optimize(500)
+
+    print opt.ladapter.lagrangeMultipliers()
+
+Key options:
+
+* `feasol` / `reprojecttol` - tolerance on \(\|c\|_1\) for feasibility and reprojection triggering.
+* `relgradtol`, `relgraditers` - stop if \(\|\nabla L\|\) falls below `relgradtol` times its initial value for `relgraditers` consecutive iterations.
+* `stagtol` - alternative stop when the objective stagnates and \(\|\nabla L\|\) is moderate.
+* `lamcap` - maximum allowed magnitude of Lagrange multiplier updates.
+
+Diagnostic methods:
+
+* `kkt()` - assemble an explicit KKT matrix estimate (expensive; intended for small problems).
+* `reproject()` - force a feasibility reprojection step.
 

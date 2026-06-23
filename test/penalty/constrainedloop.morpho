@@ -6,6 +6,6 @@ var example = ConstrainedLoop()
 var adapt = example.build()
 
 var control = PenaltyController(adapt)
-control.optimize(20) 
+control.optimize(20)
 
 Show(example.visualize()) 

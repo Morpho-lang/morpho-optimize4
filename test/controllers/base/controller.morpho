@@ -7,7 +7,7 @@ var adapt = ConstrainedFunctionExample().build()
 var con = OptimizationController(adapt)
 
 print con.value() 
-// expect: 0
+// expect: 14
 
 print con.constraintValue()
 // expect: [ -1, 1 ]

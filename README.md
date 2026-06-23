@@ -62,13 +62,9 @@ Constrained controllers require constraints on the adapter (via `addconstraint` 
 
 ## Examples and tests
 
-The [`test/examples/`](test/examples/) directory contains reference problems:
+Reference problems live under [`test/examples/`](test/examples/) (loop, thomson, cholesteric, nematic, tactoid, qtensor, …). The same problems are exercised under `test/sqp/`, `test/pgd/`, and `test/penalty/` with different controllers.
 
-- **loop** — minimize perimeter at fixed area
-- **thomson** — particles on a sphere (local constraints)
-- **cholesteric**, **nematic**, **tactoid**, **qtensor** — field and texture problems
-
-The same problems are exercised under [`test/sqp/`](test/sqp/), [`test/pgd/`](test/pgd/), and [`test/penalty/`](test/penalty/) with different controllers. Unit-style tests for adapters and line searches are in [`test/adapter/`](test/adapter/) and [`test/controllers/`](test/controllers/).
+See [`test/README.md`](test/README.md) for the automated test runner, CI directives, and layout.
 
 ## Documentation
 

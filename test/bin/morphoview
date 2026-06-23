@@ -1,0 +1,3 @@
+#!/bin/sh
+# No-op morphoview for headless test runs (see test/test.py).
+exit 0

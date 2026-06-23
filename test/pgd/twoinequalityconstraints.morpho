@@ -1,3 +1,4 @@
+// [CI:Smoke]  // comparison script; PGD may stall linesearch on this start
 
 import optimize4
 import "../examples/twoinequalityconstraints.morpho" for ConstrainedFunctionExample

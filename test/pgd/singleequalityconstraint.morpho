@@ -1,3 +1,4 @@
+// [CI:Smoke]  // comparison script (penalty + PGD); not a strict convergence test
 
 import optimize4
 import "../examples/singleequalityconstraint.morpho" for ConstrainedFunctionExample

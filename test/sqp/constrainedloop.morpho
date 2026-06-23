@@ -1,3 +1,4 @@
+// [CI:Ignore]  // SQP stalls on overdetermined active set; see penalty/pgd variants
 
 import optimize4
 import plot

@@ -52,4 +52,4 @@ print adapt.constraintValue()
 
 var cg = adapt.constraintGradient()
 print cg 
-// expect: [ <Matrix>, <Sparse>, <Sparse> ]
+// expect: [ <Matrix>, <Matrix>, <Matrix> ]

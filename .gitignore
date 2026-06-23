@@ -1,3 +1,5 @@
 
 .DS_Store
+test/FailedTests.txt
+test/**/*.out
 docs/\#manual.lyx\#

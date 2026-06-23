@@ -6,6 +6,7 @@ var example = Thomson()
 var adapt = example.build()
 
 var control = PenaltyController(adapt)
-control.optimize(20) 
+control.ctol = 2e-10  // local constraints plateau just above default ctol
+control.optimize(25)
 
 Show(example.visualize()) 

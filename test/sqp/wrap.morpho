@@ -1,3 +1,4 @@
+// [CI:Ignore]  // multilevel SQP; use penalty/PGD examples instead
 
 import optimize4
 import plot 

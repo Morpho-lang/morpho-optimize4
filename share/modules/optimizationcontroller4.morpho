@@ -601,19 +601,19 @@ class LBFGSController is InvBFGSController {
     for (k in n-1..0:-1) { // Start with most recent
       var z = self._storage[k]
       var sk = z[0], yk = z[1], rho = 1/z[2]
-      if (isinf(rho)) _OptHessSng.throw() 
+      if (isinf(rho) || z[2] <= 0 || z[3] <= 0) { self.start(); return q }
 
       alpha[k] = rho * sk.transpose()*q //sk.inner(q)
       q-=yk*alpha[k]
     } 
 
     var zl = self._storage[-1] // Last 
+    if (zl[3]==0 || zl[2] <= 0) { self.start(); return q }
     var r = (zl[2]/zl[3])*q // (sk.yk)/(yk.yk)
-    if (zl[3]==0) _OptHessSng.throw() 
 
     for (z, k in self._storage) { // Work forwards
       var sk = z[0], yk = z[1], rho = 1/z[2]
-      if (isinf(rho)) _OptHessSng.throw() 
+      if (isinf(rho) || z[2] <= 0) { self.start(); return r }
 
       var beta = rho * yk.transpose()*r// rho*yk.inner(r)
       r+=sk*(alpha[k]-beta)
@@ -631,7 +631,13 @@ class LBFGSController is InvBFGSController {
   }
 
   update(sk, yk) {
-    self._storage.append((sk, yk, sk.inner(yk), yk.inner(yk)))
+    var yksk = sk.inner(yk)
+    if (yksk <= 0) { self.start(); return } // lost positive curvature; reset history
+
+    var scale = sk.norm() * yk.norm()
+    if (scale > 0 && yksk < 1e-12 * scale) return // skip noisy / null update
+
+    self._storage.append((sk, yk, yksk, yk.inner(yk)))
 
     if (self._storage.count()>self.maxhistorylength) self._storage = self._popfirst(self._storage)
   }

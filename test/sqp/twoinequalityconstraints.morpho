@@ -1,0 +1,13 @@
+// Two inequality constraints (Nocedal & Wright 12.3) solved with SQP
+
+import optimize4
+import "../examples/twoinequalityconstraints.morpho" for ConstrainedFunctionExample
+
+var example = ConstrainedFunctionExample()
+var adapter = example.build()
+
+var control = SQPController(adapter)
+control.optimize(200)
+
+print adapter.get()
+print example.check()

@@ -1,4 +1,4 @@
-// Single equality constraint (Nocedal & Wright 12.1) solved with PGD
+// Single equality constraint (Nocedal & Wright 12.1) solved with penalty
 
 import optimize4
 import "../examples/singleequalityconstraint.morpho" for ConstrainedFunctionExample
@@ -7,8 +7,8 @@ var example = ConstrainedFunctionExample()
 var adapt = example.build()
 adapt.set(Matrix([0.2, -1]))
 
-var control = ProjectedGradientDescentController(adapt)
-control.optimize(500)
+var control = PenaltyController(adapt)
+control.optimize(100)
 
 print adapt.get()
 print example.check()

@@ -1,0 +1,14 @@
+// Active-set inequality example (Nocedal & Wright 12.6) solved with PGD
+
+import optimize4
+import "../examples/inactive.morpho"
+
+var example = ConstrainedFunctionExample()
+var adapter = example.build()
+adapter.set(Matrix([0.5, 0.1]))
+
+var control = ProjectedGradientDescentController(adapter)
+control.optimize(1000)
+
+print adapter.get()
+print example.check()

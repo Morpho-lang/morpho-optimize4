@@ -1,0 +1,13 @@
+// Two inequality constraints (Nocedal & Wright 12.3) solved with penalty
+
+import optimize4
+import "../examples/twoinequalityconstraints.morpho" for ConstrainedFunctionExample
+
+var example = ConstrainedFunctionExample()
+var adapt = example.build()
+
+var control = PenaltyController(adapt)
+control.optimize(100)
+
+print adapt.get()
+print example.check()

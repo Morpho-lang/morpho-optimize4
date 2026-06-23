@@ -1,0 +1,12 @@
+// Unconstrained quadratic function (FunctionAdapter)
+
+import optimize4
+import "../examples/quadratic.morpho"
+
+var example = QuadraticExample()
+var adapt = example.build()
+
+var control = LBFGSController(adapt)
+control.optimize(100)
+
+print example.check()

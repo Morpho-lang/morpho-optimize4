@@ -1,0 +1,23 @@
+// [CI:Ignore]
+// Shared tolerances and helpers for ProblemAdapter gradient smoke tests.
+// Relaxed to absorb parallel floating-point reduction noise under morpho6 -w4/-w8.
+
+var GradFdTol = 1e-2
+var GradZeroTol = 1e-7
+var GradNonzeroTol = 1e-8
+
+fn fdConstraintGradientCheck(adapt, lin, row, col, x0, cg, eps=1e-5) {
+  var x1 = x0.clone()
+  x1[lin] = x0[lin] + eps
+  adapt.set(x1)
+  var cp = adapt.constraintValue()[0][col]
+
+  x1[lin] = x0[lin] - eps
+  adapt.set(x1)
+  var cm = adapt.constraintValue()[0][col]
+
+  adapt.set(x0)
+  var fd = (cp - cm) / (2*eps)
+  var ana = cg[0][lin, row]
+  return abs(fd - ana) < GradFdTol
+}

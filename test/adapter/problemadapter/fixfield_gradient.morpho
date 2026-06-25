@@ -1,10 +1,10 @@
-// FixAdapter on a 1D CG(2) scalar field with Dirichlet conditions at the endpoints.
-//
-// Endpoint vertex DOFs are fixed via selectionToIndexList; verifies set().
-// Gradient checks are in fixfield_gradient.morpho (avoid -w4/-w8 flake in exact mode).
+// [CI:Smoke]
+// FixAdapter gradient checks: zero at fixed DOFs, nonzero in the interior.
+// Kept separate from fixfield.morpho: gradient checks can flake under morpho6 -w4/-w8.
 
 import optimize4
 import meshtools
+import "gradienthelpers.morpho" for GradZeroTol, GradNonzeroTol
 
 var m = LineMesh(fn (u) [u, 0, 0], 0..1:0.25, closed=false)
 m.addgrade(1)
@@ -29,29 +29,19 @@ bnd[0, m.count(0)-1] = true
 var fixix = padapt.selectionToIndexList(bnd, f)
 var adapt = FixAdapter(padapt, fixix)
 
-print fixix.count()
-// expect: 2
-
-print fixix[0]
-// expect: 0
-
-print fixix[1]
-// expect: 4
-
-// set() must not change fixed DOFs
 var x0 = adapt.get()
-var x1 = x0.clone()
-for (i in 0...x1.count()) x1[i] += 0.3
-adapt.set(x1)
-var x2 = adapt.get()
+var g = adapt.gradient()
 
-print abs(x2[0] - uLeft) < 1e-12
-// expect: true
+if (abs(g[0]) >= GradZeroTol) {
+  Error("TstFixFldGrd", "Gradient should be zero at left fixed DOF").throw()
+}
 
-print abs(x2[4] - uRight) < 1e-12
-// expect: true
+if (abs(g[4]) >= GradZeroTol) {
+  Error("TstFixFldGrd", "Gradient should be zero at right fixed DOF").throw()
+}
 
-print abs(x2[2] - (x0[2] + 0.3)) < 1e-12
-// expect: true
+if (abs(g[2]) <= GradNonzeroTol) {
+  Error("TstFixFldGrd", "Gradient should be nonzero at interior DOF").throw()
+}
 
 adapt.set(x0)

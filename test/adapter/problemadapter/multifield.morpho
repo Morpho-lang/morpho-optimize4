@@ -1,0 +1,58 @@
+// ProblemAdapter test: two scalar fields on the same mesh
+//
+// Gradient FD checks are in multifield_gradient.morpho (avoid -w4/-w8 flake in exact mode).
+
+import optimize4
+import meshtools
+
+var m = LineMesh(fn (u) [u, 0, 0], 0..1:0.25, closed=false)
+m.addgrade(1)
+
+var fs = FiniteElementSpace("CG2", grade=1)
+var f1 = Field(m, Matrix([1.0]), finiteelementspace=fs)
+var f2 = Field(m, Matrix([2.0]), finiteelementspace=fs)
+
+var joint = LineIntegral(fn (x, a, b) a[0]^2 + b[0]^2, f1, f2, method={})
+var problem = OptimizationProblem(m)
+problem.addenergy(joint)
+
+var edgeOnF1 = LineIntegral(fn (x, fv) fv[0]^2, f1, method={})
+problem.addlocalconstraint(edgeOnF1, target=1.0)
+
+var adapt = ProblemAdapter(problem, f1, f2)
+
+print adapt.count(f1)
+// expect: 9
+
+print adapt.count(f2)
+// expect: 9
+
+print adapt.count()
+// expect: 18
+
+// selectionToIndexList offsets by preceding targets
+var bnd = Selection(m)
+bnd[0, 0] = true
+var fix1 = adapt.selectionToIndexList(bnd, f1)
+var fix2 = adapt.selectionToIndexList(bnd, f2)
+
+print fix1[0]
+// expect: 0
+
+print fix2[0]
+// expect: 9
+
+// set/get: perturb f2 block only
+var x0 = adapt.get()
+var x1 = x0.clone()
+x1[9] = 99
+adapt.set(x1)
+var x2 = adapt.get()
+
+print x2[0]
+// expect: 1
+
+print x2[9]
+// expect: 99
+
+adapt.set(x0)

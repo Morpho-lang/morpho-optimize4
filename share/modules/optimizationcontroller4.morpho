@@ -589,6 +589,12 @@ class LBFGSController is InvBFGSController {
     return a 
   }
 
+  _vdot(a, b) { // Inner product for vectors; transpose product for multi-column matrices
+    var bd = b.dimensions()
+    if (!bd || bd[1] == 1) return a.inner(b)
+    return a.transpose()*b
+  }
+
   _hmul(p) { // Compute the action of our approximation to the inv H on a vector or matrix 
     var q = p
 
@@ -603,7 +609,7 @@ class LBFGSController is InvBFGSController {
       var sk = z[0], yk = z[1], rho = 1/z[2]
       if (isinf(rho) || z[2] <= 0 || z[3] <= 0) { self.start(); return q }
 
-      alpha[k] = rho * sk.transpose()*q //sk.inner(q)
+      alpha[k] = rho * _vdot(sk, q)
       q-=yk*alpha[k]
     } 
 
@@ -615,7 +621,7 @@ class LBFGSController is InvBFGSController {
       var sk = z[0], yk = z[1], rho = 1/z[2]
       if (isinf(rho) || z[2] <= 0) { self.start(); return r }
 
-      var beta = rho * yk.transpose()*r// rho*yk.inner(r)
+      var beta = rho * _vdot(yk, r)
       r+=sk*(alpha[k]-beta)
     }
 
@@ -761,10 +767,32 @@ class ReprojectionMixin {
     return _leastSquaresFromNormal(Ct*g, Ct*C)
   }
 
+  _activeConstraintGradients(adapter) { // Gradients of active scalar constraints only
+    var cv = adapter.constraintValueForActiveSet()
+    var cgrad = adapter.constraintGradient()
+    var neq = adapter.countEqualityConstraints()
+    var acg = []
+    for (c, k in cv) {
+      var isEq = k<neq
+      var g = cgrad[k]
+      if (ismatrix(c)) {
+        for (j in 0...c.count()) {
+          var u = c[j]
+          if (isEq || u <= 0) acg.append(g.column(j))
+        }
+      } else {
+        if (isEq || c <= 0) acg.append(g)
+      }
+    }
+    return acg
+  }
+
   _l1Linesearch(xdirn, mu) {
     var x0 = self.adapter.get()
     var restore = self.has("_l1restore") && self._l1restore
-    var ls = DirectedLineSearchController(L1PenaltyAdapter(self.adapter, penalty=mu), direction=xdirn)
+    if (!self.has("_l1merit")) self._l1merit = L1PenaltyAdapter(self.adapter, penalty=mu)
+    else self._l1merit.setpenalty(mu)
+    var ls = DirectedLineSearchController(self._l1merit, direction=xdirn)
     var success = ls.step()
     if (restore) self.adapter.set(x0)
     self.stepsize = ls.stepsize
@@ -796,41 +824,16 @@ class ProjectedGradientDescentController is OptimizationController with Reprojec
     reproject()
   }
 
-  _eliminate(A, ix) { // Eliminate variable ix by zeroing out the associated row and column, replace with 1 on diagonal
-    var dim = A.dimensions()[0]
-    for (i in 0...dim) {
-      A[i,ix]=0
-      A[ix,i]=0
-    }
-    A[ix,ix]=1
-  }
-
-  _checkInequalityConstraints(A, b) {
-    var cv = self.adapter.constraintValue()
-    var cvec = self.rpadapter._flatten(cv)
-    var neq = self.rpadapter._counteq(cv)
-
-    for (i in neq...cvec.count()) {
-      if (cvec[i]>=0) { 
-        b[i]=0
-        _eliminate(A, i)
-      }
-    }
-  }
-
   direction() {
     var g = self.adapter.gradient()
-    var dg = self.adapter.constraintGradient()
-    var C = Matrix([dg])
-    var Ct = C.transpose()
-    var Ctg = Ct*g
-    var CtC = Ct*C
-
-    // Check for inactive constraints
-    if (self.adapter.countInequalityConstraints()>0) _checkInequalityConstraints(CtC, Ctg)
-
-    var lambda = _leastSquaresFromNormal(Ctg, CtC)
-    if (lambda) g -= C*lambda
+    var dg = _activeConstraintGradients(self.adapter)
+    if (dg.count() > 0) {
+      var lambda = _leastSquaresMultipliers(g, dg)
+      if (lambda) {
+        var C = Matrix([dg])
+        g -= C*lambda
+      }
+    }
     self._gradient = g
 
     return -g // Return the downward direction
@@ -903,8 +906,8 @@ class SQPController is OptimizationController with ReprojectionMixin {
     self.ladapter.setLagrangeMultipliers(lam * (self.lamcap / m))
   }
 
-  _syncMultipliers() { // Least-squares multiplier update on the active set
-    var active = self.ladapter.activeConstraintSystem()
+  _syncMultipliers(active=nil) { // Least-squares multiplier update on the active set
+    if (!active) active = self.ladapter.activeConstraintSystem()
     var ac = active[0]
     if (ac.count() == 0) {
       self.ladapter.setLagrangeMultipliers(0*self.ladapter.lagrangeMultipliers())
@@ -940,6 +943,7 @@ class SQPController is OptimizationController with ReprojectionMixin {
     self.ladapter = LagrangeMultiplierAdapter(self.adapter)
     self.lbfgs = LBFGSController(DeconstrainAdapter(self.adapter))
     self.lbfgs.start()
+    self._l1merit = L1PenaltyAdapter(self.adapter, penalty=1)
     self._relgradrun = 0
     reproject()
     self._grad0 = self.ladapter.varGradient().norm()
@@ -948,8 +952,9 @@ class SQPController is OptimizationController with ReprojectionMixin {
 
   begin() {
     self._ox = self.get() 
-    var nactive = self.ladapter.activeConstraintSystem()[0].count()
-    if (nactive != self._lastactive) _syncMultipliers()
+    self._active = self.ladapter.activeConstraintSystem()
+    var nactive = self._active[0].count()
+    if (nactive != self._lastactive) _syncMultipliers(self._active)
     self._lastactive = nactive
     self._ogradient = self.ladapter.varGradient() 
   }
@@ -982,7 +987,7 @@ class SQPController is OptimizationController with ReprojectionMixin {
 
     var Hg = self.lbfgs._hmul(g) 
 
-    var active = self.ladapter.activeConstraintSystem()
+    var active = self._active
     var c = active[0]
 
     if (c.count()==0) { // Special case if the active set is empty
@@ -1020,18 +1025,19 @@ class SQPController is OptimizationController with ReprojectionMixin {
 
   _choosePenalty(xdirn) {
     // L1 merit φ = f + μ|c|. Lower bound μ ≥ max|λ| (N&W §18.3).
+    self._l1merit.setpenalty(1)
     var mu = max(self.penalty, max(self.ladapter.lagrangeMultipliers()))
 
     // Analytical descent: φ'(d) = ∇f·d + μ·(d|c|/dα); raise μ if objective rises along d
     var dfd = self.adapter.gradient().inner(xdirn)
-    var dc = L1PenaltyAdapter(self.adapter, penalty=1).directionalDerivative(xdirn) - dfd
+    var dc = self._l1merit.directionalDerivative(xdirn) - dfd
     if (dc < 0 && dfd > 0 && mu < -dfd / dc) mu = 1.1 * (-dfd / dc)
 
     // Nonlinear trial step: |Δf|/|c| at x+d (needed when linearization is poor, e.g. cube)
     var x0 = self.adapter.get().clone()
     var f0 = self.adapter.value()
     self.adapter.set(x0 + xdirn)
-    var cnorm = PenaltyAdapter(self.adapter).constraintVector().norm(1)
+    var cnorm = self.rpadapter.constraintVector().norm(1)
     if (cnorm > 0) {
       var muTrial = abs(self.adapter.value() - f0) / cnorm + 1
       if (muTrial > mu) mu = 1.1 * muTrial
@@ -1062,7 +1068,7 @@ class SQPController is OptimizationController with ReprojectionMixin {
     self._ogradient = self.ladapter.varGradient() 
 
     self.ladapter.set(x0 + alpha*d) // New set new value
-    var cn = PenaltyAdapter(self.adapter).constraintVector().norm(1)
+    var cn = constraintNorm()
     if (cn > self.feasol) reproject()
     else _syncMultipliers()
 

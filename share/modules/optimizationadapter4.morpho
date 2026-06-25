@@ -1056,7 +1056,7 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
     if (func.selection) args.append(func.selection)
     var result = apply(method, args)
     if (isnil(result)) _OptEvlFled.throw("Evaluation of functional ${method} failed.")
-    if (func.prefactor) result*=func.prefactor
+    if (func.has("prefactor") && func.prefactor) result*=func.prefactor
     return result
   }
 
@@ -1152,13 +1152,48 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
     return cval
   }
 
-  _reduceIntegrandWithSelection(val, sel) { // Reduces an integrand using a selection
+  _reduceIntegrandWithSelection(val, cons) { // Reduces an integrand using a selection
+    var grade = _inferFunctionalGrade(cons.functional, self.problem.mesh)
     var l = []
-    for (id in sel.idlistforgrade(0)) { // TODO: Handle non-point constraints
+    for (id in cons.selection.idlistforgrade(grade)) {
       l.append(val[id])
     }  
     return Matrix(l) 
   } 
+
+  _fieldShape(func) { // shape()[g]: copies of the prototype at each mesh grade
+    if (func.has("shape")) return func.shape()
+    if (!func.has("field")) return nil
+
+    var f = func.field
+    if (isfield(f)) return f.shape()
+    if (islist(f) && f.count()>0 && isfield(f[0])) return f[0].shape()
+    return nil
+  }
+
+  _inferFunctionalGrade(func, mesh) { // Mesh grade where the functional's integrand lives
+    if (func.has("grade")) return func.grade
+
+    var cls = func.clss()
+    // TODO: Remove clss() mapping once LineIntegral, AreaIntegral, and VolumeIntegral
+    // expose func.grade (Morpho API gap; Length and ScalarPotential already do).
+    if (cls==LineIntegral) return 1
+    if (cls==AreaIntegral) return 2
+    if (cls==VolumeIntegral) return 3
+
+    var ncol = func.integrand(mesh).dimensions()[1]
+
+    var sh = _fieldShape(func)
+    if (sh) for (g in mesh.maxgrade()...0:-1) {
+      if (sh[g]>0 && mesh.count(g)==ncol) return g
+    }
+
+    // Fallback: match integrand width, preferring the highest grade
+    for (g in mesh.maxgrade()...0:-1) {
+      if (mesh.count(g)==ncol) return g
+    }
+    return 0
+  }
 
   _zeroInactiveVal(val) { // Zero out any constraints that are in the feasible region
     for (v, k in val) {
@@ -1174,7 +1209,7 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
       var val = self.integrandForFunctional(cons).transpose() 
       if (cons.has("target")) val-=cons.target
       if (cons.onesided && zeroinactive) self._zeroInactiveVal(val)
-      if (cons.selection) val = self._reduceIntegrandWithSelection(val, cons.selection)
+      if (cons.selection) val = self._reduceIntegrandWithSelection(val, cons)
 
       cval.append(val)
     }
@@ -1213,38 +1248,63 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
     return 1
   } 
 
-  _element(Matrix m, id) {
-    return m.column(id)
-  }
+  _elementAt(x, id, grade) { // Per-element slice of a gradient matrix or field
+    if (ismatrix(x)) return x.column(id)
 
-  _element(Field f, id) {
-    var v = f[0,id]
+    var v = x[grade, id]
     if (ismatrix(v)) return v 
     return [v]
   }
 
+  _localConstraintSelection(cons, grade) { // Temporary constraint with one active mesh element
+    var temp = Constraint(cons.functional, cons.target)
+    temp.selection = Selection(self.problem.mesh)
+    temp.selection.addgrade(grade)
+    temp.onesided = cons.onesided
+    temp.field = cons.field
+    return temp
+  }
+
   _assembleLocalConstraintGradient(cons, target) {
-    var grad = self.gradientForFunctional(cons, target)
-    var ndof = self._dofPerEntry(target), ncol = Int(self.count(target)/ndof)
+    var mesh = self.problem.mesh
+    var grade = _inferFunctionalGrade(cons.functional, mesh)
+    var ndof = self._dofPerEntry(target)
+    var nvars = self.count(target)
+    var nel = mesh.count(grade)
 
     var val
-    if (cons.onesided) val = self.integrandForFunctional(cons) // Only needed if onesided
+    if (cons.onesided) val = self.integrandForFunctional(cons)
 
-    var ids 
-    if (cons.selection) { // TODO: Handle other than point constraints
-      ids = cons.selection.idlistforgrade(0) 
-    } else ids = 0...ncol
+    var ids
+    if (cons.selection) ids = cons.selection.idlistforgrade(grade)
+    else ids = 0...nel
 
-    var s = Sparse(ndof*ncol, ids.count())
+    if (grade==0) {
+      var grad = self.gradientForFunctional(cons, target)
+      var out = Sparse(nvars, ids.count())
 
-    if (grad) for (id, k in ids) {
-      var scale=1
-      if (cons.onesided && val[0, id]>0) scale=0
+      if (grad) for (id, k in ids) {
+        var scale = 1
+        if (cons.onesided && val[0, id]>0) scale = 0
 
-      for (x, j in self._element(grad, id)) s[id*ndof+j,k]=scale*x
+        for (x, j in self._elementAt(grad, id, grade)) out[id*ndof+j, k]=scale*x
+      }
+      return out
     }
 
-    return s
+    var l = []
+    var temp = _localConstraintSelection(cons, grade)
+    var ndof_t = self.count(target)
+
+    for (id in ids) {
+      temp.selection[grade, id] = true
+      var grad = self.gradientForFunctional(temp, target)
+      if (grad) l.append(self.columnVector(grad))
+      else l.append(Matrix(ndof_t))
+      temp.selection[grade, id] = false
+    }
+
+    return Matrix([l])
   }
 
   localConstraintGradient(onesided=false) {

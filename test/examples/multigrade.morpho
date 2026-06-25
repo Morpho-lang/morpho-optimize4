@@ -1,0 +1,78 @@
+// Reference problem for multi-grade local constraints on a ProblemAdapter.
+//
+// Combines:
+//   grade 0 — ScalarPotential inequality at mesh vertices (y >= 0)
+//   grade 1 — LineIntegral equality on edges (fv[0]^2 = target)
+//
+// Uses an open loop so vertex and edge counts differ (12 vs 11), which makes
+// grade inference unambiguous. The field edge constraint passes method={} to
+// LineIntegral so Morpho uses the element-local quadrature path; without it,
+// fieldgradient for higher-order edge functionals can disagree with FD.
+
+import meshtools
+import optimize4
+import plot
+
+class MultigradeExample {
+  init(edgeTarget=0.25) {
+    self.edgeTarget = edgeTarget
+    self.mesh = nil
+    self.problem = nil
+    self.field = nil
+  }
+
+  initialMesh() {
+    // Open loop: distinct vertex (grade 0) and edge (grade 1) counts
+    self.mesh = LineMesh(fn (u) [cos(u), sin(u)], -Pi...Pi:Pi/6, closed=false)
+    self.mesh.addgrade(1)
+    self.mesh = ChangeMeshDimension(self.mesh, 3)
+  }
+
+  initialField() {
+    self.field = Field(self.mesh, Matrix([0.5, 0.2, 0.0]))
+  }
+
+  buildProblem() {
+    self.problem = OptimizationProblem(self.mesh)
+    self.problem.addenergy(NormSq(self.field))
+
+    // Grade 0: vertex inequality y >= 0 (mesh positions)
+    var halfspace = ScalarPotential(fn (x, y, z) y)
+    self.problem.addlocalconstraint(halfspace, onesided=true)
+
+    // Grade 1: per-edge equality on the first field component
+    var edgeFunc = LineIntegral(fn (x, fv) fv[0]^2, self.field, method={})
+    self.problem.addlocalconstraint(edgeFunc, target=self.edgeTarget)
+
+    return self.problem
+  }
+
+  buildAdapter() {
+    self.adapter = ProblemAdapter(self.problem, self.mesh, self.field)
+    return self.adapter
+  }
+
+  build() {
+    self.initialMesh()
+    self.initialField()
+    self.buildProblem()
+    return self.buildAdapter()
+  }
+
+  visualizeField() {
+    var g = Graphics()
+    var m = self.mesh
+    var ll = Length().total(m) / m.count(1) / 4
+    for (id in 0...m.count(0)) {
+      var x = m.vertexposition(id)
+      var v = self.field[0, id]
+      var nv = v.norm()
+      if (nv > 0) g.display(Cylinder(x, x + ll*v/nv, aspectratio=0.15, color=Orange))
+    }
+    return g
+  }
+
+  visualize() {
+    return plotmesh(self.mesh, grade=[0, 1]) + visualizeField()
+  }
+}

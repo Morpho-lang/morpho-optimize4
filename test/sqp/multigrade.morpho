@@ -1,0 +1,18 @@
+// Multigrade local constraints (vertex inequality + edge equality) via SQP
+
+import optimize4
+import plot
+import "../examples/multigrade.morpho" for MultigradeExample
+
+var example = MultigradeExample()
+var adapt = example.build()
+
+Show(example.visualize())
+
+var control = SQPController(adapt)
+control.gradtol = 0.05
+control.optimize(200)
+
+print "f=${adapt.value()} |constraints|=${control.constraintNorm()}"
+
+Show(example.visualize())

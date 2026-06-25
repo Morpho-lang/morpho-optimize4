@@ -895,36 +895,39 @@ class SQPController is OptimizationController with ReprojectionMixin {
   }
 
   reproject() {
-    _runReprojection()
-    _syncMultipliers()
+    self._runReprojection()
+    self._syncMultipliers()
   }
 
   _clampMultipliers() { // Scale multipliers down if any exceed lamcap
     var lam = self.ladapter.lagrangeMultipliers()
-    var m = _lamMax(lam)
+    var m = self._lamMax(lam)
     if (m <= self.lamcap) return
     self.ladapter.setLagrangeMultipliers(lam * (self.lamcap / m))
   }
 
-  _syncMultipliers(active=nil) { // Least-squares multiplier update on the active set
-    if (!active) active = self.ladapter.activeConstraintSystem()
+  _syncMultipliers() {
+    self._syncMultipliers(self.ladapter.activeConstraintSystem())
+  }
+
+  _syncMultipliers(active) { // Least-squares multiplier update for a given active set
     var ac = active[0]
     if (ac.count() == 0) {
       self.ladapter.setLagrangeMultipliers(0*self.ladapter.lagrangeMultipliers())
       return
     }
-    var lambda = _leastSquaresMultipliers(self.adapter.gradient(), active[1])
+    var lambda = self._leastSquaresMultipliers(self.adapter.gradient(), active[1])
     if (!lambda) {
-      _clampMultipliers()
+      self._clampMultipliers()
       return
     }
-    var m = _lamMax(lambda)
+    var m = self._lamMax(lambda)
     if (m > self.lamcap) lambda = lambda * (self.lamcap / m)
     self.ladapter.setActiveLagrangeMultipliers(lambda)
   }
 
   _sqpFallbackDirection() { // LBFGS step on synced ∇L when Schur solve is singular
-    _syncMultipliers()
+    self._syncMultipliers()
     return -Matrix([ [self.lbfgs._hmul(self.ladapter.varGradient())],
                      [0*self.ladapter.lagrangeMultipliers()] ])
   }
@@ -954,7 +957,7 @@ class SQPController is OptimizationController with ReprojectionMixin {
     self._ox = self.get() 
     self._active = self.ladapter.activeConstraintSystem()
     var nactive = self._active[0].count()
-    if (nactive != self._lastactive) _syncMultipliers(self._active)
+    if (nactive != self._lastactive) self._syncMultipliers(self._active)
     self._lastactive = nactive
     self._ogradient = self.ladapter.varGradient() 
   }
@@ -1070,7 +1073,7 @@ class SQPController is OptimizationController with ReprojectionMixin {
     self.ladapter.set(x0 + alpha*d) // New set new value
     var cn = constraintNorm()
     if (cn > self.feasol) reproject()
-    else _syncMultipliers()
+    else self._syncMultipliers()
 
     return success
   }

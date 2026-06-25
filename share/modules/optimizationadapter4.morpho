@@ -946,25 +946,70 @@ class FixSelectionMixin {
     return offsetDict
   }
 
+  _fieldPsize(Field f) { // Prototype width: 1 for scalars (nil prototype)
+    var p = f.prototype()
+    if (isobject(p)) return p.count()
+    return 1
+  }
+
   _dimension(Mesh m) { return m.vertexmatrix().dimensions()[0] }
-  _dimension(Field f) { return f.prototype().count() }
+  _dimension(Field f) { return _fieldPsize(f) }
+
+  // Pool offsets per grade: offset[g+1] = offset[g] + mesh.count(g)*shape[g]
+  _fieldOffsets(Field f) {
+    var sh = f.shape()
+    var m = f.mesh()
+    var offset = [0]
+    for (g in 0...sh.count()) offset.append(offset[g] + m.count(g)*sh[g])
+    return offset
+  }
+
+  // Element pool index: offset[grade] + shape[grade]*el + indx (field.c field_getindex)
+  _fieldPoolIndex(Field f, Int grade, Int el, Int indx) {
+    var sh = f.shape()
+    var offset = _fieldOffsets(f)
+    return offset[grade] + sh[grade]*el + indx
+  }
+
+  // Index into linearize(): pool*prototype.count() + component
+  _fieldLinearIndex(Field f, Int grade, Int el, Int indx, Int comp) {
+    return _fieldPoolIndex(f, grade, el, indx)*_fieldPsize(f) + comp
+  }
 
   _idToIndex(Mesh target, Int id) { return _dimension(target)*id }
-  _idToIndex(Field target, Int id) { Error("NtImplmntd", "Indexing field elements not implemented").throw() }
+  _idToIndex(Field f, Int grade, Int el, Int indx) { return _fieldLinearIndex(f, grade, el, indx, 0) }
+
+  _appendComponentIndices(list, ixoffset, base, dim, components) {
+    for (i in 0...dim) {
+      if (isobject(components) && !components.contains(i)) continue
+      list.append(ixoffset+base+i)
+    }
+  }
+
+  _selectionBases(Mesh m, Selection sel) {
+    var bases = []
+    for (id in sel.idlistforgrade(0)) bases.append(_idToIndex(m, id))
+    return bases
+  }
+
+  _selectionBases(Field f, Selection sel) {
+    var bases = []
+    var sh = f.shape()
+    for (g in 0...sh.count()) {
+      if (sh[g]==0) continue
+      for (id in sel.idlistforgrade(g)) {
+        for (indx in 0...sh[g]) bases.append(_fieldLinearIndex(f, g, id, indx, 0))
+      }
+    }
+    return bases
+  }
 
   selectionToIndexList(Selection sel, target, components=nil) {
-    var offsetDict = _indexOffsets()
-    var ixoffset = offsetDict[target]
-
+    var ixoffset = _indexOffsets()[target]
     var dim = _dimension(target)
-
     var list = []
-    for (id in sel.idlistforgrade(0)) {
-      var ix = _idToIndex(target, id)
-      for (i in 0...dim) {
-        if (isobject(components) && !components.contains(i)) continue // Skip anything not in the components list 
-        list.append(ixoffset+ix+i)
-      }
+    for (base in _selectionBases(target, sel)) {
+      _appendComponentIndices(list, ixoffset, base, dim, components)
     }
     return list
   }
@@ -1242,18 +1287,30 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
     return m.vertexmatrix().dimensions()[0] 
   }
 
-  _dofPerEntry(Field f) {
-    var prototype = f[0]
-    if (isobject(prototype)) return prototype.count() 
-    return 1
-  } 
+  _dofPerEntry(Field f) { return self._fieldPsize(f) }
 
-  _elementAt(x, id, grade) { // Per-element slice of a gradient matrix or field
-    if (ismatrix(x)) return x.column(id)
+  _targetRowIndex(target, Int grade, Int id, Int indx, Int comp) {
+    if (ismesh(target)) return id*self._dofPerEntry(target) + comp
+    return self._fieldLinearIndex(target, grade, id, indx, comp)
+  }
 
-    var v = x[grade, id]
-    if (ismatrix(v)) return v 
-    return [v]
+  _elementAt(x, id, grade) { // Per-element (indx, component, value) triples for assembly
+    if (ismatrix(x)) {
+      var list = []
+      for (val, j in x.column(id)) list.append([0, j, val])
+      return list
+    }
+
+    var sh = x.shape()
+    var dof = sh[grade]
+    var list = []
+
+    for (indx in 0...dof) {
+      var v = (dof>1 ? x[grade, id, indx] : x[grade, id])
+      if (ismatrix(v)) for (val, j in v) list.append([indx, j, val])
+      else list.append([indx, 0, v])
+    }
+    return list
   }
 
   _localConstraintSelection(cons, grade) { // Temporary constraint with one active mesh element
@@ -1268,7 +1325,6 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
   _assembleLocalConstraintGradient(cons, target) {
     var mesh = self.problem.mesh
     var grade = _inferFunctionalGrade(cons.functional, mesh)
-    var ndof = self._dofPerEntry(target)
     var nvars = self.count(target)
     var nel = mesh.count(grade)
 
@@ -1287,7 +1343,9 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
         var scale = 1
         if (cons.onesided && val[0, id]>0) scale = 0
 
-        for (x, j in self._elementAt(grad, id, grade)) out[id*ndof+j, k]=scale*x
+        for (entry in self._elementAt(grad, id, grade)) {
+          out[self._targetRowIndex(target, grade, id, entry[0], entry[1]), k]=scale*entry[2]
+        }
       }
       return out
     }

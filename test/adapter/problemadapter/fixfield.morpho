@@ -1,0 +1,67 @@
+// FixAdapter on a 1D CG(2) scalar field with Dirichlet conditions at the endpoints.
+//
+// Endpoint vertex DOFs are fixed via selectionToIndexList; verifies set() and gradient().
+
+import optimize4
+import meshtools
+
+var m = LineMesh(fn (u) [u, 0, 0], 0..1:0.25, closed=false)
+m.addgrade(1)
+
+var fs = FiniteElementSpace("CG2", grade=1)
+var f = Field(m, Matrix([0.0]), finiteelementspace=fs)
+
+var uLeft = 1.0
+var uRight = 0.0
+f[0, 0] = Matrix([uLeft])
+f[0, m.count(0)-1] = Matrix([uRight])
+
+var energy = LineIntegral(fn (x, fv) fv[0]^2, f, method={})
+var problem = OptimizationProblem(m)
+problem.addenergy(energy)
+
+var padapt = ProblemAdapter(problem, f)
+
+var bnd = Selection(m)
+bnd[0, 0] = true
+bnd[0, m.count(0)-1] = true
+var fixix = padapt.selectionToIndexList(bnd, f)
+var adapt = FixAdapter(padapt, fixix)
+
+print fixix.count()
+// expect: 2
+
+print fixix[0]
+// expect: 0
+
+print fixix[1]
+// expect: 4
+
+// set() must not change fixed DOFs
+var x0 = adapt.get()
+var x1 = x0.clone()
+for (i in 0...x1.count()) x1[i] += 0.3
+adapt.set(x1)
+var x2 = adapt.get()
+
+print abs(x2[0] - uLeft) < 1e-12
+// expect: true
+
+print abs(x2[4] - uRight) < 1e-12
+// expect: true
+
+print abs(x2[2] - (x0[2] + 0.3)) < 1e-12
+// expect: true
+
+// gradient is zero at fixed DOFs, nonzero in the interior
+var g = adapt.gradient()
+print abs(g[0]) < 1e-12
+// expect: true
+
+print abs(g[4]) < 1e-12
+// expect: true
+
+print abs(g[2]) > 0
+// expect: true
+
+adapt.set(x0)

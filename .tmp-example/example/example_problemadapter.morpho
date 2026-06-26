@@ -1,0 +1,89 @@
+// Smoke test: Constantine example with ProblemAdapter instead of XProblemAdapter
+
+import meshgen
+import plot
+import optimize4
+import "scalarfieldtotal.morpho"
+import "xhooke.morpho"
+
+var shape_steps = 5
+var field_steps = 5
+var penalty_iterations = 2
+var shape_penalty = 10
+var field_penalty = 10
+
+var mb = MeshBuilder()
+mb.addvertex([0,0,1.5])
+mb.addvertex([1.5,0,0])
+mb.addvertex([0,0.3,0])
+mb.addvertex([-1.5,0,0])
+mb.addvertex([0,-1,0])
+mb.addvertex([0,0,-1])
+mb.addedge([0,1])
+mb.addedge([0,2])
+mb.addedge([0,3])
+mb.addedge([0,4])
+mb.addedge([1,2])
+mb.addedge([2,3])
+mb.addedge([3,4])
+mb.addedge([4,1])
+mb.addedge([5,1])
+mb.addedge([5,2])
+mb.addedge([5,3])
+mb.addedge([5,4])
+var m = mb.build()
+
+var avg_init_len = sqrt(2)
+var fmax = avg_init_len * sqrt(2)
+var fmin = avg_init_len / sqrt(2)
+
+var f = Field(m, grade=1)
+for (i in 0...f.count()) f[i] = avg_init_len
+
+var sproblem = OptimizationProblem(m)
+var fproblem = OptimizationProblem(m)
+
+var hooke = HookeElasticity(f)
+sproblem.addenergy(hooke)
+fproblem.addenergy(hooke)
+
+var target = fn (x,y,z) 2-x^2-y^2-z^2
+var spotential = ScalarPotential(target)
+sproblem.addlocalconstraint(spotential, target=0)
+
+var minref = Field(m, grade=1)
+for (i in 0...minref.count()) minref[i] = fmin
+var fmincons = ScalarFieldTotal(f, minref, grade=1, prefactor=1)
+fproblem.addlocalconstraint(fmincons, onesided=true, field=f)
+
+var maxref = Field(m, grade=1)
+for (i in 0...maxref.count()) maxref[i] = fmax
+var fmaxcons = ScalarFieldTotal(f, maxref, grade=1, prefactor=-1)
+fproblem.addlocalconstraint(fmaxcons, onesided=true, field=f)
+
+var sadapt = ProblemAdapter(sproblem, m)
+var psadapt = PenaltyAdapter(sadapt)
+
+var fadapt = ProblemAdapter(fproblem, f)
+var fsadapt = PenaltyAdapter(fadapt)
+
+print "shape DOF: ${sadapt.get().count()}, field DOF: ${fadapt.get().count()}"
+print "shape value: ${sadapt.value()}, field value: ${fadapt.value()}"
+print "shape constraints: ${sadapt.constraintValue()}"
+print "field constraints: ${fadapt.constraintValue()}"
+
+var sg = sadapt.gradient()
+var fg = fadapt.gradient()
+print "shape grad norm: ${sg.norm()}, field grad norm: ${fg.norm()}"
+
+for (i in 0...penalty_iterations) {
+    print "\nPenalty iteration ${i+1}"
+    LBFGSController(psadapt).optimize(shape_steps)
+    LBFGSController(fsadapt).optimize(field_steps)
+    psadapt.setpenalty(psadapt.penalty() * shape_penalty)
+    fsadapt.setpenalty(fsadapt.penalty() * field_penalty)
+}
+
+print "final shape value: ${sadapt.value()}"
+print "final field value: ${fadapt.value()}"
+print m.vertexmatrix()

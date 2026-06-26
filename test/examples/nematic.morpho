@@ -29,13 +29,13 @@ class Nematic {
     self.problem = OptimizationProblem(self.mesh)
 
     var ln = Nematic(self.n)
-    self.problem.addenergy(ln)
+    self.problem.addEnergy(ln)
 
     var la = LineIntegral(fn (x, n) (tangent().inner(n))^2, self.n)
-    self.problem.addenergy(la, selection=bnd, prefactor=-1)
+    self.problem.addEnergy(la, selection=bnd, prefactor=-1)
 
     var cn = NormSq(self.n)
-    self.problem.addlocalconstraint(cn, target=1)
+    self.problem.addLocalConstraint(cn, target=1)
     return self.problem
   }
 

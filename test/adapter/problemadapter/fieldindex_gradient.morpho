@@ -16,8 +16,8 @@ fn _cg2GradientTest() {
 
   var problem = OptimizationProblem(mesh)
   var edgeFunc = LineIntegral(fn (x, fv) fv[0]^2, field, method={})
-  problem.addenergy(edgeFunc)
-  problem.addlocalconstraint(edgeFunc, target=0.25)
+  problem.addEnergy(edgeFunc)
+  problem.addLocalConstraint(edgeFunc, target=0.25)
 
   var adapt = ProblemAdapter(problem, field)
   var x0 = adapt.get()
@@ -39,8 +39,8 @@ fn _cg3GradientTest() {
 
   var problem = OptimizationProblem(mesh)
   var edgeFunc = LineIntegral(fn (x, fv) fv[0]^2, field, method={})
-  problem.addenergy(edgeFunc)
-  problem.addlocalconstraint(edgeFunc, target=0.25)
+  problem.addEnergy(edgeFunc)
+  problem.addLocalConstraint(edgeFunc, target=0.25)
 
   var adapt = ProblemAdapter(problem, field)
   var x0 = adapt.get()

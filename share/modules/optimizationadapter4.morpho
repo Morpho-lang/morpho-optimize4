@@ -507,11 +507,11 @@ class ActiveSetMixin {
 class PenaltyAdapter is OptimizationAdapter with ConstraintVectorMixin {
   init(OptimizationAdapter adapter, penalty=1) { 
     self.adapter = adapter
-    self.penalty = penalty 
+    self._penalty = penalty 
   }
 
-  setpenalty(penalty) { self.penalty = penalty }
-  penalty() { return self.penalty }
+  setPenalty(penalty) { self._penalty = penalty }
+  penalty() { return self._penalty }
 
   set(Matrix x) { self.adapter.set(x) }
   get() { return self.adapter.get() }
@@ -519,7 +519,7 @@ class PenaltyAdapter is OptimizationAdapter with ConstraintVectorMixin {
   value() { // Q = f + mu*c^2 + mu*d-^2
     var f = self.adapter.value() 
     var v = self.constraintVector() 
-    if (v) f += self.penalty * v.inner(v)
+    if (v) f += self._penalty * v.inner(v)
 
     return f
   }
@@ -532,7 +532,7 @@ class PenaltyAdapter is OptimizationAdapter with ConstraintVectorMixin {
       var dg = self.adapter.constraintGradient()   
       var c = Matrix([dg])
 
-      grad+=2*self.penalty*c*v  
+      grad+=2*self._penalty*c*v  
     } 
   
     return grad
@@ -557,7 +557,7 @@ class PenaltyAdapter is OptimizationAdapter with ConstraintVectorMixin {
         if (abs(vk)==0) continue
         if (!hessg[k]) _OptNoHessErr.throw() 
 
-        hess+=2*self.penalty*(vk*hessg[k] + dg[k].outer(dg[k]))
+        hess+=2*self._penalty*(vk*hessg[k] + dg[k].outer(dg[k]))
       }
     }
 
@@ -605,7 +605,7 @@ class L1PenaltyAdapter is PenaltyAdapter {
     var f = self.adapter.value() 
     var c = self.constraintVector()  
 
-    if (c) f += self.penalty * c.norm(1)
+    if (c) f += self._penalty * c.norm(1)
 
     return f
   }
@@ -630,7 +630,7 @@ class L1PenaltyAdapter is PenaltyAdapter {
       if (k>=neq && raw[k]>0) continue // Inactive inequality; zeroed in constraintVector()
       var gdotd = self._directionalDot(grads[k], d)
       var sigma = self._l1subgradientSign(ci, gdotd)
-      penaltyterm += self.penalty * sigma * gdotd
+      penaltyterm += self._penalty * sigma * gdotd
     }
 
     return df.inner(d) + penaltyterm

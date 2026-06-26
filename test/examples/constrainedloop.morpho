@@ -24,14 +24,14 @@ class ConstrainedLoop {
   buildProblem() { 
     // Set up a demo problem 
     self.problem = OptimizationProblem(self.mesh)
-    self.problem.addenergy(Length())
-    self.problem.addenergy(EquiElement(), prefactor=0.1)
-    self.problem.addconstraint(AreaEnclosed())
+    self.problem.addEnergy(Length())
+    self.problem.addEnergy(EquiElement(), prefactor=0.1)
+    self.problem.addConstraint(AreaEnclosed())
 
     var lsupper = ScalarPotential(fn (x,y) self.L-y)
     var lslower = ScalarPotential(fn (x,y) y+self.L)
-    self.problem.addlocalconstraint(lsupper, onesided=true)
-    self.problem.addlocalconstraint(lslower, onesided=true)
+    self.problem.addLocalConstraint(lsupper, onesided=true)
+    self.problem.addLocalConstraint(lslower, onesided=true)
     return self.problem
   }
 

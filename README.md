@@ -22,8 +22,8 @@ import meshtools
 // Mesh and problem
 var mesh = LineMesh(fn (t) [2*cos(t), sin(t)], -Pi...Pi:Pi/20, closed=true)
 var problem = OptimizationProblem(mesh)
-problem.addenergy(Length())
-problem.addconstraint(AreaEnclosed())
+problem.addEnergy(Length())
+problem.addConstraint(AreaEnclosed())
 
 // Optimize
 var adapter = ProblemAdapter(problem, mesh)
@@ -58,7 +58,7 @@ This separation lets algorithms stay independent of meshes and functionals, and 
 | Small black-box test functions | `FunctionAdapter` + `LBFGSController` or `SQPController` | Analytical or finite-difference derivatives |
 | Education / debugging | `GradientDescentController`, `LineSearchController` | Fixed step or Armijo line search |
 
-Constrained controllers require constraints on the adapter (via `addconstraint` / `addlocalconstraint`). Unconstrained controllers will error if constraints are present unless you wrap the adapter (e.g. `PenaltyAdapter`, `DeconstrainAdapter`).
+Constrained controllers require constraints on the adapter (via `addConstraint` / `addLocalConstraint`). Unconstrained controllers will error if constraints are present unless you wrap the adapter (e.g. `PenaltyAdapter`, `DeconstrainAdapter`).
 
 ## Examples and tests
 

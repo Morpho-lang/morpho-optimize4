@@ -235,7 +235,7 @@ class LineSearchController is GradientDescentController {
     return self.value() < self._ovalue + self.alpha*t*self.df
   }
 
-  stepwith(x0, t) { // Take a step of size t from x0 in the descent direction
+  stepWith(x0, t) { // Take a step of size t from x0 in the descent direction
     self.set(x0 + t*self.direction())
     return self.value()
   }
@@ -253,7 +253,7 @@ class LineSearchController is GradientDescentController {
 
     var x0 = self.get() 
     for (nsteps in 1..self.maxsteps) {
-        self.stepwith(x0, t)
+        self.stepWith(x0, t)
         success=self.accept(t)
         if (success) break
         t*=self.beta
@@ -323,17 +323,17 @@ class WolfeLineSearchController is LineSearchController {
 
   _zoom(alphalo0, alphahi0, x0, f0, df) {
     var alphalo = alphalo0, alphahi = alphahi0
-    var flo = self.stepwith(x0, alphalo)
+    var flo = self.stepWith(x0, alphalo)
 
     for (_ in 1..self.maxsteps) {
       if (self.verbose) {
-        var fhi = self.stepwith(x0, alphahi)
+        var fhi = self.stepWith(x0, alphahi)
         print "  Zoom iteration ${_}: (${alphalo},${alphahi}) [${flo}, ${fhi}]"
       }
 
       var alpha = (alphalo+alphahi)/2 // Bisection
 
-      var f = self.stepwith(x0, alpha)
+      var f = self.stepWith(x0, alpha)
 
       if (f>f0+self.c1*alpha*df || // Armijo condition
           f >= flo) {
@@ -376,7 +376,7 @@ class WolfeLineSearchController is LineSearchController {
     var of = f0 
 
     for (_ in 1..self.maxsteps) {
-      var f = self.stepwith(x0, alpha)
+      var f = self.stepWith(x0, alpha)
       if (self.verbose) print "  ls iteration ${_}: alpha=${alpha} f=${f}"
 
       if (f>f0+self.c1*alpha*df ||
@@ -441,7 +441,7 @@ class NewtonController is OptimizationController {
     else self.lscontroller = LineSearchController(self.adapter, verbosity=self.verbosity)
   }
 
-  linesearch(dirn) {
+  lineSearch(dirn) {
     var x0 = self.adapter.get() /// <- If our space and linesearch space don't coincide
     self.lscontroller.setDirection(dirn)
     var success = self.lscontroller.step() 
@@ -458,7 +458,7 @@ class NewtonController is OptimizationController {
 
   step() { 
     var d = self.direction()
-    return self.linesearch(d)
+    return self.lineSearch(d)
   }
 
   reportStepsize() { return "stepsize=${self.lscontroller.stepsize}" }
@@ -677,7 +677,7 @@ class PenaltyController is OptimizationController {
     self.mumul = mumul // Factor to multiply penalty by at each iteration
 
     self.adapter = PenaltyAdapter(self.adapter)
-    self.adapter.setpenalty(mu0)
+    self.adapter.setPenalty(mu0)
 
     self.controller = controller 
     if (!controller) self.controller = LBFGSController
@@ -703,7 +703,7 @@ class PenaltyController is OptimizationController {
 
   next() {
     if (self.hasConverged()) return
-    self.adapter.setpenalty(self.mumul*self.adapter.penalty())
+    self.adapter.setPenalty(self.mumul*self.adapter.penalty())
   }
 
   constraintNorm() {
@@ -771,7 +771,7 @@ class ReprojectionMixin with ActiveSetMixin {
     var x0 = self.adapter.get()
     var restore = self.has("_l1restore") && self._l1restore
     if (!self.has("_l1merit")) self._l1merit = L1PenaltyAdapter(self.adapter, penalty=mu)
-    else self._l1merit.setpenalty(mu)
+    else self._l1merit.setPenalty(mu)
     var ls = DirectedLineSearchController(self._l1merit, direction=xdirn)
     var success = ls.step()
     if (restore) self.adapter.set(x0)
@@ -819,7 +819,7 @@ class ProjectedGradientDescentController is OptimizationController with Reprojec
     return -g // Return the downward direction
   }
 
-  linesearch(dirn) {
+  lineSearch(dirn) {
     var x0 = self.adapter.get()
     var success = _l1Linesearch(dirn, self.mu)
     if (self.steplimit && self.stepsize>self.steplimit) {
@@ -831,7 +831,7 @@ class ProjectedGradientDescentController is OptimizationController with Reprojec
 
   step() {
     var d = direction() // Search direction 
-    var success = linesearch(d)
+    var success = lineSearch(d)
     reproject() 
     return success
   }
@@ -1008,7 +1008,7 @@ class SQPController is OptimizationController with ReprojectionMixin {
 
   _choosePenalty(xdirn) {
     // L1 merit φ = f + μ|c|. Lower bound μ ≥ max|λ| (N&W §18.3).
-    self._l1merit.setpenalty(1)
+    self._l1merit.setPenalty(1)
     var mu = max(self.penalty, max(self.ladapter.lagrangeMultipliers()))
 
     // Analytical descent: φ'(d) = ∇f·d + μ·(d|c|/dα); raise μ if objective rises along d
@@ -1030,7 +1030,7 @@ class SQPController is OptimizationController with ReprojectionMixin {
     return mu
   }
 
-  linesearch(dirn) { // Perform a linesearch on the original constrained problem
+  lineSearch(dirn) { // Perform a linesearch on the original constrained problem
     var ndof = self.adapter.get().count()
     var xdirn = dirn[0...ndof]
     var mu = self._choosePenalty(xdirn)
@@ -1042,7 +1042,7 @@ class SQPController is OptimizationController with ReprojectionMixin {
     var ndof = self.adapter.get().count()
 
     var d = self.solve() // Find search direction
-    var success = self.linesearch(d) // Find stepsize
+    var success = self.lineSearch(d) // Find stepsize
     var alpha = self.stepsize
 
     var dl = d.clone() // Evaluate gradient at new lagrange multipliers

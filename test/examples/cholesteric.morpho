@@ -27,14 +27,14 @@ class CholestericExample {
 
     var lnem = Nematic(self.director)
     lnem.pitch = Pi/2
-    self.problem.addenergy(lnem)
+    self.problem.addEnergy(lnem)
 
     // Impose planar degenerate anchoring by penalizing ny
     var lanch = LineIntegral(fn (x, n) n[1]^2, self.director)
-    self.problem.addenergy(lanch, selection=self.substrate)
+    self.problem.addEnergy(lanch, selection=self.substrate)
 
     var ln=NormSq(self.director)
-    self.problem.addlocalconstraint(ln, field=self.director, target=1)
+    self.problem.addLocalConstraint(ln, field=self.director, target=1)
   }
 
   buildAdapter() {

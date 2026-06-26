@@ -27,7 +27,7 @@ class CatenoidExample {
   setupProblem() { // Define the optimizataion problem
     self.problem = OptimizationProblem(self.mesh)
     var area = Area() // Add the area energy using the built-in Area functional
-    self.problem.addenergy(area)
+    self.problem.addEnergy(area)
   }
 
   setupAdapter() {

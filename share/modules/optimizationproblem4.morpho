@@ -42,7 +42,7 @@ class OptimizationProblem {
   }
 
   // Adds an energy to the problem
-  addenergy(functional, selection=nil, prefactor=nil) { 
+  addEnergy(functional, selection=nil, prefactor=nil) { 
     var en = Energy(functional)
     en.selection = selection
     en.prefactor = prefactor
@@ -51,7 +51,7 @@ class OptimizationProblem {
   }
 
   // Adds a constraint to the problem 
-  addconstraint(functional, selection=nil, field=nil) {
+  addConstraint(functional, selection=nil, field=nil) {
     var target
     if (selection) {
       target=functional.total(self.mesh, selection)
@@ -67,7 +67,7 @@ class OptimizationProblem {
   }
 
   // Adds a local constraint to the problem 
-  addlocalconstraint(functional, selection=nil, field=nil, onesided=false, target=0) {
+  addLocalConstraint(functional, selection=nil, field=nil, onesided=false, target=0) {
     var cons = Constraint(functional, target)
     cons.selection = selection
     cons.onesided = onesided
@@ -77,7 +77,21 @@ class OptimizationProblem {
     return cons
   }
 
-  updatelist(lst, dict) {
+  // Legacy names (deprecated; prefer addEnergy / addConstraint / addLocalConstraint)
+  addenergy(functional, selection=nil, prefactor=nil) {
+    return self.addEnergy(functional, selection=selection, prefactor=prefactor)
+  }
+
+  addconstraint(functional, selection=nil, field=nil) {
+    return self.addConstraint(functional, selection=selection, field=field)
+  }
+
+  addlocalconstraint(functional, selection=nil, field=nil, onesided=false, target=0) {
+    return self.addLocalConstraint(functional, selection=selection, field=field,
+                                  onesided=onesided, target=target)
+  }
+
+  updateList(lst, dict) {
     if (islist(lst)) for (en in lst) {
       if (en.has("selection") && dict.contains(en.selection)) en.selection = dict[en.selection]
       if (en.has("field") && dict.contains(en.field)) en.field = dict[en.field]
@@ -110,8 +124,8 @@ class OptimizationProblem {
     }
     self.fields = newfields
 
-    self.updatelist(self.energies, dict)
-    self.updatelist(self.constraints, dict)
-    self.updatelist(self.localconstraints, dict)
+    self.updateList(self.energies, dict)
+    self.updateList(self.constraints, dict)
+    self.updateList(self.localconstraints, dict)
   }
 }

@@ -35,14 +35,14 @@ class ElectrostaticsExample {
     self.problem = OptimizationProblem(self.mesh)
 
     var le = GradSq(self.phi)
-    self.problem.addenergy(le)
+    self.problem.addEnergy(le)
 
     var v1 = 0, v2 = 1
     var lt1 = LineIntegral(fn (x, v) (v-v1)^2, self.phi)
-    self.problem.addenergy(lt1, selection=self.bnd1, prefactor=100)
+    self.problem.addEnergy(lt1, selection=self.bnd1, prefactor=100)
 
     var lt2 = LineIntegral(fn (x, v) (v-v2)^2, self.phi)
-    self.problem.addenergy(lt2, selection=self.bnd2, prefactor=100)
+    self.problem.addEnergy(lt2, selection=self.bnd2, prefactor=100)
   }
 
   buildAdapter() { 

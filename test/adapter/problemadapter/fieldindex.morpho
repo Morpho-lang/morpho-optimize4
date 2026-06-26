@@ -17,7 +17,7 @@ class CG2FieldExample {
 
     self.problem = OptimizationProblem(self.mesh)
     var energy = LineIntegral(fn (x, fv) fv[0]^2, self.field, method={})
-    self.problem.addenergy(energy)
+    self.problem.addEnergy(energy)
 
     self.adapter = ProblemAdapter(self.problem, self.field)
   }
@@ -63,7 +63,7 @@ class CG3FieldExample {
 
     self.problem = OptimizationProblem(self.mesh)
     var energy = LineIntegral(fn (x, fv) fv[0]^2, self.field, method={})
-    self.problem.addenergy(energy)
+    self.problem.addEnergy(energy)
 
     self.adapter = ProblemAdapter(self.problem, self.field)
   }

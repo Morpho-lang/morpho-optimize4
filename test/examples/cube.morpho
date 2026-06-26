@@ -20,8 +20,8 @@ class CubeExample {
 
   buildProblem() { // Set up the problen
     self.problem=OptimizationProblem(self.mesh)
-    self.problem.addenergy(Area())
-    self.problem.addconstraint(VolumeEnclosed())
+    self.problem.addEnergy(Area())
+    self.problem.addConstraint(VolumeEnclosed())
   } 
 
   buildAdapter() {

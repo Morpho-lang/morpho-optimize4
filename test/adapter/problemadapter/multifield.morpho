@@ -14,10 +14,10 @@ var f2 = Field(m, Matrix([2.0]), finiteelementspace=fs)
 
 var joint = LineIntegral(fn (x, a, b) a[0]^2 + b[0]^2, f1, f2, method={})
 var problem = OptimizationProblem(m)
-problem.addenergy(joint)
+problem.addEnergy(joint)
 
 var edgeOnF1 = LineIntegral(fn (x, fv) fv[0]^2, f1, method={})
-problem.addlocalconstraint(edgeOnF1, target=1.0)
+problem.addLocalConstraint(edgeOnF1, target=1.0)
 
 var adapt = ProblemAdapter(problem, f1, f2)
 

@@ -42,22 +42,22 @@ class Tactoid {
     self.problem = OptimizationProblem(self.mesh)
 
     var ln = Nematic(self.n)
-    self.problem.addenergy(ln)
+    self.problem.addEnergy(ln)
 
     var ls = Length()
-    self.problem.addenergy(ls, selection=bnd, prefactor=10)
+    self.problem.addEnergy(ls, selection=bnd, prefactor=10)
 
     var la = LineIntegral(fn (x, n) (tangent().inner(n))^2, self.n)
-    self.problem.addenergy(la, selection=bnd, prefactor=-5)
+    self.problem.addEnergy(la, selection=bnd, prefactor=-5)
 
     var leq = EquiElement()
-    self.problem.addenergy(leq, prefactor=0.1)
+    self.problem.addEnergy(leq, prefactor=0.1)
 
     var lv = Area()
-    self.problem.addconstraint(lv)
+    self.problem.addConstraint(lv)
 
     var cn = NormSq(self.n)
-    self.problem.addlocalconstraint(cn, target=1)
+    self.problem.addLocalConstraint(cn, target=1)
     
     return self.problem
   }

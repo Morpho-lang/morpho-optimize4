@@ -19,7 +19,7 @@ f[0, m.count(0)-1] = Matrix([uRight])
 
 var energy = LineIntegral(fn (x, fv) fv[0]^2, f, method={})
 var problem = OptimizationProblem(m)
-problem.addenergy(energy)
+problem.addEnergy(energy)
 
 var padapt = ProblemAdapter(problem, f)
 

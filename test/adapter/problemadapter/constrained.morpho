@@ -11,16 +11,16 @@ var f = Field(m, Matrix([1,0,0]))
 
 // Set up a demo problem 
 var problem = OptimizationProblem(m)
-problem.addenergy(Length())
-problem.addconstraint(AreaEnclosed())
+problem.addEnergy(Length())
+problem.addConstraint(AreaEnclosed())
 
-problem.addenergy(NormSq(f))
+problem.addEnergy(NormSq(f))
 
 var L = 0.5
 var lsupper = ScalarPotential(fn (x,y) L-y)
 var lslower = ScalarPotential(fn (x,y) y+L)
-problem.addlocalconstraint(lsupper, onesided=true)
-problem.addlocalconstraint(lslower, onesided=true)
+problem.addLocalConstraint(lsupper, onesided=true)
+problem.addLocalConstraint(lslower, onesided=true)
 
 // Test the ProblemAdapter 
 var adapt = ProblemAdapter(problem, m, f) 

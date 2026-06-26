@@ -152,23 +152,23 @@ class QTactoid {
 
     // The bulk free energy is now the area-integral of the landau functional with the field input being q_tensor
     var bulk = AreaIntegral(landau, self.q)
-    self.problem.addenergy(bulk) // no prefactors // correct 1/17
+    self.problem.addEnergy(bulk) // no prefactors // correct 1/17
 
     // The elastic energy is the grad-squared of the q-tensor
     var elastic = GradSq(self.q)
-    self.problem.addenergy(elastic, prefactor = self.L1) // correct 1/17
+    self.problem.addEnergy(elastic, prefactor = self.L1) // correct 1/17
 
     // Surface energy
     var surf = Length()
-    self.problem.addenergy(surf, selection=self.bnd, prefactor = self.tau) // surface tension
+    self.problem.addEnergy(surf, selection=self.bnd, prefactor = self.tau) // surface tension
 
     // Anchoring energy
     var anchor = LineIntegral(anchoring, self.q)
-    self.problem.addenergy(anchor, selection=self.bnd, prefactor = self.tau*self.omega/2)
+    self.problem.addEnergy(anchor, selection=self.bnd, prefactor = self.tau*self.omega/2)
 
     // Area constraint 
     var area = Area() 
-    self.problem.addconstraint(area)
+    self.problem.addConstraint(area)
   }
 
   buildAdapter() { 

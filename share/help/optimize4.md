@@ -18,8 +18,8 @@ The package provides three main kinds of class that work together:
 A typical workflow for a morpho problem is:
 
     var problem = OptimizationProblem(mesh)
-    problem.addenergy(someFunctional)
-    problem.addconstraint(anotherFunctional)
+    problem.addEnergy(someFunctional)
+    problem.addConstraint(anotherFunctional)
 
     var adapter = ProblemAdapter(problem, mesh)
     var opt = LBFGSController(adapter)   // or SQPController(adapter) if constrained
@@ -39,25 +39,27 @@ Create a problem with a mesh:
 [showsubtopics]: # (subtopics)
 
 ### Adding energies
-[tagaddenergy]: # (addenergy)
+[tagaddEnergy]: # (addEnergy)
 
-Use `addenergy` to add a term to the objective function. The method returns an `Energy` object that can be modified after creation (for example, to set a `selection` or `prefactor`):
+Use `addEnergy` to add a term to the objective function. The method returns an `Energy` object that can be modified after creation (for example, to set a `selection` or `prefactor`):
 
-    var en = problem.addenergy(functional, selection=nil, prefactor=nil)
+    var en = problem.addEnergy(functional, selection=nil, prefactor=nil)
+
+The legacy names `addenergy`, `addconstraint`, and `addlocalconstraint` still work and forward to these methods.
 
 The total objective is the sum of all energy terms. Each energy wraps a morpho functional and evaluates it via `functional.total(mesh)` (and `functional.gradient` when gradients are required).
 
 ### Adding constraints
-[tagaddconstraint]: # (addconstraint)
-[tagaddlocalconstraint]: # (addlocalconstraint)
+[tagaddConstraint]: # (addConstraint)
+[tagaddLocalConstraint]: # (addLocalConstraint)
 
-Global constraints are added with `addconstraint`. The constraint value is the total of the functional over the mesh (optionally restricted by a `selection`), minus an automatic target computed at the time the constraint is added:
+Global constraints are added with `addConstraint`. The constraint value is the total of the functional over the mesh (optionally restricted by a `selection`), minus an automatic target computed at the time the constraint is added:
 
-    var cons = problem.addconstraint(functional, selection=nil, field=nil)
+    var cons = problem.addConstraint(functional, selection=nil, field=nil)
 
-Local constraints apply at mesh elements (for example, a level-set constraint at each vertex). Use `addlocalconstraint`:
+Local constraints apply at mesh elements (for example, a level-set constraint at each vertex). Use `addLocalConstraint`:
 
-    var cons = problem.addlocalconstraint(functional, selection=nil, field=nil,
+    var cons = problem.addLocalConstraint(functional, selection=nil, field=nil,
                                           onesided=false, target=0)
 
 Set `onesided=true` for inequality constraints of the form \(c(x) \le 0\). Equality constraints are the default.
@@ -197,7 +199,7 @@ Initialize a `PenaltyAdapter` with a given initial penalty:
 
     var padapt = PenaltyAdapter(targetAdapter, penalty=1)
 
-The penalty can be changed with `setpenalty(mu)` and read with `penalty()`. The adapter also provides `directionalDerivative(d)` for use in line searches.
+The penalty can be changed with `setPenalty(mu)` and read with `penalty()`. The adapter also provides `directionalDerivative(d)` for use in line searches.
 
 If a Hessian is required, the underlying adapter must supply `hessian()` and `constraintHessian()`.
 

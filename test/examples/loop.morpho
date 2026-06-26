@@ -19,10 +19,10 @@ class LoopExample {
     self.problem = OptimizationProblem(self.mesh)
 
     var ll = Length() 
-    self.problem.addenergy(ll)
+    self.problem.addEnergy(ll)
 
     var la = AreaEnclosed() 
-    self.problem.addconstraint(la)
+    self.problem.addConstraint(la)
     return self.problem
   }
 

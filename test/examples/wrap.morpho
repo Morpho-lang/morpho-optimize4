@@ -71,16 +71,16 @@ class WrapExample {
 
     // We want to minimize the area
     var la = Area()
-    self.problem.addenergy(la)
+    self.problem.addEnergy(la)
 
     // Subject to level set constraints
     var ls1 = ScalarPotential( ell1.levelset(), ell1.gradient() )
     var ls2 = ScalarPotential( ell2.levelset(), ell2.gradient() )
-    self.problem.addlocalconstraint(ls1, onesided=true)
-    self.problem.addlocalconstraint(ls2, onesided=true)
+    self.problem.addLocalConstraint(ls1, onesided=true)
+    self.problem.addLocalConstraint(ls2, onesided=true)
 
     var leq = EquiElement()
-    self.problem.addenergy(leq, prefactor=self.kreg)
+    self.problem.addEnergy(leq, prefactor=self.kreg)
   }
 
   buildAdapter() { 

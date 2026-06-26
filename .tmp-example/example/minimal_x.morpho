@@ -1,0 +1,18 @@
+import optimize4
+import "xproblemadapter.morpho"
+import "xhooke.morpho"
+import meshgen
+
+var mb = MeshBuilder()
+mb.addvertex([0,0,0]); mb.addvertex([1,0,0]); mb.addvertex([0,1,0])
+mb.addedge([0,1]); mb.addedge([1,2]); mb.addedge([2,0])
+var m = mb.build()
+var f = Field(m, grade=1)
+for (i in 0...3) f[i]=1
+var prob = OptimizationProblem(m)
+prob.addenergy(HookeElasticity(f))
+var sadapt = XProblemAdapter(prob, m)
+var ps = PenaltyAdapter(sadapt)
+print ps.value()
+var opt = LBFGSController(ps)
+print opt.value()

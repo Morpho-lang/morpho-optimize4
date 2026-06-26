@@ -34,15 +34,15 @@ class MultigradeExample {
 
   buildProblem() {
     self.problem = OptimizationProblem(self.mesh)
-    self.problem.addenergy(NormSq(self.field))
+    self.problem.addEnergy(NormSq(self.field))
 
     // Grade 0: vertex inequality y >= 0 (mesh positions)
     var halfspace = ScalarPotential(fn (x, y, z) y)
-    self.problem.addlocalconstraint(halfspace, onesided=true)
+    self.problem.addLocalConstraint(halfspace, onesided=true)
 
     // Grade 1: per-edge equality on the first field component
     var edgeFunc = LineIntegral(fn (x, fv) fv[0]^2, self.field, method={})
-    self.problem.addlocalconstraint(edgeFunc, target=self.edgeTarget)
+    self.problem.addLocalConstraint(edgeFunc, target=self.edgeTarget)
 
     return self.problem
   }

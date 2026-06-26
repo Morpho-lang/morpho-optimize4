@@ -43,7 +43,7 @@ var _OptVerbosity = { "silent" : _OptSilent,
    the interface of an OptimizationAdapter. */ 
 
 class OptimizationController is DelegateAdapter {
-  init(adapter, quiet=false, verbosity=nil) { 
+  init(OptimizationAdapter adapter, quiet=false, verbosity=nil) { 
     super.init(adapter)
     
     // Fit a ProxyAdapter over the regular adapter if not present to avoid repeated calculations
@@ -176,7 +176,7 @@ class OptimizationController is DelegateAdapter {
  * ----------------------------------------- */ 
 
 class GradientDescentController is OptimizationController {
-  init(adapter, quiet=false, verbosity=nil, stepsize=0.1) { 
+  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, stepsize=0.1) { 
     super.init(adapter, quiet=quiet, verbosity=verbosity)
     if (self.adapter.countConstraints()>0) _OptCons.throw()
     self.stepsize=stepsize
@@ -215,7 +215,7 @@ class GradientDescentController is OptimizationController {
  * ----------------------------------------- */ 
 
 class LineSearchController is GradientDescentController {
-  init(adapter, quiet=false, verbosity=nil, stepsize=0.1, alpha=0.2, beta=0.5) {
+  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, stepsize=0.1, alpha=0.2, beta=0.5) {
     super.init(adapter, quiet=quiet, verbosity=verbosity, stepsize=stepsize)
     self.maxsteps = 50 // Maximum steps for reducing stepsize
     self.alpha = alpha // } Coefficients 
@@ -275,7 +275,7 @@ class LineSearchController is GradientDescentController {
  * ----------------------------------------- */ 
 
 class DirectedLineSearchController is LineSearchController {
-  init(adapter, quiet=false, verbosity=nil, stepsize=0.1, alpha=0.2, beta=0.5, direction=nil) {
+  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, stepsize=0.1, alpha=0.2, beta=0.5, direction=nil) {
     super.init(adapter, quiet=quiet, verbosity=verbosity, stepsize=stepsize, alpha=alpha, beta=beta)
     if (direction) self.setDirection(direction)  
   }
@@ -307,7 +307,7 @@ class DirectedLineSearchController is LineSearchController {
 // See also an implementation at https://github.com/gjkennedy/ae6310/blob/master/Line%20Search%20Algorithms.ipynb
 
 class WolfeLineSearchController is LineSearchController {
-  init(adapter, quiet=false, verbosity=nil, stepsize=1, steplimit=2, c1=1e-3, c2=0.9) {
+  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, stepsize=1, steplimit=2, c1=1e-3, c2=0.9) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)
     self.maxsteps = 50 // Maximum steps for reducing stepsize
     self.stepsize = stepsize   // Initial stepsize
@@ -432,7 +432,7 @@ class WolfeLineSearchController is LineSearchController {
  * ----------------------------------------- */ 
 
 class NewtonController is OptimizationController {
-  init(adapter, quiet=false, verbosity=nil, linesearch=nil) {
+  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, linesearch=nil) {
     var lsOpt = linesearch
     super.init(adapter, quiet=quiet, verbosity=verbosity)
     if (self.adapter.countConstraints()>0) _OptCons.throw()
@@ -578,7 +578,7 @@ class InvBFGSController is BFGSController {
  * ----------------------------------------- */ 
 
 class LBFGSController is InvBFGSController {
-  init(adapter, quiet=false, verbosity=nil, maxhistorylength=10) {
+  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, maxhistorylength=10) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)
     self.maxhistorylength = maxhistorylength
   }
@@ -669,7 +669,7 @@ class LBFGSController is InvBFGSController {
     until convergence criteria and constraint goal has been achieved. */
 
 class PenaltyController is OptimizationController {
-  init(adapter, quiet=false, verbosity=nil, controller=nil, mu0=1, mumul=10.0, subProblemMaxiterations=100) {
+  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, controller=nil, mu0=1, mumul=10.0, subProblemMaxiterations=100) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)
 
     if (!self.isConstrained()) _OptUnCons.throw()
@@ -729,7 +729,7 @@ class PenaltyController is OptimizationController {
 /** Shared reprojection, constraint reporting, and L1 merit linesearch
     for constrained controllers (PGD, SQP). */
 
-class ReprojectionMixin {
+class ReprojectionMixin with ActiveSetMixin {
   _initReprojection() {
     self.rpadapter = ReprojectionAdapter(self.adapter)
   }
@@ -767,26 +767,6 @@ class ReprojectionMixin {
     return _leastSquaresFromNormal(Ct*g, Ct*C)
   }
 
-  _activeConstraintGradients(adapter) { // Gradients of active scalar constraints only
-    var cv = adapter.constraintValueForActiveSet()
-    var cgrad = adapter.constraintGradient()
-    var neq = adapter.countEqualityConstraints()
-    var acg = []
-    for (c, k in cv) {
-      var isEq = k<neq
-      var g = cgrad[k]
-      if (ismatrix(c)) {
-        for (j in 0...c.count()) {
-          var u = c[j]
-          if (isEq || u <= 0) acg.append(g.column(j))
-        }
-      } else {
-        if (isEq || c <= 0) acg.append(g)
-      }
-    }
-    return acg
-  }
-
   _l1Linesearch(xdirn, mu) {
     var x0 = self.adapter.get()
     var restore = self.has("_l1restore") && self._l1restore
@@ -810,7 +790,7 @@ class ReprojectionMixin {
     * Performs a reprojection step after each iteration */
 
 class ProjectedGradientDescentController is OptimizationController with ReprojectionMixin {
-  init(adapter, quiet=false, verbosity=nil, maxconstraintsteps=100, mu=2, steplimit=nil) {
+  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, maxconstraintsteps=100, mu=2, steplimit=nil) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)
     if (!self.isConstrained()) _OptUnCons.throw()
     self.maxconstraintsteps = maxconstraintsteps
@@ -826,7 +806,7 @@ class ProjectedGradientDescentController is OptimizationController with Reprojec
 
   direction() {
     var g = self.adapter.gradient()
-    var dg = _activeConstraintGradients(self.adapter)
+    var dg = self._activeConstraintGradients(self.adapter)
     if (dg.count() > 0) {
       var lambda = _leastSquaresMultipliers(g, dg)
       if (lambda) {
@@ -874,7 +854,7 @@ class ProjectedGradientDescentController is OptimizationController with Reprojec
      */
 
 class SQPController is OptimizationController with ReprojectionMixin {
-  init(adapter, quiet=false, verbosity=nil, penalty=1, maxconstraintsteps=100,
+  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, penalty=1, maxconstraintsteps=100,
        feasol=nil, reprojecttol=1e-5, relgradtol=0.005, relgraditers=20,
        stagtol=1e-2, lamcap=100) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)

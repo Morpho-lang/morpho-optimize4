@@ -25,6 +25,13 @@ A typical workflow for a morpho problem is:
     var opt = LBFGSController(adapter)   // or SQPController(adapter) if constrained
     opt.optimize(500)
 
+To optimize a **field** (or mesh and field together), pass one or more `Mesh` / `Field` targets to `ProblemAdapter`:
+
+    var adapter = ProblemAdapter(problem, field)
+    var adapter = ProblemAdapter(problem, mesh, field)   // coupled shape + field
+
+Field terms in the objective or constraints must supply a `fieldgradient(field, mesh)` method on the functional, and declare which field they depend on via a `field` property (see `ProblemAdapter` below).
+
 [showsubtopics]: # (subtopics)
 
 ## OptimizationProblem
@@ -62,9 +69,20 @@ Local constraints apply at mesh elements (for example, a level-set constraint at
     var cons = problem.addLocalConstraint(functional, selection=nil, field=nil,
                                           onesided=false, target=0)
 
-Set `onesided=true` for inequality constraints of the form \(c(x) \le 0\). Equality constraints are the default.
+Set `onesided=true` for inequality constraints of the form c(x) <= 0. Equality constraints are the default.
 
 The returned `Constraint` objects expose `functional`, `target`, `selection`, `field`, and `onesided` properties.
+
+Set `field=` on a constraint when the functional depends on a particular `Field` (used when updating the problem after mesh refinement; see below).
+
+### Updating after refinement
+
+After `MeshRefiner` or similar operations, call `problem.update(dict)` with a dictionary mapping old mesh/fields/selections to new ones. The problem mesh, attached fields, and functional field references are updated in place:
+
+    var refmap = ref.refine(selection=srefine)
+    problem.update(refmap)
+    mesh = refmap[mesh]
+    field = refmap[field]
 
 ## OptimizationAdapter
 [tagOptimizationAdapter]: # (OptimizationAdapter)
@@ -78,10 +96,11 @@ An `OptimizationAdapter` implements the following methods:
 * `get()`  - Retrieves the current parameters.
 * `value()` - Returns the value of the objective function.
 * `gradient()` - Returns the gradient of the objective function as a `Matrix`.
+* `directionalDerivative(d)` - Directional derivative (g . d), a default implementation computes this dot product directly. Required for nondifferentiable merit functions (`L1PenaltyAdapter`).
 * `countConstraints()` - Returns the total number of constraints present.
 * `countEqualityConstraints()` - Returns the total number of equality constraints present.
 * `countInequalityConstraints()` - Returns the total number of inequality constraints present.
-* `constraintValue()` - Returns a `List` of the values of the constraint functions. The list may contain values or `Matrix` objects with multiple values.
+* `constraintValue()` - Returns a `List` of the values of the constraint functions. The list may contain values or `Matrix` objects with multiple values. Inactive one-sided local constraints are zeroed in this list.
 * `constraintGradient()` - Returns a `List` of gradients of the constraint functions; each element is a `Matrix` with columns corresponding to the gradient of the constraint function.
 
 An `OptimizationAdapter` may also provide second derivative information:
@@ -97,26 +116,41 @@ An `OptimizationAdapter` may also provide second derivative information:
 A `ProblemAdapter` is the main adapter for morpho shape optimization problems. It connects an `OptimizationProblem` to the `OptimizationAdapter` interface, reading and writing degrees of freedom from one or more `Mesh` or `Field` targets.
 
     var adapter = ProblemAdapter(problem, mesh)
-    var adapter = ProblemAdapter(problem, mesh, field)  // multiple targets
+    var adapter = ProblemAdapter(problem, field)           // field-only
+    var adapter = ProblemAdapter(problem, mesh, field)     // stacked DOFs: mesh then field
+    var adapter = ProblemAdapter(problem, f1, f2)          // multiple fields
 
-The adapter:
+**Parameter vector.** The target degrees of freedom are represented using a single column vector; these are concatenated in target order.
 
-* Sums all energies in the problem for `value()` and accumulates gradients from `functional.gradient` (meshes) and `functional.fieldgradient` (fields).
-* Exposes global constraints, local constraints, and one-sided (inequality) constraints through `constraintValue()` and `constraintGradient()`.
-* Does not currently provide a Hessian; use quasi-Newton controllers such as `LBFGSController` or `SQPController`.
+**Energies and constraints.** The adapter:
 
-Helper methods include `count()`, `energies()`, `constraints()`, `localConstraints()`, and `selectionToIndexList` (for building index lists to pass to `FixAdapter`).
+* Sums all energies for `value()`.
+* Accumulates gradients per target from `functional.gradient(mesh)` (mesh targets) and `functional.fieldgradient(field, mesh)` (field targets).
+* Routes field gradients only when the functional's `field` property matches the target (or lists it).
+* Evaluates global and local constraints; splits equality vs one-sided inequality contributions in `constraintValue()` / `constraintGradient()`.
+* Infers the mesh grade of functionals when `functional.grade` is absent (e.g. line/area/volume integrals).
+* Does not provide a Hessian; use quasi-Newton controllers such as `LBFGSController` or `SQPController`.
+
+**Field indexing.** `selectionToIndexList(selection, target)` maps a `Selection` to linear indices in the adapter parameter vector—for use with `FixAdapter`. Works for `Mesh` and `Field` targets; with multiple targets, indices are offset automatically. For vector-valued fields, pass `components=` to restrict which components are fixed:
+
+    var fix = adapter.selectionToIndexList(bnd, field)
+    var fix = adapter.selectionToIndexList(bnd, field, components=[0])  // x-component only
+    var fadapt = FixAdapter(adapter, fix)
+
+**Active set.** `constraintValueForActiveSet()` exposes raw local inequality values (including feasible u > 0) for constrained controllers. `LagrangeMultiplierAdapter`, `ProjectedGradientDescentController`, and `SQPController` use this for active-set logic.
+
+Helper methods: `count()`, `energies()`, `constraints()`, `localConstraints()`, `selectionToIndexList`.
 
 ### FunctionAdapter
 [tagFunctionAdapter]: # (FunctionAdapter)
 
-A `FunctionAdapter` wraps plain morpho functions in the `OptimizationAdapter` interface. It is useful for test problems, prototyping, and problems not expressed as morpho functionals.
+A `FunctionAdapter` wraps plain morpho functions in the `OptimizationAdapter` interface. It is useful for general optimization tasks.
 
     var adapt = FunctionAdapter(fn (x) x[0]^2 + x[1]^2,
                                 gradient=fn (x) Matrix([2*x[0], 2*x[1]]),
                                 start=Matrix([1, 1]))
 
-If `gradient` or `hessian` are omitted, finite-difference versions are constructed automatically. Constraints are supplied as lists of functions, with optional `constraintgradients`, `constrainthessians`, and `equalitycount` (the number of leading constraints treated as equalities; the remainder are inequalities).
+If `gradient` or `hessian` are omitted, finite-difference versions are constructed automatically (shared centered-difference kernels). Constraints are supplied as lists of functions, with optional `constraintgradients`, `constrainthessians`, and `equalitycount` (the number of leading constraints treated as equalities; the remainder are inequalities). The default `directionalDerivative(d)` uses the objective gradient when available.
 
 ### DelegateAdapter
 [tagDelegateAdapter]: # (DelegateAdapter)
@@ -143,9 +177,10 @@ Initialize the `FixAdapter` with a `List` of variables to be fixed:
 
     var fadapt = FixAdapter(adapt, [0,1,2])
 
-With a `ProblemAdapter`, use `selectionToIndexList` to obtain correct variable indices from a mesh selection:
+With a `ProblemAdapter`, use `selectionToIndexList` to obtain correct variable indices from a mesh or field selection:
 
     var fix = adapter.selectionToIndexList(selection, mesh)
+    var fix = adapter.selectionToIndexList(selection, field)
     var fadapt = FixAdapter(adapter, fix)
 
 ### ProxyAdapter
@@ -170,7 +205,7 @@ The list is ordered as follows: `[no. value(), no. gradient(), no. hessian(), no
 
 A `DeflationAdapter` is used to implement the "deflation" method of solution landscape exploration. It modifies a problem by adding additional inequality constraints:
 
-    | x - xsoln |_2/R - 1 > 0
+    norm(x - xsoln) / R - 1 > 0
 
 where `xsoln` is a previous solution to the optimization problem, and `R` is a deflation radius. The intent of the constraint is to prevent the optimizer reconverging on a previously known solution. The deflation radius is a metaparameter of the algorithm and must be tuned to the problem.
 
@@ -208,17 +243,18 @@ If a Hessian is required, the underlying adapter must supply `hessian()` and `co
 
 A `LagrangeMultiplierAdapter` augments the optimization variables with Lagrange multipliers, forming the Lagrangian
 
-    L(x, λ) = f(x) - λ · c(x)
+    L(x, lambda) = f(x) - lambda · c(x)
 
-where inactive inequality constraints have their multipliers set to zero. The combined parameter vector is `[x; λ]`.
+where inactive inequality constraints have their multipliers set to zero. The combined parameter vector stacks `x` and `lambda` (see `lagrangeMultipliers()` / `setLagrangeMultipliers(lambda)`).
 
     var ladapt = LagrangeMultiplierAdapter(adapter)
 
 Key methods:
 
-* `varGradient()` - gradient of the Lagrangian with respect to the original variables: \(\nabla f - C^\top \lambda\).
+* `varGradient()` - gradient of the Lagrangian with respect to the original variables: ∇f - Cᵀ lambda.
 * `lagrangeMultipliers()` / `setLagrangeMultipliers(lambda)` - get or set the multiplier vector.
-* `activeConstraintValue()` / `activeConstraintGradient()` - constraints on the current active set (equalities plus violated or tight inequalities).
+* `activeConstraintValue()` / `activeConstraintGradient()` - constraints on the current active set (equalities plus violated or tight inequalities, u <= 0).
+* `activeConstraintSystem()` - returns `[values, gradients]` for the active set in one pass.
 * `setActiveLagrangeMultipliers(lambda)` - update multipliers on the active set only.
 
 This adapter is used internally by `SQPController` (as `control.ladapter` after `start()`).
@@ -247,7 +283,7 @@ The resulting function is nondifferentiable, so `gradient()` and `hessian()` thr
 ### FiniteDifferenceAdapter
 [tagFiniteDifferenceAdapter]: # (FiniteDifferenceAdapter)
 
-A `FiniteDifferenceAdapter` wraps another adapter and supplies `gradient()` and `hessian()` by centered finite differences of `value()`, using appropriately scaled step sizes.
+A `FiniteDifferenceAdapter` wraps another adapter and supplies `gradient()` and `hessian()` by centered finite differences of `value()`, using appropriately scaled step sizes (the same kernels used when `FunctionAdapter` builds numerical derivatives).
 
     var fdadapt = FiniteDifferenceAdapter(adapter)
 
@@ -269,7 +305,7 @@ _Convergence tolerances_
 
 Success is typically assessed via `hasConverged()`. The base class checks:
 
-* `gradtol` (default `1e-6`) - stop when \(\|g\| <\) `gradtol`, where \(g\) is the gradient returned by `gradient()`.
+* `gradtol` (default `1e-6`) - stop when ||g|| < `gradtol`, where g is the gradient returned by `gradient()`.
 * `etol` (default `1e-8`) - stop when the relative change in objective value between successive iterations falls below `etol`.
 * `ctol` (default `1e-10`) - used by `PenaltyController` for constraint satisfaction.
 
@@ -361,7 +397,7 @@ causes the `NewtonController` to create a `WolfeLineSearchController` to perform
 ### ConjugateGradientController
 [tagConjugateGradientController]: # (ConjugateGradientController)
 
-Implements nonlinear conjugate gradient with Fletcher–Reeves \(\beta\) and restarts when \(\beta < 0\). Inherits line search behaviour from `NewtonController` but replaces the Newton direction with a conjugate gradient combination of the current and previous gradients.
+Implements nonlinear conjugate gradient with Fletcher–Reeves β and restarts when β < 0. Inherits line search behaviour from `NewtonController` but replaces the Newton direction with a conjugate gradient combination of the current and previous gradients.
 
 Requires an unconstrained problem and uses only first derivatives.
 
@@ -376,7 +412,7 @@ As in the Newton method, the search direction `d` at each iteration is obtained 
 
     H_BFGS.d = - g
 
-where  g is the gradient of the objective function. Note that H\_BFGS is the BFGS estimate of the Hessian, rather than the Hessian itself.
+where g is the gradient of the objective function. Note that H_BFGS is the BFGS estimate of the Hessian, rather than the Hessian itself.
 
 Having found the search direction, the `BFGSController` performs a linesearch in that direction. See `NewtonController` for additional options to control this process.
 
@@ -413,7 +449,7 @@ Increasing the history length may improve the estimate of the inverse hessian at
 ### PenaltyController
 [tagPenaltyController]: # (PenaltyController)
 
-Implements the classical penalty method for constrained problems. The adapter is wrapped in a `PenaltyAdapter` and a sequence of unconstrained subproblems is solved with increasing penalty parameter \(\mu\). This is often a method of choice for constrained problems, particularly those with inequality constraints.
+Implements the classical penalty method for constrained problems. The adapter is wrapped in a `PenaltyAdapter` and a sequence of unconstrained subproblems is solved with increasing penalty parameter μ. This is often a method of choice for constrained problems, particularly those with inequality constraints.
 
     var opt = PenaltyController(adapter, mu0=1, mumul=10.0,
                                 subProblemMaxiterations=100,
@@ -422,24 +458,28 @@ Implements the classical penalty method for constrained problems. The adapter is
 Options:
 
 * `mu0` - initial penalty parameter (default `1`).
-* `mumul` - factor by which \(\mu\) is multiplied after each outer iteration (default `10`).
+* `mumul` - factor by which μ is multiplied after each outer iteration (default `10`).
 * `subProblemMaxiterations` - maximum iterations per subproblem (default `100`).
 * `controller` - class used to solve each subproblem (default `LBFGSController`).
 
-Convergence requires both the inner controller's `hasConverged()` and \(\|c\|_1 <\) `ctol`. Outer iterations report `mu` and the constraint norm.
+Convergence requires both the inner controller's `hasConverged()` and ||c||_1 < `ctol`. Outer iterations report `mu` and the constraint norm.
+
+When using `PenaltyAdapter` directly (without `PenaltyController`), increase the penalty between solves with `setPenalty` and read it with `penalty()`:
+
+    padapt.setPenalty(padapt.penalty() * 10)
 
 ### ProjectedGradientDescentController
 [tagProjectedGradientDescentController]: # (ProjectedGradientDescentController)
 
 Implements projected gradient descent for constrained problems:
 
-1. Compute a search direction by removing the component of the gradient along the constraint normals.
+1. Compute a search direction by removing the component of the gradient along **active** constraint normals (`activeConstraintGradient()`).
 2. Line search using an `L1PenaltyAdapter` merit function with penalty `mu` (default `2`).
-3. Reproject onto the feasible set by minimizing \(\|c\|^2\) with L-BFGS (`maxconstraintsteps` iterations, default `100`).
+3. Reproject onto the feasible set by minimizing ||c||^2 with L-BFGS (`maxconstraintsteps` iterations, default `100`).
 
     var opt = ProjectedGradientDescentController(adapter, mu=2, steplimit=nil)
 
-Optional `steplimit` caps the accepted line search step. Reprojection runs automatically at `start()` and after each `step()`.
+Optional `steplimit` caps the accepted line search step. Reprojection runs automatically at `start()` and after each `step()`. The reported `gradient()` is the last projected gradient.
 
 ### SQPController
 [tagSQPController]: # (SQPController)
@@ -450,7 +490,7 @@ Specifically, an SQPController:-
 
 1. Maintains Lagrange multipliers via an internal `LagrangeMultiplierAdapter` (`control.ladapter` after `start()`).
 2. Approximates the objective Hessian with L-BFGS on the unconstrained objective (`DeconstrainAdapter`).
-3. Solves the KKT system for the active constraint set each step (Schur complement), with fallback to a pure L-BFGS step on \(\nabla L\) if the system is singular.
+3. Solves the KKT system for the active constraint set each step (Schur complement), with fallback to a pure L-BFGS step on ∇L if the system is singular.
 4. Line searches along the primal direction using an adaptive L1 merit function.
 5. Reprojects when constraint violation exceeds `feasol` (default `1e-5`).
 
@@ -463,13 +503,12 @@ Specifically, an SQPController:-
 
 Key options:
 
-* `feasol` / `reprojecttol` - tolerance on \(\|c\|_1\) for feasibility and reprojection triggering.
-* `relgradtol`, `relgraditers` - stop if \(\|\nabla L\|\) falls below `relgradtol` times its initial value for `relgraditers` consecutive iterations.
-* `stagtol` - alternative stop when the objective stagnates and \(\|\nabla L\|\) is moderate.
+* `feasol` / `reprojecttol` - tolerance on ||c||_1 for feasibility and reprojection triggering.
+* `relgradtol`, `relgraditers` - stop if ||∇L|| falls below `relgradtol` times its initial value for `relgraditers` consecutive iterations.
+* `stagtol` - alternative stop when the objective stagnates and ||∇L|| is moderate.
 * `lamcap` - maximum allowed magnitude of Lagrange multipliers after least-squares sync on the active set.
 
 Diagnostic methods:
 
 * `kkt()` - assemble an explicit KKT matrix estimate (expensive; intended for small problems).
 * `reproject()` - force a feasibility reprojection step.
-

@@ -3,3 +3,5 @@
 test/FailedTests.txt
 test/**/*.out
 docs/\#manual.lyx\#
+docs/manual.lyx~
+docs/manual-lyx23.lyx~

@@ -197,6 +197,12 @@ status open
 \begin_layout Plain Layout
 
 \series bold
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:Classes"
+
+\end_inset
+
 Classes in the optimize4 package 
 \series default
 and how they interact.
@@ -217,20 +223,41 @@ The
 \family typewriter
 optimize4
 \family default
- package faciliates the solution of optimization problems,
- with a particular focus on the shape optimization problems for which 
+ package facilitates the solution of optimization problems,
+ with a particular focus on shape optimization problems for which 
 \emph on
 morpho
 \emph default
  was designed.
- The design is intended to be flexible,
- enabling customization of the choice of algorithm and easy incorporation of new algorithms by the developer or user.
- To use the package,
- simply import it into your 
+ The design separates 
 \emph on
-morpho
+what
 \emph default
- program as usual:
+ is being optimized (an 
+\emph on
+OptimizationProblem
+\emph default
+),
+ 
+\emph on
+how parameters are exposed
+\emph default
+ to an algorithm (an 
+\emph on
+OptimizationAdapter
+\emph default
+),
+ and 
+\emph on
+how the algorithm proceeds
+\emph default
+ (an 
+\emph on
+OptimizationController
+\emph default
+).
+ To use the package,
+ import it as usual:
 \begin_inset listings
 inline false
 status open
@@ -246,216 +273,31 @@ import optimize4
 \end_layout
 
 \begin_layout Standard
-This imports several subsidiary modules,
- which provide three main kinds of class that work together (Fig.
- 1):
- 
+This imports three subsidiary modules that work together (Fig.
+ ).
 \end_layout
 
 \begin_layout Description
-OptimizationProblem classes are used to describe the problem to be solved.
- Functionals may be added to the problem either as energies or constraints with set target values.
- 
+OptimizationProblem describes energies and constraints using morpho Functionals.
 \end_layout
 
 \begin_layout Description
-OptimizationAdapter classes provide a uniform interface for optimization targets,
- enabling the setting and getting parameters as well as calculating the value of the objective function,
- constraints and gradients.
- Adapters are provided,
- for example,
- to take an 
-\emph on
-OptimizationProblem
-\emph default
- and a target object,
- such as a Mesh or a Field,
- and compute the value of the objective function and gradients with respect to the target.
- Adapters can also be used to transform one type of problem to another,
- e.g.
- a constrained problem to an unconstrained problem,
- facilitating the use of different optimization algorithms.
- 
-\end_layout
-
-\begin_layout Description
-OptimizationController classes implement an optimization algorithm or a useful subcomponent.
- Controllers work by calling appropriate methods on associated OptimizationAdapters to obtain value,
- gradient and even Hessians in some cases,
- and direct how parameters are to be adjusted as the algorithm proceeds.
- 
-\end_layout
-
-\begin_layout Chapter
-Using optimize
-\end_layout
-
-\begin_layout Standard
-To establish notation,
- the goal of the 
-\family typewriter
-optimize4
-\family default
- package is to solve the following standard problem,
- 
-\begin_inset Formula 
-\begin{align}
-\min_{\mathbf{x}}f(\mathbf{x})\nonumber \\
-s.t.\ \mathbf{c}(\mathbf{x}) & =0\nonumber \\
-\mathbf{d}(\mathbf{x}) & \ge0\label{eq:Problem}
-\end{align}
-
-\end_inset
-
-where 
-\begin_inset Formula $f(\mathbf{x})$
-\end_inset
-
- is the objective function and 
-\begin_inset Formula $\mathbf{x}$
-\end_inset
-
- are its 
-\begin_inset Formula $N$
-\end_inset
-
- parameters.
- There are a total of 
-\begin_inset Formula $M$
-\end_inset
-
+OptimizationAdapter reads and writes degrees of freedom,
+ and evaluates the objective,
  constraints,
- expressed as 
-\begin_inset Formula $\mathbf{c}(\mathbf{x})$
-\end_inset
+ and derivatives.
+ Adapters can be chained (penalty methods,
+ fixing variables,
+ caching,
+ and so on).
+\end_layout
 
- a vector of 
-\begin_inset Formula $M_{=}$
-\end_inset
-
- equality constrained functions,
- and 
-\begin_inset Formula $\mathbf{d}$
-\end_inset
-
- a vector of 
-\begin_inset Formula $M_{\neq}=M-M_{=}$
-\end_inset
-
- inequality constrained functions.
- We adopt the sign convention that the inequality constraint functions 
-\begin_inset Formula $\mathbf{d}$
-\end_inset
-
- are positive in the feasible region.
+\begin_layout Description
+OptimizationController implements an optimization algorithm by calling adapter methods and updating parameters.
 \end_layout
 
 \begin_layout Standard
-We shall use the subscript notation 
-\begin_inset Formula $\mathbf{x}_{k}$
-\end_inset
-
- to refer to the value of a quantity at a particular iteration 
-\begin_inset Formula $k$
-\end_inset
-
-.
- If 
-\begin_inset Formula $\mathbf{c}$
-\end_inset
-
- and 
-\begin_inset Formula $\mathbf{d}$
-\end_inset
-
- are empty vectors the problem is said to be 
-\emph on
-unconstrained
-\emph default
-.
- If constraints are present,
- the set 
-\begin_inset Formula $\mathbf{x}\in\Omega$
-\end_inset
-
- compatible with the constraints is called the 
-\emph on
-feasible
-\emph default
- set.
- 
-\end_layout
-
-\begin_layout Standard
-We shall also use consistent notation for the gradient of the objective function,
- 
-\begin_inset Formula 
-\[
-\mathbf{g}=\frac{\partial f}{\partial x_{i}}
-\]
-
-\end_inset
-
-and its hessian,
- 
-\begin_inset Formula 
-\[
-\mathbf{H}=H_{ij}=\frac{\partial^{2}f}{\partial x_{i}\partial x_{j}}
-\]
-
-\end_inset
-
-as well as the 
-\begin_inset Formula $N\times N_{c}$
-\end_inset
-
- matrix of the gradients of constraints,
- 
-\begin_inset Formula 
-\[
-\mathbf{C}=C_{ij}=\frac{\partial c_{j}}{\partial x_{i}},\ \mathbf{D}=D_{ij}=\frac{\partial d_{j}}{\partial x_{i}}.
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Chapter
-OptimizationProblem
-\end_layout
-
-\begin_layout Standard
-An OptimizationProblem is a container object that describes an optimization problem using Functional objects,
- which can be used as part of the objective function (these are referred to as 
-\begin_inset Quotes eld
-\end_inset
-
-energies
-\begin_inset Quotes erd
-\end_inset
-
-),
- or as constraints.
- Earlier versions of 
-\emph on
-morpho
-\emph default
- provided the same user interface,
- which has been adopted and integrated into the 
-\family typewriter
-optimize4
-\family default
- package.
- Creation of an OptimizationProblem is described in the main 
-\emph on
-morpho
-\emph default
- manual;
- we provide a simple example below appropriate for minimizing the length of a closed loop at constant enclosed area:
-\end_layout
-
-\begin_layout Standard
+A typical mesh problem:
 \begin_inset listings
 inline false
 status open
@@ -467,16 +309,506 @@ var problem = OptimizationProblem(mesh)
 
 \begin_layout Plain Layout
 
+problem.addEnergy(Length())
 \end_layout
 
 \begin_layout Plain Layout
 
-problem.addenergy(Length())
+problem.addConstraint(AreaEnclosed())
 \end_layout
 
 \begin_layout Plain Layout
 
-problem.addconstraint(EnclosedArea())
+var adapter = ProblemAdapter(problem,
+ mesh)
+\end_layout
+
+\begin_layout Plain Layout
+
+var opt = SQPController(adapter)
+\end_layout
+
+\begin_layout Plain Layout
+
+opt.optimize(500)
+\end_layout
+
+\end_inset
+
+A field problem optimizes degrees of freedom stored in a 
+\family typewriter
+Field
+\family default
+ rather than mesh vertex positions:
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+var problem = OptimizationProblem(mesh)
+\end_layout
+
+\begin_layout Plain Layout
+
+problem.addEnergy(GradSq(phi))
+\end_layout
+
+\begin_layout Plain Layout
+
+var adapter = ProblemAdapter(problem,
+ phi)
+\end_layout
+
+\begin_layout Plain Layout
+
+var opt = LBFGSController(adapter)
+\end_layout
+
+\begin_layout Plain Layout
+
+opt.optimize(500)
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Choosing a controller
+\end_layout
+
+\begin_layout Standard
+The following pairings are typical guidelines for selecting an 
+\family typewriter
+OptimizationController
+\family default
+.
+ Adapter composition (for example 
+\family typewriter
+PenaltyAdapter
+\family default
+ or 
+\family typewriter
+FixAdapter
+\family default
+) and problem scale often matter as much as the constraint structure.
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{center}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+renewcommand{
+\backslash
+arraystretch}{1.25}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{tabular}{|p{0.38
+\backslash
+textwidth}|p{0.48
+\backslash
+textwidth}|}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+hline
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+textbf{Problem type} &
+\backslash
+textbf{Suggested controller} 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+hline
+\end_layout
+
+\begin_layout Plain Layout
+
+Unconstrained mesh or field problem &
+\backslash
+texttt{LBFGSController} 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+Constrained problem with a small number of equality constraints &
+\backslash
+texttt{SQPController} 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+Constrained problems,
+ particularly with inequality constraints &
+\backslash
+texttt{PenaltyController} 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+Optimization of regular functions &
+\backslash
+texttt{FunctionAdapter} + 
+\backslash
+texttt{LBFGSController} or 
+\backslash
+texttt{SQPController} 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+hline
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{tabular}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{center}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Chapter
+Mathematical formulation
+\end_layout
+
+\begin_layout Standard
+We seek
+\begin_inset Formula 
+\begin{align}
+\min_{\mathbf{x}}f(\mathbf{x})\nonumber \\
+\text{s.t.}\ \mathbf{c}(\mathbf{x}) & =0\nonumber \\
+\mathbf{d}(\mathbf{x}) & \le0\label{eq:Problem}
+\end{align}
+
+\end_inset
+
+where 
+\begin_inset Formula $f(\mathbf{x})$
+\end_inset
+
+ is the objective,
+ 
+\begin_inset Formula $\mathbf{x}\in\mathbb{R}^{N}$
+\end_inset
+
+ are parameters,
+ 
+\begin_inset Formula $\mathbf{c}$
+\end_inset
+
+ collects 
+\begin_inset Formula $M_{=}$
+\end_inset
+
+ equality constraints,
+ and 
+\begin_inset Formula $\mathbf{d}$
+\end_inset
+
+ collects 
+\begin_inset Formula $M_{\neq}$
+\end_inset
+
+ inequality constraints.
+ In 
+\family typewriter
+optimize4
+\family default
+,
+ inequalities added with 
+\family typewriter
+onesided=true
+\family default
+ follow the convention 
+\begin_inset Formula $d_{i}(\mathbf{x})\le0$
+\end_inset
+
+ in the feasible region;
+ positive values indicate violation or inactive local constraints depending on context.
+\end_layout
+
+\begin_layout Standard
+We write 
+\begin_inset Formula $\mathbf{g}=\nabla f$
+\end_inset
+
+,
+ 
+\begin_inset Formula $\mathbf{H}=\nabla^{2}f$
+\end_inset
+
+,
+ and constraint Jacobians 
+\begin_inset Formula $\mathbf{C}$
+\end_inset
+
+,
+ 
+\begin_inset Formula $\mathbf{D}$
+\end_inset
+
+ with entries 
+\begin_inset Formula $C_{ij}=\partial c_{j}/\partial x_{i}$
+\end_inset
+
+.
+ Subscripts 
+\begin_inset Formula $k$
+\end_inset
+
+ denote iteration indices.
+\end_layout
+
+\begin_layout Chapter
+OptimizationProblem
+\end_layout
+
+\begin_layout Standard
+An 
+\emph on
+OptimizationProblem
+\emph default
+ is a container for morpho Functionals used as energies (objective terms) or constraints.
+ It holds the mesh,
+ lists of energies,
+ global constraints,
+ and local constraints.
+\end_layout
+
+\begin_layout Section
+Energies
+\end_layout
+
+\begin_layout Standard
+Add terms to the objective with 
+\family typewriter
+addEnergy
+\family default
+:
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+var en = problem.addEnergy(functional)
+\end_layout
+
+\end_inset
+
+The returned 
+\family typewriter
+Energy
+\family default
+ object may be modified using optional parameters 
+\family typewriter
+selection
+\family default
+,
+ 
+\family typewriter
+prefactor
+\family default
+.
+ The total objective is the sum of all energy terms,
+ each evaluated via 
+\family typewriter
+functional.total(mesh)
+\family default
+ (and 
+\family typewriter
+functional.gradient
+\family default
+ when required).
+\end_layout
+
+\begin_layout Section
+Constraints
+\end_layout
+
+\begin_layout Standard
+Global constraints restrict integrals of functionals:
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+var cons = problem.addConstraint(functional,
+ selection=nil,
+ field=nil)
+\end_layout
+
+\end_inset
+
+The target value is fixed at the integral of the functional when the constraint is added.
+ Local constraints apply at mesh elements (for example a level-set constraint at each vertex):
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+var cons = problem.addLocalConstraint(functional,
+ selection=nil,
+ field=nil,
+ onesided=false,
+ target=0)
+\end_layout
+
+\end_inset
+
+Set 
+\family typewriter
+onesided=true
+\family default
+ for inequalities 
+\begin_inset Formula $c\le0$
+\end_inset
+
+.
+ Set 
+\family typewriter
+field=
+\family default
+ when a functional depends on a particular 
+\family typewriter
+Field
+\family default
+ (needed when updating after refinement).
+\end_layout
+
+\begin_layout Section
+Example
+\end_layout
+
+\begin_layout Standard
+Minimize perimeter at fixed enclosed area:
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+var problem = OptimizationProblem(mesh)
+\end_layout
+
+\begin_layout Plain Layout
+
+problem.addEnergy(Length())
+\end_layout
+
+\begin_layout Plain Layout
+
+problem.addConstraint(AreaEnclosed())
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Updating after refinement
+\end_layout
+
+\begin_layout Standard
+After 
+\family typewriter
+MeshRefiner
+\family default
+ or similar,
+ call 
+\family typewriter
+problem.update(refmap)
+\family default
+ with a dictionary mapping old mesh,
+ fields,
+ and selections to new ones:
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+var refmap = ref.refine(selection=srefine)
+\end_layout
+
+\begin_layout Plain Layout
+
+problem.update(refmap)
+\end_layout
+
+\begin_layout Plain Layout
+
+mesh = refmap[mesh]
+\end_layout
+
+\begin_layout Plain Layout
+
+field = refmap[field]
 \end_layout
 
 \end_inset
@@ -489,238 +821,175 @@ OptimizationAdapters
 \end_layout
 
 \begin_layout Standard
-OptimizationAdapter and its subclasses exist to provide a uniform interface for OptimizationControllers to call.
- This design enables optimization algorithms to be separated from the task of evaluating quantities like gradients and widens the range of things that could be optimized—
-all that's needed to optimize an arbitrary object that depends on parameters is to create an appropriate OptimizationAdapter.
- 
-\end_layout
-
-\begin_layout Standard
-Further,
- adapter objects can be chained together to create useful effects.
- An adapter such as PenaltyAdapter converts a constrained problem to an unconstrained problem,
- for example,
- facilitating use of a different set of OptimizationControllers.
- Appropriate adapters can also be used within a broader algorithm to solve a subproblem of interest,
- for example performing a linesearch on an augmented objective function rather than the original one.
- 
-\end_layout
-
-\begin_layout Section
-OptimizationAdapter interface
-\end_layout
-
-\begin_layout Standard
-An adapter 
-\series bold
-must
-\series default
- implement the following methods,
-\end_layout
-
-\begin_layout Description
-set(x) Sets the current value of the parameters to 
-\begin_inset Formula $x$
-\end_inset
-
-,
- which should be supplied as a column vector.
- 
-\end_layout
-
-\begin_layout Description
-get() Returns the current value of the parameters as a column vector.
- 
-\end_layout
-
-\begin_layout Description
-value() Returns the value of the objective function.
- 
-\end_layout
-
-\begin_layout Description
-gradient() Returns the gradient of the objective function at the current parameters as a column vector.
- 
-\end_layout
-
-\begin_layout Description
-hessian() Returns the hessian of the objective function at the current parameters as a column vector,
- or 
-\family typewriter
-nil
-\family default
- if a hessian is not available.
-\end_layout
-
-\begin_layout Description
-countConstraints() Returns the total number of constraints present 
-\begin_inset Formula $M=M_{=}+M_{\neq}$
-\end_inset
-
-.
-\end_layout
-
-\begin_layout Description
-countEqualityConstraints() Returns the number of equality constraints 
-\begin_inset Formula $M_{=}$
-\end_inset
-
-.
-\end_layout
-
-\begin_layout Description
-countInequalityConstraints() Returns the number of equality constraints 
-\begin_inset Formula $M_{\neq}$
-\end_inset
-
-.
-\end_layout
-
-\begin_layout Description
-constraintValue() Returns a List containing the value(s) of any constraints.
- 
-\end_layout
-
-\begin_layout Description
-constraintGradient() Returns a List containing the gradient(s) of any constraints as column vectors.
-\end_layout
-
-\begin_layout Description
-constraintHessian() Returns a List containing the hessian(s) of any constraints.
-\end_layout
-
-\begin_layout Section
-Available adapters
-\end_layout
-
-\begin_layout Subsection
-DelegateAdapter
-\end_layout
-
-\begin_layout Standard
-A DelegateAdapter is initialized with a given adapter.
- The DelegateAdapter implements the OptimizationAdapter interface,
- but simply redirects all of method calls to the enclosed adapter.
-\end_layout
-
-\begin_layout Subsection
-DeconstrainAdapter
-\end_layout
-
-\begin_layout Standard
-A DeconstrainAdapter converts a constrained problem to an unconstrained problem by ignoring the constraints.
- Calls to 
-\family typewriter
-countConstraints
-\family default
- and similar methods always return 0;
- calling 
-\family typewriter
-constraintValue
-\family default
- and 
-\family typewriter
-constraintGradient
-\family default
- return nil.
- 
-\end_layout
-
-\begin_layout Standard
-This class is used to simplify access to the objective function without the presence of constraints,
- typically for use with another adapter or for use with a controller class that does not accept a constrained problem.
- 
-\end_layout
-
-\begin_layout Subsection
-FixAdapter
-\end_layout
-
-\begin_layout Standard
-A FixAdapter holds the values of selected variables constant.
- Calls to 
-\family typewriter
-set
-\family default
- do not change the values of the fixed variables,
- and the corresponding elements of `gradient()` and `constraintGradient()` are set to zero.
- This adapter does not support hessians.
-\end_layout
-
-\begin_layout Subsection
-ProxyAdapter
-\end_layout
-
-\begin_layout Standard
-A ProxyAdapter implements a cache:
- Calls to 
-\family typewriter
-value
-\family default
-,
- 
-\family typewriter
-gradient
-\family default
-,
- etc.
- are returned from the cache if they have already been calculated,
- or are calculated as necessary.
- Every time 
-\family typewriter
-set
-\family default
- is called with new parameters,
- the cache is cleared.
- This adapter prevents multiple evaluation of potentially expensive quantities like the gradient or the hessian by OptimizationControllers.
- Using a ProxyAdapter helps simplify the writing a controller:
- there's no need to temporarily store these quantities across methods,
- for example.
-\end_layout
-
-\begin_layout Standard
-A ProxyAdapter also keeps track of how many times the objective function value,
- gradient etc.
- are actually calculated and can display this information using the 
-\family typewriter
-report
-\family default
- method.
- This information can also be obtained as a list in the order 
-\begin_inset Formula $(N_{f},N_{\mathbf{g}},N_{\mathbf{H}},N_{\mathbf{c}},N_{\nabla\mathbf{c}},N_{\Delta\mathbf{c}})$
-\end_inset
-
- from the 
-\family typewriter
-countEvals
-\family default
- method.
-\end_layout
-
-\begin_layout Standard
-Implements the 
+Optimization algorithms should not depend on whether parameters live on a mesh,
+ in a field,
+ or in a plain vector.
+ An 
 \emph on
-proxy
+OptimizationAdapter
 \emph default
- software design pattern
-\begin_inset Foot
-status collapsed
+ exposes a uniform interface:
+ set parameters,
+ evaluate 
+\begin_inset Formula $f$
+\end_inset
 
-\begin_layout Plain Layout
-Erich Gamma,
- Richard Helm,
- Ralph Johnson,
- John Vlissides (1994).
- Design Patterns:
- Elements of Reusable Object-Oriented Software.
- Addison Wesley.
- pp.
- 207ff
+,
+ 
+\begin_inset Formula $\mathbf{g}$
+\end_inset
+
+,
+ constraints,
+ and constraint derivatives.
+ Adapters may be composed:
+ for example a 
+\family typewriter
+PenaltyAdapter
+\family default
+ wrapping a 
+\family typewriter
+ProblemAdapter
+\family default
+ converts a constrained problem into an unconstrained one for 
+\family typewriter
+LBFGSController
+\family default
+.
 \end_layout
 
+\begin_layout Section
+The adapter interface
+\end_layout
+
+\begin_layout Standard
+An 
+\emph on
+OptimizationAdapter
+\emph default
+ maps parameters 
+\begin_inset Formula $\mathbf{x}\in\mathbb{R}^{N}$
+\end_inset
+
+ to the objective 
+\begin_inset Formula $f(\mathbf{x})$
+\end_inset
+
+,
+ gradient 
+\begin_inset Formula $\mathbf{g}=\nabla f$
+\end_inset
+
+,
+ and constraint values.
+ Equality constraints 
+\begin_inset Formula $\mathbf{c}(\mathbf{x})=\mathbf{0}$
+\end_inset
+
+ and inequalities 
+\begin_inset Formula $\mathbf{d}(\mathbf{x})\le\mathbf{0}$
+\end_inset
+
+ (including local constraints sampled on mesh elements) are returned as lists of scalars or matrices;
+ Jacobians appear as lists of column matrices 
+\begin_inset Formula $\partial c_{j}/\partial\mathbf{x}$
+\end_inset
+
+ stacked column-wise when a constraint has multiple components.
+\end_layout
+
+\begin_layout Standard
+Every adapter implements at minimum:
+\end_layout
+
+\begin_layout Description
+set(x) / get() —
+ parameters as a column 
+\family typewriter
+Matrix
+\family default
+.
+\end_layout
+
+\begin_layout Description
+value() / gradient() —
+ objective and 
+\begin_inset Formula $\mathbf{g}$
 \end_inset
 
 .
+\end_layout
+
+\begin_layout Description
+directionalDerivative(d) —
+ 
+\begin_inset Formula $\mathbf{g}^{\top}\mathbf{d}$
+\end_inset
+
+ by default;
+ required when the merit function is nondifferentiable (
+\family typewriter
+L1PenaltyAdapter
+\family default
+).
+\end_layout
+
+\begin_layout Description
+countConstraints() / countEqualityConstraints() / countInequalityConstraints()
+\end_layout
+
+\begin_layout Description
+constraintValue() / constraintGradient() —
+ values and Jacobian columns.
+ Inactive one-sided inequalities (
+\begin_inset Formula $u>0$
+\end_inset
+
+) are zeroed in 
+\family typewriter
+constraintValue()
+\family default
+.
+\end_layout
+
+\begin_layout Description
+constraintValueForActiveSet() —
+ raw inequality values for active-set logic (feasible 
+\begin_inset Formula $u>0$
+\end_inset
+
+ retained).
+\end_layout
+
+\begin_layout Description
+hessian() / constraintHessian() —
+ optional second derivatives.
+\end_layout
+
+\begin_layout Standard
+Adapters compose by wrapping:
+ a 
+\family typewriter
+PenaltyAdapter
+\family default
+ outside a 
+\family typewriter
+ProblemAdapter
+\family default
+ converts a constrained morpho problem into an unconstrained objective for 
+\family typewriter
+LBFGSController
+\family default
+;
+ 
+\family typewriter
+FixAdapter
+\family default
+ inside the chain enforces boundary conditions.
+\end_layout
+
+\begin_layout Section
+Adapters
 \end_layout
 
 \begin_layout Subsection
@@ -728,22 +997,13 @@ FunctionAdapter
 \end_layout
 
 \begin_layout Standard
-A FunctionAdapter provides an interface to minimize a callable 
-\emph on
-morpho
-\emph default
- object,
- i.e.
- a function,
- invocation or closure,
- with respect to its positional parameters.
- To miminize a simple quadratic function 
-\begin_inset Formula $(x-1/2)^{2}+(y-1)^{2}+\frac{1}{4}xy$
+The simplest adapter wraps callable morpho functions.
+ It is the natural entry point for understanding the interface before moving to mesh and field problems.
+ Consider minimizing
+\begin_inset Formula $(x-\tfrac{1}{2})^{2}+(y-1)^{2}+\tfrac{1}{4}xy$
 \end_inset
 
-,
- for example,
- 
+:
 \begin_inset listings
 inline false
 status open
@@ -756,7 +1016,7 @@ fn func(x,
 
 \begin_layout Plain Layout
 
-    return (x-0.5)^2 + (y-1)^2 + 0.25*x*y
+  return (x-0.5)^2 + (y-1)^2 + 0.25*x*y
 \end_layout
 
 \begin_layout Plain Layout
@@ -766,22 +1026,17 @@ fn func(x,
 
 \begin_layout Plain Layout
 
-\end_layout
-
-\begin_layout Plain Layout
-
 var adapt = FunctionAdapter(func,
- start=Matrix(2)) // Start from (0,0)
+ start=Matrix([0,0]))
 \end_layout
 
 \end_inset
 
-You can specify the starting point through the 
-\family typewriter
-start
-\family default
- optional parameter in the constructor,
- and provide functions that return the gradient and/or hessian via 
+
+\end_layout
+
+\begin_layout Standard
+Optional 
 \family typewriter
 gradient
 \family default
@@ -789,91 +1044,580 @@ gradient
 \family typewriter
 hessian
 \family default
-.
- If these are not provided,
- FunctionAdapter will compute approximations using finite differences.
- 
+ callables may be supplied.
+ When omitted,
+ centered finite-difference approximations are built from shared kernels (the same routines used by 
+\family typewriter
+FiniteDifferenceAdapter
+\family default
+).
+ For coordinate 
+\begin_inset Formula $i$
+\end_inset
+
+ with adaptive step 
+\begin_inset Formula $h_{i}$
+\end_inset
+
+,
+\begin_inset Formula 
+\begin{equation}
+\frac{\partial f}{\partial x_{i}}\approx\frac{f(\mathbf{x}+h_{i}\mathbf{e}_{i})-f(\mathbf{x}-h_{i}\mathbf{e}_{i})}{2h_{i}},\label{eq:FDgrad}
+\end{equation}
+
+\end_inset
+
+with 
+\begin_inset Formula $h_{i}=\max(\epsilon_{\mathrm{fd}},\epsilon_{\mathrm{fd}}|x_{i}|)$
+\end_inset
+
+ and 
+\begin_inset Formula $\epsilon_{\mathrm{fd}}=(10^{-16})^{1/3}$
+\end_inset
+
+ (similar scaling for the Hessian with 
+\begin_inset Formula $\epsilon_{\mathrm{hess}}=(10^{-16})^{1/4}$
+\end_inset
+
+).
 \end_layout
 
 \begin_layout Standard
-If you want to optimize a callable object with respect to its optional parameters,
- you can wrap it in another function or closure:
+Constraints are lists of callables with optional 
+\family typewriter
+constraintgradients
+\family default
+,
+ 
+\family typewriter
+constrainthessians
+\family default
+,
+ and 
+\family typewriter
+equalitycount
+\family default
+ (how many leading constraints are equalities;
+ the remainder are inequalities).
+ Per-constraint derivatives fall back to the same FD machinery when not supplied.
+\end_layout
+
+\begin_layout Standard
+FunctionAdapter is ideal for prototyping,
+ teaching,
+ and regression tests.
+ For morpho shape problems built from Functionals,
+ use 
+\family typewriter
+ProblemAdapter
+\family default
+ instead.
+\end_layout
+
+\begin_layout Subsection
+ProblemAdapter
+\end_layout
+
+\begin_layout Standard
+ProblemAdapter connects an 
+\family typewriter
+OptimizationProblem
+\family default
+ to the adapter interface.
+ Pass one or more optimization targets (
+\family typewriter
+Mesh
+\family default
+ or 
+\family typewriter
+Field
+\family default
+ objects):
 \begin_inset listings
 inline false
 status open
 
 \begin_layout Plain Layout
 
-fn wrapper(x,
- y) {
-\end_layout
-
-\begin_layout Plain Layout
-
-    return myfunc(a=x,
- b=y)
-\end_layout
-
-\begin_layout Plain Layout
-
-}
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-var adapt = FunctionAdapter(wrapper,
- start=Matrix(2)) // Start from (0,0)
+var adapter = ProblemAdapter(problem,
+ mesh)var adapter = ProblemAdapter(problem,
+ field)var adapter = ProblemAdapter(problem,
+ mesh,
+ field)var adapter = ProblemAdapter(problem,
+ f1,
+ f2)
 \end_layout
 
 \end_inset
 
-OptimizationControllers
+
 \end_layout
 
 \begin_layout Standard
-In this chapter we review optimization algorithms available in the package,
- which are implemented as OptimizationControllers,
- with enough context to understand their relative utility.
- For a deeper understanding of these algorithms,
- the reader should consult standard textbooks on optimization theory
-\begin_inset Foot
-status collapsed
 
-\begin_layout Plain Layout
-Recommended texts include Nocedal and Wright,
+\series bold
+Parameter vector.
+
+\series default
+ With a single target,
  
-\begin_inset Quotes eld
+\family typewriter
+get()
+\family default
+ and 
+\family typewriter
+set(x)
+\family default
+ use that object's degrees of freedom (columnized vertex positions for a mesh;
+ 
+\family typewriter
+Field.linearize()
+\family default
+ for a field).
+ With multiple targets,
+ degrees of freedom are concatenated in target order so that
+\begin_inset Formula 
+\begin{equation}
+\mathbf{x}=\begin{bmatrix}\mathbf{x}_{\mathrm{mesh}}\\
+\mathbf{x}_{\mathrm{field}}
+\end{bmatrix}.
+\end{equation}
+
 \end_inset
 
-Numerical Optimization
-\begin_inset Quotes erd
-\end_inset
 
- (Springer);
- Boyd and Vandenberghe 
-\begin_inset Quotes eld
-\end_inset
-
-Convex Optimization
-\begin_inset Quotes erd
-\end_inset
-
- (Cambridge University Press).
 \end_layout
 
+\begin_layout Standard
+
+\series bold
+Objective.
+
+\series default
+ The adapter sums all energies for 
+\family typewriter
+value()
+\family default
+:
+\begin_inset Formula 
+\begin{equation}
+f(\mathbf{x})=\sum_{k}E_{k}(\mathbf{x}).
+\end{equation}
+
 \end_inset
 
+For each target it accumulates gradients from 
+\family typewriter
+functional.gradient(mesh)
+\family default
+ (mesh targets) or 
+\family typewriter
+functional.fieldgradient(field,
+ mesh)
+\family default
+ (field targets).
+ Field gradients are included only when the functional's 
+\family typewriter
+field
+\family default
+ property matches the target.
+ Custom functionals must implement 
+\family typewriter
+fieldgradient
+\family default
+ and declare their field dependency.
+\end_layout
+
+\begin_layout Standard
+
+\series bold
+Constraints.
+
+\series default
+ Global constraints fix integrals of functionals at the value obtained when the constraint is added;
+ local constraints apply at mesh elements (for example a level-set constraint at each vertex).
+ The adapter evaluates 
+\family typewriter
+functional.total(mesh)
+\family default
+ and 
+\family typewriter
+functional.integrand(mesh)
+\family default
+,
+ splitting equality and one-sided inequality contributions.
+ When 
+\family typewriter
+functional.grade
+\family default
+ is absent,
+ the mesh grade of integrands is inferred from the integrand width.
+\end_layout
+
+\begin_layout Standard
+For active-set methods the method 
+\family typewriter
+constraintValueForActiveSet()
+\family default
+ returns raw local inequality values.
+ An inequality with value 
+\begin_inset Formula $u$
+\end_inset
+
+ is 
+\emph on
+active
+\emph default
+ when 
+\begin_inset Formula $u\le0$
+\end_inset
+
+ (violated or on the boundary);
+ interior feasible points with 
+\begin_inset Formula $u>0$
+\end_inset
+
+ are inactive.
+ This matches the rule used by 
+\family typewriter
+LagrangeMultiplierAdapter
+\family default
+ and 
+\family typewriter
+SQPController
+\family default
 .
- 
 \end_layout
 
 \begin_layout Standard
-New OptimizationControllers can easily be defined,
- including ones created in extensions linking to external optimization libraries.
+
+\series bold
+Field indexing and boundary conditions.
+
+\series default
+ Use 
+\family typewriter
+selectionToIndexList(selection,
+ target)
+\family default
+ to map a 
+\family typewriter
+Selection
+\family default
+ to linear indices in the parameter vector,
+ then pass the list to 
+\family typewriter
+FixAdapter
+\family default
+.
+ Works for mesh and field targets;
+ with multiple targets indices are offset automatically.
+ For vector-valued fields use 
+\family typewriter
+components=
+\family default
+ to restrict which components are fixed:
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+var fix = adapter.selectionToIndexList(bnd,
+ field)var fadapt = FixAdapter(adapter,
+ fix)
+\end_layout
+
+\end_inset
+
+ProblemAdapter does not supply a Hessian;
+ use 
+\family typewriter
+LBFGSController
+\family default
+ or 
+\family typewriter
+SQPController
+\family default
+.
+\end_layout
+
+\begin_layout Subsection
+DelegateAdapter
+\end_layout
+
+\begin_layout Standard
+DelegateAdapter forwards every 
+\family typewriter
+OptimizationAdapter
+\family default
+ method to a wrapped adapter.
+ It is the base class for most transform adapters (
+\family typewriter
+ProxyAdapter
+\family default
+,
+ 
+\family typewriter
+FixAdapter
+\family default
+,
+ 
+\family typewriter
+DeconstrainAdapter
+\family default
+,
+ 
+\family typewriter
+FiniteDifferenceAdapter
+\family default
+).
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+var wrapped = DelegateAdapter(baseAdapter)
+\end_layout
+
+\end_inset
+
+Custom adapters can subclass 
+\family typewriter
+DelegateAdapter
+\family default
+ and override only the methods they need to change,
+ leaving all other calls transparently delegated.
+\end_layout
+
+\begin_layout Subsection
+DeconstrainAdapter
+\end_layout
+
+\begin_layout Standard
+DeconstrainAdapter hides constraints from the adapter interface:
+ 
+\family typewriter
+countConstraints()
+\family default
+ returns zero and 
+\family typewriter
+constraintValue()
+\family default
+ / 
+\family typewriter
+constraintGradient()
+\family default
+ return 
+\family typewriter
+nil
+\family default
+,
+ while 
+\family typewriter
+value()
+\family default
+ and 
+\family typewriter
+gradient()
+\family default
+ still evaluate the original objective on the underlying adapter.
+ This is used inside 
+\family typewriter
+SQPController
+\family default
+ when building an L-BFGS approximation to the 
+\emph on
+unconstrained
+\emph default
+ objective Hessian (
+\family typewriter
+DeconstrainAdapter
+\family default
+ wrapped around the primal adapter).
+\end_layout
+
+\begin_layout Subsection
+FixAdapter
+\end_layout
+
+\begin_layout Standard
+FixAdapter holds selected coordinates of 
+\begin_inset Formula $\mathbf{x}$
+\end_inset
+
+ at their current values.
+ After 
+\family typewriter
+set(x)
+\family default
+,
+ entries in a user-supplied index list are reset to the previous iterate;
+ corresponding rows of 
+\begin_inset Formula $\nabla f$
+\end_inset
+
+ and constraint Jacobians are zeroed,
+ enforcing
+\begin_inset Formula 
+\begin{equation}
+\frac{\partial f}{\partial x_{i}}=0,\qquad\frac{\partial c_{j}}{\partial x_{i}}=0
+\end{equation}
+
+\end_inset
+
+for fixed indices 
+\begin_inset Formula $i$
+\end_inset
+
+ (the optimizer never moves those degrees of freedom).
+ Hessians are not supported.
+\end_layout
+
+\begin_layout Standard
+With 
+\family typewriter
+ProblemAdapter
+\family default
+,
+ obtain indices from mesh or field selections rather than hand-counting vertices:
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+var fix = adapter.selectionToIndexList(selection,
+ mesh)var fadapt = FixAdapter(adapter,
+ fix)
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection
+ProxyAdapter
+\end_layout
+
+\begin_layout Standard
+ProxyAdapter caches evaluations of 
+\family typewriter
+value()
+\family default
+,
+ 
+\family typewriter
+gradient()
+\family default
+,
+ 
+\family typewriter
+hessian()
+\family default
+,
+ and constraint methods at the current parameters.
+ Calling 
+\family typewriter
+set(x)
+\family default
+ clears the cache.
+ Controllers automatically wrap adapters in a 
+\family typewriter
+ProxyAdapter
+\family default
+ unless one is already present,
+ so algorithm code can call 
+\family typewriter
+gradient()
+\family default
+ multiple times per iteration without repeating expensive functional evaluations.
+\end_layout
+
+\begin_layout Standard
+Diagnostic methods report how many evaluations actually reached the underlying adapter:
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+adapter.report()var count = adapter.countEvals()
+\end_layout
+
+\end_inset
+
+The list returned by 
+\family typewriter
+countEvals()
+\family default
+ is ordered 
+\family typewriter
+[value,
+ gradient,
+ hessian,
+ constraintValue,
+ constraintGradient,
+ constraintHessian]
+\family default
+.
+\end_layout
+
+\begin_layout Subsection
+DeflationAdapter
+\end_layout
+
+\begin_layout Standard
+DeflationAdapter supports exploring multiple solutions of the same problem by adding inequality constraints that exclude neighborhoods of known minimizers.
+ For each stored solution 
+\begin_inset Formula $\mathbf{x}_{\mathrm{soln}}$
+\end_inset
+
+ and deflation radius 
+\begin_inset Formula $R$
+\end_inset
+
+,
+ the adapter appends
+\begin_inset Formula 
+\begin{equation}
+\frac{\|\mathbf{x}-\mathbf{x}_{\mathrm{soln}}\|_{2}}{R}-1>0\label{eq:Deflation}
+\end{equation}
+
+\end_inset
+
+so that any point within distance 
+\begin_inset Formula $R$
+\end_inset
+
+ of a known solution is infeasible.
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+var dadapt = DeflationAdapter(adapter,
+ radius=1)dadapt.addSolution(adapter.get())dadapt.jiggle(eps=0.1)
+\end_layout
+
+\end_inset
+
+Duplicate solutions (within tolerance 
+\family typewriter
+eps
+\family default
+) are ignored.
+ The method 
+\family typewriter
+jiggle(eps)
+\family default
+ adds Gaussian noise to the current parameters to escape a basin before re-optimizing.
 \end_layout
 
 \begin_layout Subsection
@@ -881,24 +1625,265 @@ PenaltyAdapter
 \end_layout
 
 \begin_layout Standard
-A PenaltyAdapter can be used to convert the general constrained problem 
-\begin_inset CommandInset ref
-LatexCommand eqref
-reference "eq:Problem"
-plural "false"
-caps "false"
-noprefix "false"
-nolink "false"
+PenaltyAdapter converts a constrained problem into an unconstrained one by adding squared penalty terms.
+ Let 
+\begin_inset Formula $\mathbf{v}(\mathbf{x})$
+\end_inset
+
+ be the flattened constraint vector from 
+\family typewriter
+constraintValue()
+\family default
+,
+ with inactive inequalities (
+\begin_inset Formula $u>0$
+\end_inset
+
+) zeroed.
+ The penalized objective is
+\begin_inset Formula 
+\begin{equation}
+Q_{\mu}(\mathbf{x})=f(\mathbf{x})+\mu\,\|\mathbf{v}(\mathbf{x})\|^{2},\label{eq:Penalty}
+\end{equation}
 
 \end_inset
 
- into an unconstrained problem.
- It must be constructed with another adapter as the target,
- and reports the value and derivatives of the new objective function,
- 
+where 
+\begin_inset Formula $\mu$
+\end_inset
+
+ is adjusted via 
+\family typewriter
+setPenalty(mu)
+\family default
+ / 
+\family typewriter
+penalty()
+\family default
+.
+\end_layout
+
+\begin_layout Standard
+When analytical Hessians are available on the underlying adapter,
 \begin_inset Formula 
 \begin{equation}
-\mathcal{L}=f(\mathbf{x})+\mu\left|\mathbf{c}\right|^{2}+\mu\left|\mathbf{d}^{-}\right|^{2},\label{eq:Penalty}
+\nabla Q=\nabla f+2\mu\,\mathbf{C}^{\top}\mathbf{v},\qquad\nabla^{2}Q=\nabla^{2}f+2\mu\sum_{j}\Big(v_{j}\nabla^{2}c_{j}+\nabla c_{j}\nabla c_{j}^{\top}\Big),
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\mathbf{C}$
+\end_inset
+
+ stacks constraint gradient columns.
+ Used with 
+\family typewriter
+PenaltyController
+\family default
+,
+ 
+\begin_inset Formula $\mu$
+\end_inset
+
+ is increased until 
+\begin_inset Formula $\|\mathbf{v}\|$
+\end_inset
+
+ falls below a tolerance.
+\end_layout
+
+\begin_layout Subsection
+L1PenaltyAdapter
+\end_layout
+
+\begin_layout Standard
+L1PenaltyAdapter defines a nondifferentiable merit function for constrained line searches:
+\begin_inset Formula 
+\begin{equation}
+\Phi_{\mu}(\mathbf{x})=f(\mathbf{x})+\mu\,\|\mathbf{v}(\mathbf{x})\|_{1},\label{eq:L1merit}
+\end{equation}
+
+\end_inset
+
+using the same flattened constraint vector 
+\begin_inset Formula $\mathbf{v}$
+\end_inset
+
+ as 
+\family typewriter
+PenaltyAdapter
+\family default
+.
+ Calls to 
+\family typewriter
+gradient()
+\family default
+ and 
+\family typewriter
+hessian()
+\family default
+ raise an error;
+ controllers must use 
+\family typewriter
+directionalDerivative(d)
+\family default
+.
+\end_layout
+
+\begin_layout Standard
+Along direction 
+\begin_inset Formula $\mathbf{d}$
+\end_inset
+
+,
+\begin_inset Formula 
+\begin{equation}
+\Phi_{\mu}'(\mathbf{x};\mathbf{d})=\mathbf{g}^{\top}\mathbf{d}+\mu\sum_{j}\sigma_{j}\,\nabla c_{j}^{\top}\mathbf{d},
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\sigma_{j}=\mathrm{sign}(v_{j})$
+\end_inset
+
+ when 
+\begin_inset Formula $v_{j}\neq0$
+\end_inset
+
+ and 
+\begin_inset Formula $\sigma_{j}=\mathrm{sign}(\nabla c_{j}^{\top}\mathbf{d})$
+\end_inset
+
+ when 
+\begin_inset Formula $v_{j}=0$
+\end_inset
+
+ (Clarke subgradient of the absolute value).
+ Inactive inequalities are skipped.
+ This merit function is used by 
+\family typewriter
+ProjectedGradientDescentController
+\family default
+ and 
+\family typewriter
+SQPController
+\family default
+ during line searches.
+\end_layout
+
+\begin_layout Subsection
+LagrangeMultiplierAdapter
+\end_layout
+
+\begin_layout Standard
+LagrangeMultiplierAdapter augments the primal variables with Lagrange multipliers 
+\begin_inset Formula $\boldsymbol{\lambda}$
+\end_inset
+
+,
+ forming the Lagrangian
+\begin_inset Formula 
+\begin{equation}
+\mathcal{L}(\mathbf{x},\boldsymbol{\lambda})=f(\mathbf{x})-\boldsymbol{\lambda}^{\top}\mathbf{c}(\mathbf{x}),\label{eq:Lagrangian}
+\end{equation}
+
+\end_inset
+
+where inactive inequality multipliers are held at zero (
+\begin_inset Formula $\lambda_{i}=0$
+\end_inset
+
+ when the corresponding 
+\begin_inset Formula $u>0$
+\end_inset
+
+).
+ The combined parameter vector stacks 
+\begin_inset Formula $\mathbf{x}$
+\end_inset
+
+ and 
+\begin_inset Formula $\boldsymbol{\lambda}$
+\end_inset
+
+;
+ 
+\family typewriter
+lagrangeMultipliers()
+\family default
+ / 
+\family typewriter
+setLagrangeMultipliers(lambda)
+\family default
+ access the multiplier block.
+\end_layout
+
+\begin_layout Standard
+Gradients split into primal and dual parts:
+\begin_inset Formula 
+\begin{align}
+\nabla_{\mathbf{x}}\mathcal{L} & =\nabla f-\mathbf{C}^{\top}\boldsymbol{\lambda}\\
+\nabla_{\boldsymbol{\lambda}}\mathcal{L} & =-\mathbf{c}
+\end{align}
+
+\end_inset
+
+(inactive inequalities zeroed in 
+\begin_inset Formula $\mathbf{c}$
+\end_inset
+
+).
+ The primal block is returned by 
+\family typewriter
+varGradient()
+\family default
+;
+ the full KKT gradient stacks 
+\family typewriter
+varGradient()
+\family default
+ and 
+\begin_inset Formula $-\mathbf{c}$
+\end_inset
+
+.
+ For the current active set,
+ 
+\family typewriter
+activeConstraintSystem()
+\family default
+ returns constraint values and Jacobian columns in one pass;
+ 
+\family typewriter
+setActiveLagrangeMultipliers(lambda)
+\family default
+ updates only multipliers on active constraints.
+ The adapter is constructed internally by 
+\family typewriter
+SQPController
+\family default
+ (
+\family typewriter
+control.ladapter
+\family default
+ after 
+\family typewriter
+start()
+\family default
+).
+\end_layout
+
+\begin_layout Subsection
+ReprojectionAdapter
+\end_layout
+
+\begin_layout Standard
+ReprojectionAdapter ignores the original objective and minimizes pure constraint violation
+\begin_inset Formula 
+\begin{equation}
+F(\mathbf{x})=\|\mathbf{c}(\mathbf{x})\|^{2}+\|\mathbf{d}^{-}(\mathbf{x})\|^{2},\label{eq:Reprojection}
 \end{equation}
 
 \end_inset
@@ -907,81 +1892,58 @@ where
 \begin_inset Formula $\mathbf{d}^{-}$
 \end_inset
 
- is defined for each component 
-\begin_inset Formula $d_{i}^{-}=argmin(0,d_{i})$
-\end_inset
-
-,
- i.e.
- nonzero for constraints 
-\emph on
-outside
-\emph default
- the feasible region.
- The parameter 
-\begin_inset Formula $\mu$
-\end_inset
-
- is called a 
-\emph on
-penalty parameter
-\emph default
-.
+ collects negative parts of inequalities (the same convention as penalty methods).
  
-\end_layout
-
-\begin_layout Standard
-Using this adapter facilitates penalty methods,
- that solve 
-\begin_inset Formula $\min_{\mathbf{x}}\mathcal{L}(\mu_{m})$
+\begin_inset Formula $\nabla F=2\,\mathbf{C}^{\top}\mathbf{v}$
 \end_inset
 
- for monotonically increasing penalty parameters 
-\begin_inset Formula $\mu_{m}$
+ with 
+\begin_inset Formula $\mathbf{v}$
 \end_inset
 
-.
- As 
-\begin_inset Formula $\mu\to\infty$
-\end_inset
-
-,
- the solution of the new unconstrained problem should converge on the constrained problem.
+ the flattened constraint vector.
  
-\end_layout
-
-\begin_layout Standard
-PenaltyAdapter relies on the attached adapter to provide value,
- gradient and hessian information if requested by the controller;
- note especially that the hessian of the constraint functions,
- and not just their gradient,
- is required to compute the hessian of 
-\begin_inset Formula $\mathcal{L}$
+\family typewriter
+ProjectedGradientDescentController
+\family default
+ and 
+\family typewriter
+SQPController
+\family default
+ minimize 
+\begin_inset Formula $F$
 \end_inset
 
- in 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "eq:Penalty"
-plural "false"
-caps "false"
-noprefix "false"
-nolink "false"
-
-\end_inset
-
-.
+ with L-BFGS after primal steps when feasibility is lost.
 \end_layout
 
 \begin_layout Subsection
-LagrangeMultiplierAdapter
+FiniteDifferenceAdapter
 \end_layout
 
 \begin_layout Standard
-A LagrangeMultiplierMultiplier converts the general constrained problem 
+FiniteDifferenceAdapter wraps any adapter that implements 
+\family typewriter
+value()
+\family default
+ (and optionally constraints) but lacks derivatives,
+ supplying 
+\family typewriter
+gradient()
+\family default
+ and 
+\family typewriter
+hessian()
+\family default
+ by centered differences of 
+\family typewriter
+value()
+\family default
+ using Eq.
+ 
 \begin_inset CommandInset ref
-LatexCommand eqref
-reference "eq:Problem"
+LatexCommand ref
+reference "eq:FDgrad"
 plural "false"
 caps "false"
 noprefix "false"
@@ -989,39 +1951,37 @@ nolink "false"
 
 \end_inset
 
- into an unconstrained problem using the Lagrangian function,
+ and the corresponding second-order stencil.
+ Step sizes follow 
+\family typewriter
+_fdStepsize
+\family default
+ so that perturbations are representable in floating point.
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula 
-\begin{equation}
-\mathcal{L}=f(\mathbf{x})-\mathbf{\lambda}_{c}\cdot\mathbf{c}-\mathbf{\lambda}_{d}\cdot\mathbf{d},\label{eq:Penalty-1}
-\end{equation}
+\begin_inset listings
+inline false
+status open
 
-\end_inset
+\begin_layout Plain Layout
 
-where 
-\begin_inset Formula $\lambda_{c}$
-\end_inset
-
- and 
-\begin_inset Formula $\lambda_{d}$
-\end_inset
-
- are vectors of lagrange multipliers respectively;
- entries of 
-\begin_inset Formula $\lambda_{d}$
-\end_inset
-
- are zero if the relevant constraint is not active.
- This adapter is used to facilitate various algorithms including SQP.
+var fdadapt = FiniteDifferenceAdapter(adapter)
 \end_layout
 
-\begin_layout Standard
-LagrangeMultiplierMultipliers provide a special method,
- varGradient(),
- that returns the gradient of the Lagrangian function with respect to the original problem parameters only.
- 
+\end_inset
+
+Each gradient entry requires two objective evaluations;
+ a full Hessian requires 
+\begin_inset Formula $\mathcal{O}(N^{2})$
+\end_inset
+
+ evaluations,
+ so this adapter is practical only for small parameter vectors (or when used indirectly through 
+\family typewriter
+FunctionAdapter
+\family default
+ on low-dimensional test problems).
 \end_layout
 
 \begin_layout Chapter
@@ -1029,16 +1989,9 @@ OptimizationControllers
 \end_layout
 
 \begin_layout Standard
-In this chapter we review optimization algorithms available in the package,
- which are implemented as OptimizationController objects,
- with enough context to understand their relative utility.
- For a deeper understanding of these algorithms,
- the reader should consult standard textbooks on optimization theory
-\begin_inset Foot
-status collapsed
-
-\begin_layout Plain Layout
-Recommended texts include Nocedal and Wright,
+OptimizationControllers implement algorithms by calling adapter methods.
+ For background on the methods below,
+ see Nocedal and Wright,
  
 \begin_inset Quotes eld
 \end_inset
@@ -1047,27 +2000,22 @@ Numerical Optimization
 \begin_inset Quotes erd
 \end_inset
 
- (Springer);
- Boyd and Vandenberghe 
-\begin_inset Quotes eld
-\end_inset
-
-Convex Optimization
-\begin_inset Quotes erd
-\end_inset
-
- (Cambridge University Press).
-\end_layout
-
-\end_inset
-
-.
+ (Springer).
+ New controllers can be added by subclassing and overriding 
+\family typewriter
+begin
+\family default
+,
  
-\end_layout
-
-\begin_layout Standard
-New classes that implement OptimizationController protocols can easily be defined,
- including ones created in extensions linking to external optimization libraries.
+\family typewriter
+step
+\family default
+,
+ and 
+\family typewriter
+next
+\family default
+.
 \end_layout
 
 \begin_layout Section
@@ -1626,7 +2574,7 @@ A LineSearchController aims to find a stepsize
 ,
  but could be chosen by some other method either by subclassing LineSearchController and replacing the 
 \family typewriter
-searchdirection
+searchDirection
 \family default
  method,
  or by performing linesearches one at a time by setting the 
@@ -1752,6 +2700,37 @@ OptLnSrchDrn
  is raised and it is likely that there is an error somewhere,
  either in the gradient calculation (if at some stage you provided one) or in the algorithm that calculated the search direction.
  
+\end_layout
+
+\begin_layout Subsection
+DirectedLineSearchController and WolfeLineSearchController
+\end_layout
+
+\begin_layout Standard
+DirectedLineSearchController performs an Armijo search along a fixed direction,
+ using 
+\family typewriter
+directionalDerivative(d)
+\family default
+ when the merit function is nondifferentiable (
+\family typewriter
+L1PenaltyAdapter
+\family default
+).
+ 
+\family typewriter
+optimize(n)
+\family default
+ performs a single line search.
+ WolfeLineSearchController implements a strong Wolfe search and may be passed to 
+\family typewriter
+NewtonController
+\family default
+ as 
+\family typewriter
+linesearch=WolfeLineSearchController
+\family default
+.
 \end_layout
 
 \begin_layout Subsection
@@ -2120,196 +3099,251 @@ controller
 \end_layout
 
 \begin_layout Subsection
+ProjectedGradientDescentController
+\end_layout
+
+\begin_layout Standard
+Projected gradient descent (
+\family typewriter
+ProjectedGradientDescentController
+\family default
+) targets constrained problems by:
+\end_layout
+
+\begin_layout Enumerate
+Removing the gradient component along 
+\emph on
+active
+\emph default
+ constraint normals (
+\family typewriter
+activeConstraintGradient()
+\family default
+).
+\end_layout
+
+\begin_layout Enumerate
+Line searching with an 
+\family typewriter
+L1PenaltyAdapter
+\family default
+ merit function (
+\family typewriter
+mu
+\family default
+ defaults to 2).
+\end_layout
+
+\begin_layout Enumerate
+Reprojecting onto the feasible set by minimizing 
+\begin_inset Formula $\|\mathbf{c}\|^{2}$
+\end_inset
+
+ with L-BFGS (
+\family typewriter
+maxconstraintsteps
+\family default
+ iterations).
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+var opt = ProjectedGradientDescentController(adapter,
+ mu=2,
+ steplimit=nil)
+\end_layout
+
+\end_inset
+
+Reprojection runs at 
+\family typewriter
+start()
+\family default
+ and after each 
+\family typewriter
+step()
+\family default
+.
+\end_layout
+
+\begin_layout Subsection
 SQPController
 \end_layout
 
 \begin_layout Standard
-Successive Quadratic Programming solves a nonlinear constrained problem by solving a sequence of quadratic models of the true problem.
- We begin with the Lagrangian function,
- 
-\begin_inset Formula $\mathcal{L}=f-\lambda^{T}c$
-\end_inset
+Sequential Quadratic Programming (
+\family typewriter
+SQPController
+\family default
+) is the primary constrained solver for mesh and field problems.
+ It maintains Lagrange multipliers via an internal 
+\family typewriter
+LagrangeMultiplierAdapter
+\family default
+ (
+\family typewriter
+control.ladapter
+\family default
+ after 
+\family typewriter
+start()
+\family default
+),
+ approximates the objective Hessian with L-BFGS on the unconstrained objective (
+\family typewriter
+DeconstrainAdapter
+\family default
+),
+ and each iteration:
+\end_layout
 
-,
- and note that the first order KKT conditions are,
-\begin_inset Formula 
-\[
-\left(\begin{array}{c}
-\nabla f-\lambda^{T}C\\
-c
-\end{array}\right)=0.
-\]
+\begin_layout Enumerate
+Builds the active constraint set from 
+\family typewriter
+constraintValueForActiveSet()
+\family default
+.
+\end_layout
 
-\end_inset
-
-To solve these,
- we iterate using the Newton-KKT system,
-\begin_inset Formula 
-\[
-\left(\begin{array}{cc}
-\nabla_{xx}\mathcal{L} & -C\\
-C^{T} & 0
-\end{array}\right)\left(\begin{array}{c}
-p_{x}\\
-p_{\lambda}
-\end{array}\right)=\left(\begin{array}{c}
--\nabla f+\lambda^{T}C\\
--c
-\end{array}\right)
-\]
-
-\end_inset
-
-where 
-\begin_inset Formula $p_{x}$
-\end_inset
-
- and 
-\begin_inset Formula $p_{\lambda}$
-\end_inset
-
- are the Newton updates for 
-\begin_inset Formula $x$
-\end_inset
-
- and 
-\begin_inset Formula $\lambda$
-\end_inset
-
- respectively.
- We replace the hessian of the Lagrangian with its quasinewton approximant 
+\begin_layout Enumerate
+Solves the KKT system for the active constraints using a Schur complement of the quasi-Newton Hessian 
 \begin_inset Formula $\mathcal{H}$
 \end_inset
 
-,
-\begin_inset Formula 
-\[
-\left(\begin{array}{cc}
-\mathcal{H} & -C\\
-C^{T} & 0
-\end{array}\right)\left(\begin{array}{c}
-p_{x}\\
-p_{\lambda}
-\end{array}\right)=\left(\begin{array}{c}
--\nabla f+\lambda^{T}C\\
--c
-\end{array}\right).
-\]
-
+ (fallback to an L-BFGS step on 
+\begin_inset Formula $\nabla_{\mathbf{x}}\mathcal{L}$
 \end_inset
 
-Let 
-\begin_inset Formula $g=\nabla_{x}\mathcal{L}=\nabla f-\lambda^{T}C$
+ if singular).
+\end_layout
+
+\begin_layout Enumerate
+Line searches along the primal direction with an adaptive L1 merit function.
+\end_layout
+
+\begin_layout Enumerate
+Reprojects when 
+\begin_inset Formula $\|\mathbf{c}\|_{1}$
 \end_inset
 
-,
- 
-\begin_inset Formula 
-\[
-\left(\begin{array}{cc}
-\mathcal{H} & -C\\
-C^{T} & 0
-\end{array}\right)\left(\begin{array}{c}
-p_{x}\\
-p_{\lambda}
-\end{array}\right)=-\left(\begin{array}{c}
-g\\
-c
-\end{array}\right).
-\]
-
+ exceeds 
+\family typewriter
+feasol
+\family default
+ (default 
+\begin_inset Formula $10^{-5}$
 \end_inset
 
-We can now the Schur complement of the upper left block.
- Consider a linear system in the form,
- 
-\begin_inset Formula 
-\[
-\left(\begin{array}{cc}
-A & B\\
-C & D
-\end{array}\right)\left(\begin{array}{c}
-x\\
-y
-\end{array}\right)=\left(\begin{array}{c}
-u\\
-v
-\end{array}\right).
-\]
-
-\end_inset
-
-Then the Schur complement of the matrix wrt the upper left hand block is 
-\begin_inset Formula $S=D-CA^{-1}B$
-\end_inset
-
-,
- and the solution to the system is,
+).
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula 
-\[
-\left(\begin{array}{c}
-x\\
-y
-\end{array}\right)=\left(\begin{array}{cc}
-A^{-1}+A^{-1}BS^{-1}CA^{-1} & -A^{-1}BS^{-1}\\
--S^{-1}CA^{-1} & S^{-1}
-\end{array}\right)\left(\begin{array}{c}
-u\\
-v
-\end{array}\right).
-\]
+\begin_inset listings
+inline false
+status open
+
+\begin_layout Plain Layout
+
+var opt = SQPController(adapter,
+ penalty=1,
+ maxconstraintsteps=100,
+ reprojecttol=1e-5,
+ relgradtol=0.005,
+                        relgraditers=20,
+ stagtol=1e-2,
+ lamcap=100)
+\end_layout
+
+\begin_layout Plain Layout
+
+opt.optimize(500)print opt.ladapter.lagrangeMultipliers()
+\end_layout
 
 \end_inset
 
-Substituting 
-\begin_inset Formula $A\to\mathcal{H}$
-\end_inset
+Key options include 
+\family typewriter
+feasol
+\family default
+ / 
+\family typewriter
+reprojecttol
+\family default
+ (feasibility tolerance),
+ 
+\family typewriter
+relgradtol
+\family default
+ and 
+\family typewriter
+relgraditers
+\family default
+ (relative KKT gradient stopping),
+ 
+\family typewriter
+stagtol
+\family default
+ (objective stagnation),
+ and 
+\family typewriter
+lamcap
+\family default
+ (multiplier clamp after least-squares sync).
+ Diagnostic methods 
+\family typewriter
+kkt()
+\family default
+ and 
+\family typewriter
+reproject()
+\family default
+ are available for small problems and debugging.
+\end_layout
 
+\begin_layout Section
+Custom functionals
+\end_layout
+
+\begin_layout Standard
+When writing functionals for 
+\family typewriter
+ProblemAdapter
+\family default
 ,
- 
-\begin_inset Formula $B\to-C$
-\end_inset
-
-,
- 
-\begin_inset Formula $C\to C^{T}$
-\end_inset
-
-,
- 
-\begin_inset Formula $D\to0$
-\end_inset
-
- yields,
-\begin_inset Formula 
-\[
-S=C^{T}\mathcal{H}^{-1}C,
-\]
-
-\end_inset
-
-and the solution to the system is,
- 
-\begin_inset Formula 
-\[
-\left(\begin{array}{c}
-p_{x}\\
-p_{\lambda}
-\end{array}\right)=-\left(\begin{array}{cc}
-\mathcal{H}^{-1}-\mathcal{H}^{-1}CS^{-1}C^{T}\mathcal{H}^{-1} & \mathcal{H}^{-1}CS^{-1}\\
--S^{-1}C^{T}\mathcal{H}^{-1} & S^{-1}
-\end{array}\right)\left(\begin{array}{c}
-g\\
-c
-\end{array}\right)
-\]
-
-\end_inset
-
-
+ provide at minimum 
+\family typewriter
+total(mesh)
+\family default
+ and 
+\family typewriter
+integrand(mesh)
+\family default
+ for constraints.
+ For mesh optimization supply 
+\family typewriter
+gradient(mesh)
+\family default
+;
+ for field optimization supply 
+\family typewriter
+fieldgradient(field,
+ mesh)
+\family default
+ and set a 
+\family typewriter
+field
+\family default
+ property on the functional.
+ Set 
+\family typewriter
+grade
+\family default
+ on the functional or ensure the integrand width matches a mesh grade so the adapter can infer it.
 \end_layout
 
 \end_body

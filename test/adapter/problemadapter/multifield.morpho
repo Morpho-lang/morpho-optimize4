@@ -1,6 +1,6 @@
 // ProblemAdapter test: two scalar fields on the same mesh
 //
-// Gradient FD checks are in multifield_gradient.morpho (avoid -w4/-w8 flake in exact mode).
+// Gradient FD checks are in multifield_gradient.morpho.
 
 import optimize4
 import meshtools

@@ -1,3 +1,4 @@
+// [CI:Converged]
 // Multigrade local constraints (vertex inequality + edge equality) via SQP
 
 import optimize4
@@ -14,5 +15,6 @@ control.gradtol = 0.05
 control.optimize(200)
 
 print "f=${adapt.value()} |constraints|=${control.constraintNorm()}"
+// expect: f=0.493867 |constraints|=1.69762e-08
 
 Show(example.visualize())

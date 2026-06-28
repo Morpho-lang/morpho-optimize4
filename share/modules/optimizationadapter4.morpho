@@ -1216,7 +1216,7 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
   }
 
   _reduceIntegrandWithSelection(Matrix val, Constraint cons) { // Reduces an integrand using a selection
-    var grade = _inferFunctionalGrade(cons.functional, self.problem.mesh)
+    var grade = _inferFunctionalGrade(cons, self.problem.mesh)
     var l = []
     for (id in cons.selection.idlistforgrade(grade)) {
       l.append(val[id])
@@ -1224,20 +1224,23 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
     return Matrix(l) 
   } 
 
-  _fieldShape(Energy en) { return self._fieldShapeImpl(en) }
-  _fieldShape(Constraint cons) { return self._fieldShapeImpl(cons) }
+  _fieldShape(x) { // Field layout per grade; unwraps Energy/Constraint wrappers dynamically
+    if (x.has("field") && x.field) return x.field.shape()
+    if (x.has("functional")) x = x.functional
 
-  _fieldShapeImpl(func) { // shape()[g]: copies of the prototype at each mesh grade
-    if (func.has("shape")) return func.shape()
-    if (!func.has("field")) return nil
+    if (x.respondsto("shape")) return x.shape()
+    if (!x.has("field")) return nil
 
-    var f = func.field
+    var f = x.field
     if (isfield(f)) return f.shape()
     if (islist(f) && f.count()>0 && isfield(f[0])) return f[0].shape()
     return nil
   }
 
-  _inferFunctionalGrade(func, mesh) { // Mesh grade where the functional's integrand lives
+  _inferFunctionalGrade(x, mesh) { // Mesh grade where the functional's integrand lives
+    var func = x
+    if (x.has("functional")) func = x.functional
+
     if (func.has("grade")) return func.grade
 
     var cls = func.clss()
@@ -1248,8 +1251,8 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
     if (cls==VolumeIntegral) return 3
 
     var ncol = func.integrand(mesh).dimensions()[1]
+    var sh = _fieldShape(x)
 
-    var sh = _fieldShape(func)
     if (sh) for (g in mesh.maxgrade()...0:-1) {
       if (sh[g]>0 && mesh.count(g)==ncol) return g
     }
@@ -1360,7 +1363,7 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
 
   _assembleLocalConstraintGradientImpl(Constraint cons, target) {
     var mesh = self.problem.mesh
-    var grade = _inferFunctionalGrade(cons.functional, mesh)
+    var grade = _inferFunctionalGrade(cons, mesh)
     var nvars = self.count(target)
     var nel = mesh.count(grade)
 

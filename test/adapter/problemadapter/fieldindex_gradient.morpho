@@ -1,6 +1,5 @@
 // [CI:Smoke]
 // FD vs analytical constraint gradients for CG(2) and CG(3) fields.
-// Kept separate from fieldindex.morpho: gradient checks can flake under morpho6 -w4/-w8.
 
 import optimize4
 import meshtools
@@ -22,9 +21,10 @@ fn _cg2GradientTest() {
   var adapt = ProblemAdapter(problem, field)
   var x0 = adapt.get()
   var cg = adapt.constraintGradient()
-  var lin = adapt._fieldLinearIndex(field, 1, 3, 0, 1)
+  var edge = 3
+  var lin = adapt._fieldLinearIndex(field, 1, edge, 0, 0)
 
-  if (!fdConstraintGradientCheck(adapt, lin, 3, 0, x0, cg)) {
+  if (!fdConstraintGradientCheck(adapt, lin, edge, x0, cg)) {
     Error("TstFldIndxGrd", "CG2 field gradient FD check failed").throw()
   }
 }
@@ -45,9 +45,11 @@ fn _cg3GradientTest() {
   var adapt = ProblemAdapter(problem, field)
   var x0 = adapt.get()
   var cg = adapt.constraintGradient()
-  var lin = adapt._fieldLinearIndex(field, 1, 3, 1, 0)
+  var edge = 3
+  // CG3 has two DOFs per edge (shape [1, 2]); test the second basis fn on edge 3.
+  var lin = adapt._fieldLinearIndex(field, 1, edge, 1, 0)
 
-  if (!fdConstraintGradientCheck(adapt, lin, 3, 0, x0, cg)) {
+  if (!fdConstraintGradientCheck(adapt, lin, edge, x0, cg)) {
     Error("TstFldIndxGrd", "CG3 field gradient FD check failed").throw()
   }
 }

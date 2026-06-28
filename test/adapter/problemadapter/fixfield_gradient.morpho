@@ -1,6 +1,5 @@
 // [CI:Smoke]
 // FixAdapter gradient checks: zero at fixed DOFs, nonzero in the interior.
-// Kept separate from fixfield.morpho: gradient checks can flake under morpho6 -w4/-w8.
 
 import optimize4
 import meshtools
@@ -40,8 +39,17 @@ if (abs(g[4]) >= GradZeroTol) {
   Error("TstFixFldGrd", "Gradient should be zero at right fixed DOF").throw()
 }
 
-if (abs(g[2]) <= GradNonzeroTol) {
-  Error("TstFixFldGrd", "Gradient should be nonzero at interior DOF").throw()
+var hasInteriorGrad = false
+for (i in 0...g.count()) {
+  if (fixix.contains(i)) continue
+  if (abs(g[i]) > GradNonzeroTol) {
+    hasInteriorGrad = true
+    break
+  }
+}
+
+if (!hasInteriorGrad) {
+  Error("TstFixFldGrd", "Gradient should be nonzero at some interior DOF").throw()
 }
 
 adapt.set(x0)

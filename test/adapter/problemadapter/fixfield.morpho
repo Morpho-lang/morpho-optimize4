@@ -1,7 +1,7 @@
 // FixAdapter on a 1D CG(2) scalar field with Dirichlet conditions at the endpoints.
 //
 // Endpoint vertex DOFs are fixed via selectionToIndexList; verifies set().
-// Gradient checks are in fixfield_gradient.morpho (avoid -w4/-w8 flake in exact mode).
+// Gradient checks are in fixfield_gradient.morpho.
 
 import optimize4
 import meshtools

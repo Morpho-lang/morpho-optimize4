@@ -9,7 +9,8 @@
 # CI directives (anywhere in the file as // comments):
 #   [CI:Ignore]    - skip this test (known failure or too slow for routine CI)
 #   [CI:Exact]     - require // expect: lines to appear in output, in order
-#   [CI:Converged] - must finish without OptMaxIter / OptLnSrchStpsz / Error
+#   [CI:Converged] - must finish without OptMaxIter / OptLnSrchStpsz / Error;
+#                    optional // expect: lines are also checked when present
 #   [CI:Smoke]     - must run without unexpected Error (optimizer warnings OK)
 #
 # Expectations (exact mode; also enabled when // expect: is present):
@@ -233,14 +234,27 @@ def check_maxiter(output: Sequence[str], penalty: bool = False) -> Optional[str]
     return None
 
 
-def check_converged(
-    output: Sequence[str], expected_errors: Sequence[str], *, penalty: bool = False
+def check_unexpected_errors(
+    output: Sequence[str], expected_errors: Sequence[str]
 ) -> Tuple[bool, str]:
     allowed = {e.strip(f"{ERR_TOKEN}[")[:-1] for e in expected_errors}
     for line in output:
+        if line.startswith(f"{ERR_TOKEN}["):
+            name = line[len(ERR_TOKEN) + 1 : -1]
+            if name not in allowed:
+                return False, f"unexpected error {name!r}"
         m = ERROR_RE.search(line)
         if m and m.group(1) not in allowed:
             return False, f"unexpected error {m.group(1)!r}"
+    return True, ""
+
+
+def check_converged(
+    output: Sequence[str], expected_errors: Sequence[str], *, penalty: bool = False
+) -> Tuple[bool, str]:
+    ok, msg = check_unexpected_errors(output, expected_errors)
+    if not ok:
+        return False, msg
     msg = check_maxiter(output, penalty=penalty)
     if msg:
         return False, msg
@@ -251,12 +265,7 @@ def check_converged(
 
 
 def check_smoke(output: Sequence[str], expected_errors: Sequence[str]) -> Tuple[bool, str]:
-    allowed = {e.strip(f"{ERR_TOKEN}[")[:-1] for e in expected_errors}
-    for line in output:
-        m = ERROR_RE.search(line)
-        if m and m.group(1) not in allowed:
-            return False, f"unexpected error {m.group(1)!r}"
-    return True, ""
+    return check_unexpected_errors(output, expected_errors)
 
 
 def morpho_command(workers: Optional[int] = None) -> List[str]:
@@ -308,6 +317,11 @@ def run_test(spec: TestSpec, command: List[str]) -> TestResult:
         )
         if not ok:
             return TestResult(rel, spec.mode, False, message=msg)
+        non_error = [e for e in spec.expected if not e.startswith(ERR_TOKEN)]
+        if non_error:
+            ok, msg = match_expected_in_order(output, non_error)
+            if not ok:
+                return TestResult(rel, spec.mode, False, message=msg)
         if returncode != 0:
             return TestResult(rel, spec.mode, False, message=f"non-zero exit code {returncode}")
         return TestResult(rel, spec.mode, True)

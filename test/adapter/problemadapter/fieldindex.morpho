@@ -1,7 +1,7 @@
 // ProblemAdapter test: CG(2) and CG(3) field indexing on line elements
 //
 // Checks DOF counts, selectionToIndexList, and _fieldLinearIndex mapping.
-// Gradient FD checks are in fieldindex_gradient.morpho (avoid -w4/-w8 flake in exact mode).
+// Gradient FD checks are in fieldindex_gradient.morpho.
 
 import optimize4
 import meshtools

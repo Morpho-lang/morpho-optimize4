@@ -1,0 +1,168 @@
+// [CI:Smoke]
+// Cross-check field DOF layout, selection indices, and FD vs analytical gradients.
+
+import optimize4
+import meshtools
+import "../../examples/multigrade.morpho" for MultigradeExample
+import "gradienthelpers.morpho" for fdConstraintGradientCheck, fdEnergyGradientCheck, fdLocalConstraintGradientCheck, _expect, GradZeroTol, GradNonzeroTol
+
+// --- CG2 indexing (fieldindex.morpho) ---
+{
+  var mesh = LineMesh(fn (u) [cos(u), sin(u)], -Pi...Pi:Pi/6, closed=false)
+  mesh.addgrade(1)
+  mesh = ChangeMeshDimension(mesh, 3)
+  var fs = FiniteElementSpace("CG2", grade=1)
+  var field = Field(mesh, Matrix([0.5, 0.2, 0.0]), finiteelementspace=fs)
+  var problem = OptimizationProblem(mesh)
+  problem.addEnergy(LineIntegral(fn (x, fv) fv[0]^2, field, method={}))
+  var adapt = ProblemAdapter(problem, field)
+
+  _expect("CG2 DOF count", adapt.count(field) == 69)
+
+  var sel = Selection(mesh)
+  sel.addgrade(1)
+  sel[1, 0] = true
+  sel[1, 5] = true
+  var fixix = adapt.selectionToIndexList(sel, field)
+  _expect("CG2 selection count", fixix.count() == 6)
+  _expect("CG2 fixix[0]", fixix[0] == 36)
+  _expect("CG2 fixix[3]", fixix[3] == 51)
+
+  var lin = adapt._fieldLinearIndex(field, 1, 3, 0, 1)
+  _expect("CG2 linear index", lin == 46)
+
+  var x0 = adapt.get()
+  var x1 = x0.clone()
+  x1[lin] += 0.25
+  adapt.set(x1)
+  _expect("CG2 set roundtrip", abs(adapt.get()[lin] - x1[lin]) < 1e-14)
+  adapt.set(x0)
+}
+
+{
+  var mesh = LineMesh(fn (u) [cos(u), sin(u)], -Pi...Pi:Pi/6, closed=false)
+  mesh.addgrade(1)
+  mesh = ChangeMeshDimension(mesh, 3)
+  var fs = FiniteElementSpace("CG2", grade=1)
+  var field = Field(mesh, Matrix([0.5, 0.2, 0.0]), finiteelementspace=fs)
+  var problem = OptimizationProblem(mesh)
+  var edgeFunc = LineIntegral(fn (x, fv) fv[0]^2, field, method={})
+  problem.addEnergy(edgeFunc)
+  problem.addLocalConstraint(edgeFunc, target=0.25)
+  var adapt = ProblemAdapter(problem, field)
+  var x0 = adapt.get()
+  var cg = adapt.constraintGradient()
+  var lin = adapt._fieldLinearIndex(field, 1, 3, 0, 0)
+  _expect("CG2 constraint grad FD", fdConstraintGradientCheck(adapt, lin, 3, x0, cg))
+}
+
+// --- CG3 indexing (fieldindex.morpho) ---
+{
+  var mesh = LineMesh(fn (u) [cos(u), sin(u)], -Pi...Pi:Pi/6, closed=false)
+  mesh.addgrade(1)
+  mesh = ChangeMeshDimension(mesh, 3)
+  var fs = FiniteElementSpace("CG3", grade=1)
+  var field = Field(mesh, Matrix([0.5, 0.2, 0.0]), finiteelementspace=fs)
+  var problem = OptimizationProblem(mesh)
+  problem.addEnergy(LineIntegral(fn (x, fv) fv[0]^2, field, method={}))
+  var adapt = ProblemAdapter(problem, field)
+
+  _expect("CG3 DOF count", adapt.count(field) == 102)
+  _expect("CG3 shape", field.shape()[1] == 2)
+
+  var sel = Selection(mesh)
+  sel.addgrade(1)
+  sel[1, 0] = true
+  var fixix = adapt.selectionToIndexList(sel, field)
+  _expect("CG3 fixix[0]", fixix[0] == 36)
+  _expect("CG3 fixix[3]", fixix[3] == 39)
+
+  var lin = adapt._fieldLinearIndex(field, 1, 3, 1, 0)
+  _expect("CG3 linear index", lin == 57)
+}
+
+// --- Two-field stacking (multifield.morpho) ---
+{
+  var m = LineMesh(fn (u) [u, 0, 0], 0..1:0.25, closed=false)
+  m.addgrade(1)
+  var fs = FiniteElementSpace("CG2", grade=1)
+  var f1 = Field(m, Matrix([1.0]), finiteelementspace=fs)
+  var f2 = Field(m, Matrix([2.0]), finiteelementspace=fs)
+  var problem = OptimizationProblem(m)
+  problem.addEnergy(LineIntegral(fn (x, a, b) a[0]^2 + b[0]^2, f1, f2, method={}))
+  problem.addLocalConstraint(LineIntegral(fn (x, fv) fv[0]^2, f1, method={}), target=1.0)
+  var adapt = ProblemAdapter(problem, f1, f2)
+
+  _expect("multifield counts", adapt.count(f1) == 9 && adapt.count(f2) == 9 && adapt.count() == 18)
+
+  var bnd = Selection(m)
+  bnd[0, 0] = true
+  _expect("multifield f1 offset", adapt.selectionToIndexList(bnd, f1)[0] == 0)
+  _expect("multifield f2 offset", adapt.selectionToIndexList(bnd, f2)[0] == 9)
+
+  var x0 = adapt.get()
+  var x1 = x0.clone()
+  x1[9] = 99
+  adapt.set(x1)
+  _expect("multifield f2 block", abs(adapt.get()[9] - 99) < 1e-14 && abs(adapt.get()[0] - x0[0]) < 1e-14)
+  adapt.set(x0)
+
+  var g = adapt.gradient()
+  _expect("multifield f2 energy grad", fdEnergyGradientCheck(adapt, 9, x0, g))
+  _expect("multifield f1 energy grad", fdEnergyGradientCheck(adapt, 0, x0, g))
+
+  var cg = adapt.constraintGradient()
+  _expect("multifield cgrad f2 zero", abs(cg[0][9, 0]) < GradZeroTol)
+  _expect("multifield cgrad f1 nonzero", abs(cg[0][0, 0]) > GradNonzeroTol)
+}
+
+// --- Mesh + field stacked (multigrade / constrained pattern) ---
+{
+  var example = MultigradeExample()
+  var adapt = example.build()
+  var nmesh = adapt.count(example.mesh)
+  var nfield = adapt.count(example.field)
+  _expect("multigrade stacked count", adapt.count() == nmesh + nfield)
+
+  var x0 = adapt.get()
+  var cg = adapt.constraintGradient()
+  _expect("multigrade edge cgrad", fdLocalConstraintGradientCheck(adapt, 0, nmesh, 0, x0, cg))
+
+  var vert = 1
+  var yDof = 3*vert + 1
+  _expect("multigrade vertex cgrad", fdLocalConstraintGradientCheck(adapt, 1, yDof, vert, x0, cg))
+
+  var g = adapt.gradient()
+  _expect("multigrade field energy grad", fdEnergyGradientCheck(adapt, nmesh, x0, g))
+  _expect("multigrade mesh energy grad", fdEnergyGradientCheck(adapt, yDof, x0, g))
+}
+
+// --- FixAdapter on vertex DOFs (fixfield.morpho) ---
+{
+  var m = LineMesh(fn (u) [u, 0, 0], 0..1:0.25, closed=false)
+  m.addgrade(1)
+  var fs = FiniteElementSpace("CG2", grade=1)
+  var f = Field(m, Matrix([0.0]), finiteelementspace=fs)
+  f[0, 0] = Matrix([1.0])
+  f[0, m.count(0)-1] = Matrix([0.0])
+  var problem = OptimizationProblem(m)
+  problem.addEnergy(LineIntegral(fn (x, fv) fv[0]^2, f, method={}))
+  var padapt = ProblemAdapter(problem, f)
+  var bnd = Selection(m)
+  bnd[0, 0] = true
+  bnd[0, m.count(0)-1] = true
+  var fixix = padapt.selectionToIndexList(bnd, f)
+  var adapt = FixAdapter(padapt, fixix)
+
+  _expect("fixfield indices", fixix[0] == 0 && fixix[1] == 4)
+
+  var x0 = adapt.get()
+  var x1 = x0.clone()
+  x1[0] = 9
+  x1[4] = 9
+  adapt.set(x1)
+  _expect("fixfield holds endpoints", abs(adapt.get()[0] - 1.0) < 1e-12 && abs(adapt.get()[4]) < 1e-12)
+  adapt.set(x0)
+}
+
+print "field layout audit passed"

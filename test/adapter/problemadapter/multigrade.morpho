@@ -2,6 +2,7 @@
 
 import optimize4
 import "../../examples/multigrade.morpho" for MultigradeExample
+import "gradienthelpers.morpho" for fdLocalConstraintGradientCheck
 
 var example = MultigradeExample()
 var adapt = example.build()
@@ -36,35 +37,17 @@ print cvals[0].count()
 print cvals[1].count()
 // expect: 12
 
-var eps = 1e-6
 var x0 = adapt.get()
-var c0 = adapt.constraintValue()
 var cg = adapt.constraintGradient()
 
 // Grade 1: field gradient of edge-0 constraint w.r.t. first field DOF
-adapt.set(x0)
-var x1 = x0.clone()
-x1[nmesh] += eps
-adapt.set(x1)
-var c1 = adapt.constraintValue()
-var fdEdge = (c1[0][0] - c0[0][0]) / eps
-var anaEdge = cg[0][nmesh, 0]
-
-print abs(fdEdge - anaEdge) < 1e-4
+print fdLocalConstraintGradientCheck(adapt, 0, nmesh, 0, x0, cg)
 // expect: true
 
 // Grade 0: mesh gradient of vertex-1 inequality w.r.t. y (vertex 0 lies on y=0)
 var vert = 1
 var yDof = 3*vert + 1
-adapt.set(x0)
-x1 = x0.clone()
-x1[yDof] += eps
-adapt.set(x1)
-c1 = adapt.constraintValue()
-var fdVert = (c1[1][vert] - c0[1][vert]) / eps
-var anaVert = cg[1][yDof, vert]
-
-print abs(fdVert - anaVert) < 1e-4
+print fdLocalConstraintGradientCheck(adapt, 1, yDof, vert, x0, cg)
 // expect: true
 
 adapt.set(x0)

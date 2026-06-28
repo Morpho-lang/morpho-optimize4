@@ -1,0 +1,47 @@
+// L-BFGS clears history on line search failure and can continue optimizing
+
+import optimize4
+import "../../examples/quadratic.morpho"
+
+class UphillOnceLBFGS is LBFGSController {
+  init(OptimizationAdapter adapter) {
+    super.init(adapter)
+    self.uphill = false
+  }
+
+  direction() {
+    if (self.uphill) return self.gradient() // force line search failure
+    return super.direction()
+  }
+}
+
+var example = QuadraticExample()
+var adapt = example.build()
+adapt.set(Matrix([3, 2, 1, 4, 5]))
+
+var control = UphillOnceLBFGS(adapt)
+control.start()
+
+for (i in 1..4) control.iterate()
+
+print control._storage.count() > 0
+// expect: true
+
+var xbefore = adapt.get().clone()
+control.uphill = true
+var ok = control.iterate()
+
+print ok
+// expect: false
+
+print control._storage.count()
+// expect: 0
+
+print (adapt.get() - xbefore).norm() < 1e-14
+// expect: true
+
+control.uphill = false
+control.optimize(100)
+
+print example.check() < 1e-3
+// expect: true

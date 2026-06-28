@@ -63,6 +63,8 @@ class OptimizationController is DelegateAdapter {
     self.etol = 1e-8 // Convergence criterion based on change in value of objective function
     self.ctol = 1e-10 // Constraint tolerance
 
+    self.recoverLineSearchFailure = false // If true, optimize() continues after a failed step (see onStepFailure)
+
     self._valuehistory=[] // History of objective function values 
   } 
 
@@ -136,10 +138,13 @@ class OptimizationController is DelegateAdapter {
     self._valuehistory.append(self.value())
   }
 
+  onStepFailure() { } // Hook after a failed step(); e.g. reset quasi-Newton history
+
   iterate() {  // Perform one optimization iteration; return step() success
     self.begin()  
     var success = self.step()
     if (success) self.next()
+    else self.onStepFailure()
     return success
   }
 
@@ -150,7 +155,7 @@ class OptimizationController is DelegateAdapter {
 
     for (i in 1..nsteps) {
       if (self.hasConverged()) return true
-      if (!self.iterate()) return false
+      if (!self.iterate() && !self.recoverLineSearchFailure) return false
       self.report(i)
       self.record()
     }
@@ -588,10 +593,13 @@ class InvBFGSController is BFGSController {
  * ----------------------------------------- */ 
 
 class LBFGSController is InvBFGSController {
-  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, maxhistorylength=10) {
+  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, maxhistorylength=10, recoverLineSearchFailure=true) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)
     self.maxhistorylength = maxhistorylength
+    self.recoverLineSearchFailure = recoverLineSearchFailure
   }
+
+  onStepFailure() { self.start() } // clear L-BFGS history (steepest-descent step next iteration)
 
   _popfirst(lst) { // Pops the first element of a list
     var a = lst.roll(-1)
@@ -1054,6 +1062,7 @@ class SQPController is OptimizationController with ReprojectionMixin {
 
     var d = self.solve() // Find search direction
     var success = self.lineSearch(d) // Find stepsize
+    if (!success) self.lbfgs.start()
     var alpha = self.stepsize
 
     var dl = d.clone() // Evaluate gradient at new lagrange multipliers

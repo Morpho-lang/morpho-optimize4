@@ -1,0 +1,29 @@
+// Rejected BFGS steps must not update the inverse Hessian estimate
+
+import optimize4
+import "../../examples/quadratic.morpho"
+
+class UphillBFGS is BFGSController {
+  direction() { return self.gradient() } // force line search failure
+}
+
+var example = QuadraticExample()
+var adapt = example.build()
+adapt.set(Matrix([3, 2, 1]))
+
+var control = UphillBFGS(adapt)
+control.start()
+
+var Bbefore = control.B.clone()
+var xbefore = adapt.get().clone()
+
+var ok = control.iterate()
+
+print ok
+// expect: false
+
+print (adapt.get() - xbefore).norm() < 1e-14
+// expect: true
+
+print (control.B - Bbefore).norm() < 1e-14
+// expect: true

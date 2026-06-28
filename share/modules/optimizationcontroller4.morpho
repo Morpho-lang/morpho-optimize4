@@ -139,7 +139,7 @@ class OptimizationController is DelegateAdapter {
   iterate() {  // Perform one optimization iteration; return step() success
     self.begin()  
     var success = self.step()
-    self.next()
+    if (success) self.next()
     return success
   }
 
@@ -243,9 +243,10 @@ class LineSearchController is GradientDescentController {
   _failLineSearch(x0) { // Restore parameters after a failed linesearch
     self.set(x0)
     self.stepsize = 0
+    self.success = false
   }
 
-  step() { // Perform a single linesearch
+  step() { // Perform a single linesearch; sets self.success and self.stepsize
     self.expectedDescent()
     var t=1
     var success=false
@@ -263,6 +264,7 @@ class LineSearchController is GradientDescentController {
       self._failLineSearch(x0)
     } else {
       self.stepsize = t
+      self.success = true
     }
     return success
   }
@@ -346,7 +348,8 @@ class WolfeLineSearchController is LineSearchController {
         if (self.verbose) print "    Testing curvature condition: ${abs(dfalpha)} <= ${self.c2*abs(df)}"
         if (abs(dfalpha) <= self.c2*abs(df)) { // Curvature condition
           if (self.verbose) print "    Curvature condition succeeded alpha=${alpha.format("%.16g")}"
-          self.stepsize = alpha 
+          self.stepsize = alpha
+          self.success = true
           return true
         } else if (dfalpha*(alphahi-alphalo)>=0) {
           if (self.verbose) print "    Swap intervals"
@@ -390,6 +393,7 @@ class WolfeLineSearchController is LineSearchController {
       if (abs(dfalpha) <= self.c2*abs(df)) { // Curvature test
         if (self.verbose) print "  Curvature test succeeded alpha=${alpha.format("%.16g")}"
         self.stepsize = alpha // Success
+        self.success = true
         return true
       }
 
@@ -442,10 +446,14 @@ class NewtonController is OptimizationController {
   }
 
   lineSearch(dirn) {
-    var x0 = self.adapter.get() /// <- If our space and linesearch space don't coincide
+    var x0 = self.adapter.get()
     self.lscontroller.setDirection(dirn)
-    var success = self.lscontroller.step() 
-    self.adapter.set(x0+self.lscontroller.stepsize*dirn) /// <- If our space and linesearch space don't coincide
+    var success = self.lscontroller.step()
+    if (success) {
+      self.adapter.set(x0 + self.lscontroller.stepsize*dirn)
+    } else {
+      self.adapter.set(x0)
+    }
     return success
   }
 
@@ -528,6 +536,7 @@ class BFGSController is NewtonController {
 
   next() {
     var sk = self.get() - self._ox
+    if (sk.norm()==0) return
     var yk = self.gradient() - self._ogradient
 
     self.update(sk,yk)
@@ -565,6 +574,7 @@ class InvBFGSController is BFGSController {
 
   next() {
     var sk = self.get() - self._ox
+    if (sk.norm()==0) return
     var yk = self.gradient() - self._ogradient
 
     self.update(sk, yk)
@@ -650,6 +660,7 @@ class LBFGSController is InvBFGSController {
 
   next() { // Update our estimate of the inverse Hessian
     var sk = self.get() - self._ox
+    if (sk.norm()==0) return
     var yk = self.gradient() - self._ogradient
 
     self.update(sk, yk) 
@@ -1093,6 +1104,7 @@ class SQPController is OptimizationController with ReprojectionMixin {
     // Note that we choose yk = grad L(x+alpha d, lambda k+1)-grad L(x, lambda k+1)
     // i.e. holding lambda constant
     var sk = self.get() - self._ox
+    if (sk.norm()==0) return
     var yk = self.ladapter.varGradient() - self._ogradient
 
     self.lbfgs.update(sk, yk)

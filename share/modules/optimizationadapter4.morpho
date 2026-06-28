@@ -234,7 +234,8 @@ class ProxyAdapter is DelegateAdapter {
   get() { return self.adapter.get() }
 
   _compute(prop, func, counter) {
-    if (!self[prop]) { 
+    // Cache miss only when unset (nil). In Morpho, 0 is truthy — use isnil, not !self[prop].
+    if (isnil(self[prop])) {
       self.setindex(prop, func())
       self.count[counter]+=1
     }

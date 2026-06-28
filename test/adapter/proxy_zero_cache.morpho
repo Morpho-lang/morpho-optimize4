@@ -1,0 +1,35 @@
+// ProxyAdapter: isnil marks an unset cache slot (Morpho: only nil/false are falsy; 0 is truthy)
+
+import optimize4
+
+fn func(x) { return 0 }
+
+var adapt = FunctionAdapter(func, start=Matrix([1]))
+var proxy = ProxyAdapter(adapt)
+
+proxy.value()
+proxy.value()
+proxy.gradient()
+proxy.gradient()
+
+var counts = proxy.countEvals()
+print counts[0]
+// expect: 1
+
+print counts[1]
+// expect: 1
+
+print proxy.value()
+// expect: 0
+
+// Zero gradient at the minimum — also a valid cached result
+fn quad(x) { return x^2 }
+adapt = FunctionAdapter(quad, start=Matrix([0]))
+proxy = ProxyAdapter(adapt)
+proxy.gradient()
+proxy.gradient()
+print proxy.countEvals()[1]
+// expect: 1
+
+print proxy.gradient().norm() < 1e-14
+// expect: true

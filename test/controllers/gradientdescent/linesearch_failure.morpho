@@ -1,0 +1,25 @@
+// Line search failure restores state and reports success=false
+
+import optimize4
+import "../../examples/quadratic.morpho"
+
+var example = QuadraticExample(zero=[0.5, 1, 4], scales=[1, 1, 0.25])
+var adapt = example.build()
+adapt.set(Matrix([20, 3.1, 0]))
+
+var x0 = adapt.get().clone()
+var uphill = adapt.gradient()
+var control = DirectedLineSearchController(adapt, direction=uphill, alpha=0.2, beta=0.5)
+
+var ok = control.step()
+print ok
+// expect: false
+
+print control.success
+// expect: false
+
+print control.stepsize
+// expect: 0
+
+print (adapt.get() - x0).norm() < 1e-14
+// expect: true

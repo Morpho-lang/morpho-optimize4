@@ -31,7 +31,14 @@ class DecreaseLineSearchController is DirectedLineSearchController {
  *
  * Trust-region step acceptance and radius management. Subclasses define the
  * model (merit, predicted reduction, subproblem). The host quasi-Newton
- * controller supplies hessian() / hmul(v) for the model Hessian B.
+ * controller supplies modelHmul(v) / hmul(v) for the model Hessian B.
+ *
+ * Not a drop-in for DirectedLineSearchController: line search takes a fixed
+ * direction d and finds a scalar stepsize alpha with x <- x0 + alpha*d. Trust
+ * region solves for the step vector p (direction and length) from the model
+ * min_p m(p) s.t. ||p|| <= Delta. Plug in via TrustRegionNewtonMixin (overrides
+ * step()) or override lineSearch() to call trcontroller.step() without applying
+ * x0 + stepsize*direction afterward.
  * ----------------------------------------- */
 
 class TrustRegionController is OptimizationController {
@@ -81,6 +88,10 @@ class TrustRegionController is OptimizationController {
     }
   }
 
+  _recordStepDiag(rho, ared, pred, pnorm, success, reason) {
+    self._lastDiag = [rho, ared, pred, pnorm, (success ? 1 : 0), reason]
+  }
+
   step() {
     var x0 = self.get()
     var g0 = self.gradient()
@@ -92,6 +103,7 @@ class TrustRegionController is OptimizationController {
       self._shrinkDelta()
       self.stepsize = 0
       self.success = false
+      self._recordStepDiag(nil, nil, nil, 0, false, "no_subproblem")
       return false
     }
 
@@ -100,6 +112,7 @@ class TrustRegionController is OptimizationController {
       self._shrinkDelta()
       self.stepsize = 0
       self.success = false
+      self._recordStepDiag(nil, nil, pred, p.norm(), false, "nonpositive_pred")
       return false
     }
 
@@ -113,16 +126,18 @@ class TrustRegionController is OptimizationController {
     var stationarityTol = !isnil(minAred)
 
     if (rho < self.eta1) {
-      if (ared > minAred && pnorm > minStep) {
+      if (stationarityTol && ared > minAred && pnorm > minStep) {
         self.stepsize = pnorm
         self._recoverDeltaIfProgress(ared)
         self.success = true
+        self._recordStepDiag(rho, ared, pred, pnorm, true, "soft_accept")
         return true
       }
       self.set(x0)
       self._updateTrustRadius(rho, pnorm)
       self.stepsize = 0
       self.success = false
+      self._recordStepDiag(rho, ared, pred, pnorm, false, "low_rho")
       return false
     }
 
@@ -130,6 +145,7 @@ class TrustRegionController is OptimizationController {
       self.set(x0)
       self.stepsize = 0
       self.success = false
+      self._recordStepDiag(rho, ared, pred, pnorm, false, "tiny_step")
       return false
     }
 
@@ -137,6 +153,7 @@ class TrustRegionController is OptimizationController {
       self.set(x0)
       self.stepsize = 0
       self.success = false
+      self._recordStepDiag(rho, ared, pred, pnorm, false, "merit_tol")
       return false
     }
 
@@ -144,6 +161,7 @@ class TrustRegionController is OptimizationController {
       self.set(x0)
       self.stepsize = 0
       self.success = false
+      self._recordStepDiag(rho, ared, pred, pnorm, false, "no_decrease")
       return false
     }
 
@@ -151,6 +169,7 @@ class TrustRegionController is OptimizationController {
     self._updateTrustRadius(rho, pnorm)
     self._recoverDeltaIfProgress(ared)
     self.success = true
+    self._recordStepDiag(rho, ared, pred, pnorm, true, "accept")
     return true
   }
 
@@ -341,18 +360,25 @@ class TrustRegionNewtonMixin {
   }
 
   trustRegionStep() {
-    self.trcontroller.step()
+    self.lineSearch(self.direction())
     return true
   }
 
-  hmul(v) { return self.hessian()*v }
+  lineSearch(dirn) {
+    if (!self.trcontroller) return super.lineSearch(dirn)
+    self.trcontroller.step()
+    self.lscontroller.stepsize = self.trcontroller.stepsize
+    return true
+  }
+
+  hmul(v) { return self.modelHmul(v) }
 
   _minAcceptedStep() { return 1e-10 }
 
   _stationarityMinAred(phi0) { return nil }
 
   step() {
-    if (self.trcontroller) return self.trustRegionStep()
+    if (self.trcontroller) return self.lineSearch(self.direction())
     return super.step()
   }
 
@@ -381,6 +407,57 @@ class TrustRegionBFGSController is BFGSController with TrustRegionNewtonMixin {
   init(adapter, quiet=false, verbosity=nil, linesearch=nil, trustregion=nil) {
     super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=linesearch)
     self._attachTrustRegion(trustregion)
+  }
+
+  modelHmul(v) { return self.hessian()*v }
+}
+
+/* -----------------------------------------
+ * TrustRegionLBFGSController
+ *
+ * L-BFGS with optional objective-based trust-region globalization.
+ * modelHmul routes the TR quadratic model through the two-loop L-BFGS apply.
+ * ----------------------------------------- */
+
+class TrustRegionLBFGSController is LBFGSController with TrustRegionNewtonMixin {
+  init(adapter, quiet=false, verbosity=nil, linesearch=nil, trustregion=nil,
+       maxhistorylength=10, recoverlinesearchfailure=true) {
+    super.init(adapter, quiet=quiet, verbosity=verbosity,
+               maxhistorylength=maxhistorylength, recoverlinesearchfailure=recoverlinesearchfailure)
+    self._attachTrustRegion(trustregion)
+  }
+
+  modelHmul(v) { return self._forwardHmul(v) }
+
+  // Forward L-BFGS two-loop apply (inverse of _hmul); used by the TR model only.
+  _forwardHmul(p) {
+    var q = p
+    var n = self._storage.count()
+    if (n == 0) return q
+
+    var alpha[n]
+    for (k in n-1..0:-1) {
+      var z = self._storage[k]
+      var sk = z[0], yk = z[1], rho = 1/z[2]
+      if (isinf(rho) || z[2] <= 0 || z[3] <= 0) { self.start(); return p }
+
+      alpha[k] = rho * _vdot(yk, q)
+      q -= sk*alpha[k]
+    }
+
+    var zl = self._storage[-1]
+    if (zl[3] == 0 || zl[2] <= 0) { self.start(); return p }
+    var r = (zl[2]/zl[3])*q
+
+    for (z, k in self._storage) {
+      var sk = z[0], yk = z[1], rho = 1/z[2]
+      if (isinf(rho) || z[2] <= 0) { self.start(); return r }
+
+      var beta = rho * _vdot(sk, r)
+      r += yk*(alpha[k]-beta)
+    }
+
+    return r
   }
 }
 

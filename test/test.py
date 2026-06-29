@@ -19,7 +19,7 @@
 #   // expect error 'ErrorName' - Morpho error (stack trace ignored)
 #
 # Default mode by directory when no directive is given:
-#   test/sqp, test/pgd, test/penalty, test/unconstrained  -> converged
+#   test/sqp, test/pgd, test/penalty, test/unconstrained, test/saddlepoint  -> converged
 #   otherwise                               -> exact if // expect: present, else smoke
 #
 # Usage (see test/README.md):
@@ -164,7 +164,7 @@ def parse_mode(filepath: str, file_lines: Sequence[str]) -> Mode:
 
     rel = os.path.relpath(filepath, TEST_ROOT)
     top = rel.split(os.sep)[0]
-    if top in ("sqp", "pgd", "penalty", "unconstrained"):
+    if top in ("sqp", "pgd", "penalty", "unconstrained", "saddlepoint"):
         return Mode.CONVERGED
     return Mode.SMOKE
 

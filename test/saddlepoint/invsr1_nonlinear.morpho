@@ -1,13 +1,13 @@
-// LSR1 on the nonlinear 2D saddle (from saddlepoint_driver_nonlinear_linv.morpho)
+// InvSR1 on the nonlinear 2D saddle (from saddlepoint_driver_nonlinear_inv.morpho)
 
 import optimize4
-import "../../examples/saddle.morpho"
+import "../examples/saddle.morpho"
 
 var problem = NonlinearSaddle2D()
 var fadapt = problem.build()
 var hessf = problem.hess()
 
-var opt = LSR1Controller(fadapt, maximize=[0], maxhistorylength=10)
+var opt = InvSR1Controller(fadapt, maximize=[0])
 opt.gradtol = 1e-5
 opt.optimize(100)
 
@@ -19,6 +19,5 @@ print opt.gradient().norm() < 1e-5
 // expect: true
 
 var Msol = hessf(sol[0], sol[1]).inverse()
-var Mapprox = invHessianApprox(opt)
-print (Mapprox - Msol).norm() < 1e-4
+print (opt.hessian() - Msol).norm() < 1e-4
 // expect: true

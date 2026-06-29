@@ -1,0 +1,175 @@
+// 1D ferronematic P–phi coupled stationarity problem (line domain)
+
+import meshtools
+import optimize4
+
+class Ferronematic {
+  init(L=4, dx=0.5) {
+    self.L = L
+    self.dx = dx
+
+    self.Klandau = 10
+
+    self.A0 = 0.042
+    self.B = -0.64
+    self.C = 0.35
+    self.deltaT = -0.1
+
+    self.K = 0.01
+    self.W = 1
+
+    self.S0 = 0.62
+
+    self.a = -0.1
+    self.b = 1
+    self.c = 0.01
+
+    self.WP = 0
+
+    self.alpha = 0.1
+    self.kappa = 1
+
+    self.gamma = 0
+    self.delta = 1
+  }
+
+  initialMesh() {
+    self.mesh = LineMesh(fn(t) [t, 0, 0], -self.L..self.L:self.dx)
+  }
+
+  initialSelections() {
+    self.bnd = Selection(self.mesh, fn(x,y,z) abs(x - self.L) < 0.01 || abs(x + self.L) < 0.01)
+    self.left = Selection(self.mesh, fn(x,y,z) x < 0)
+    self.left.addgrade(1)
+  }
+
+  initialP(initial=nil) {
+    fn p0(x,y,z) {
+      if (x < 0) return Matrix([0, 0, 0])
+      if (x > 0) return Matrix([1, 0, 0])
+      return Matrix([1/2, 0, 0])
+    }
+
+    self.P = Field(self.mesh, (initial ? initial : p0),
+        finiteelementspace=FiniteElementSpace("CG1", grade=1))
+  }
+
+  initialPhi(random=false) {
+    if (random) {
+      self.phi = Field(self.mesh,
+          fn(x,y,z) (1 + x/self.L)*(1 - x/self.L)*1e-4*randomnormal(),
+          finiteelementspace=FiniteElementSpace("CG1", grade=1))
+    } else {
+      self.phi = Field(self.mesh,
+          fn(x,y,z) (1 + x/self.L)*(1 - x/self.L)*1e-4,
+          finiteelementspace=FiniteElementSpace("CG1", grade=1))
+    }
+  }
+
+  setupProblem() {
+    self.problem = OptimizationProblem(self.mesh)
+
+    fn landau(x, p) {
+      var pn = p.norm()
+      var pnsq = pn*pn
+      return 0.5*self.a*pnsq + 0.25*self.b*pnsq*pnsq
+    }
+    self.problem.addenergy(LineIntegral(landau, self.P, method={}))
+
+    fn gradsqp(x, p) {
+      var gp = grad(p)
+      return gp[0].norm()^2 + gp[1].norm()^2 + gp[2].norm()^2
+    }
+    self.problem.addenergy(LineIntegral(gradsqp, self.P, method={}), prefactor=self.c)
+
+    fn pphicoupling(x, p, phi) {
+      var gp = grad(p)
+      return phi*(gp[0][0] + gp[1][1] + gp[2][2])
+    }
+    self.problem.addenergy(LineIntegral(pphicoupling, self.P, self.phi, method={}),
+        prefactor=-self.delta)
+
+    fn gradsqphi(x, phi) {
+      var gphi = grad(phi)
+      return gphi.inner(gphi)
+    }
+    self.problem.addenergy(LineIntegral(gradsqphi, self.phi, method={}),
+        prefactor=-0.5/self.alpha)
+
+    fn screen(x, phi) { return phi*phi }
+    self.problem.addenergy(LineIntegral(screen, self.phi, method={}),
+        prefactor=-0.5*self.kappa^2/self.alpha)
+  }
+
+  _leftids(baseid=0) {
+    var vids = self.left.idlistforgrade(0)
+    var ndofs = self.P.prototype().count()
+    var out = []
+    for (id in vids) for (i in 0...ndofs) out.append(baseid + id*ndofs + i)
+    return out
+  }
+
+  _coupledAdapter() {
+    var adapt = ProblemAdapter(self.problem, self.phi, self.P)
+    var fixphiids = self.bnd.idlistforgrade(0)
+    var fixpids = self._leftids(baseid=self.phi.count())
+    return FixAdapter(adapt, fixphiids.join(fixpids))
+  }
+
+  _phiDofs() { return List(0...self.phi.__linearize().count()) }
+
+  build(p0=nil, delta=nil, randomphi=false) {
+    if (!isnil(delta)) self.delta = delta
+    self.initialMesh()
+    self.initialSelections()
+    self.initialP(initial=p0)
+    self.initialPhi(random=randomphi)
+    self.setupProblem()
+    return self._coupledAdapter()
+  }
+
+  optimizePhi(niter) {
+    var adapt = ProblemAdapter(self.problem, self.phi)
+    var fadapt = FixAdapter(adapt, self.bnd.idlistforgrade(0))
+    var phidofs = self._phiDofs()
+    var opt = LSR1Controller(fadapt, maximize=phidofs, maxhistorylength=100)
+    opt.optimize(niter)
+    return opt
+  }
+
+  optimizeP(niter) {
+    var adapt = ProblemAdapter(self.problem, self.P)
+    var fadapt = FixAdapter(adapt, self._leftids())
+    var opt = LSR1Controller(fadapt, maxhistorylength=100)
+    opt.optimize(niter)
+    return opt
+  }
+
+  optimize(niter, controller=nil, maxhistorylength=100) {
+    var fadapt = self._coupledAdapter()
+    var phidofs = self._phiDofs()
+    var opt = controller
+    if (isnil(opt)) {
+      opt = QuadTRDSR1Controller(fadapt, maximize=phidofs, maxhistorylength=maxhistorylength)
+    }
+    opt.optimize(niter)
+    return opt
+  }
+
+  outputPhi(fname) {
+    var f = File(fname, "write")
+    for (i in 0...self.mesh.count()) {
+      f.write("${self.mesh.vertexposition(i)[0]}, ${self.phi[0,i]}")
+    }
+    f.close()
+  }
+
+  outputP(fname) {
+    var f = File(fname, "write")
+    for (i in 0...self.mesh.count()) {
+      var p = self.P[0,i]
+      f.write("${self.mesh.vertexposition(i)[0]}, ${p[0]}, ${p[1]}, ${p[2]}")
+    }
+    f.close()
+  }
+}

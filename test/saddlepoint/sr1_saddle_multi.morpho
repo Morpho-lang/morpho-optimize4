@@ -1,7 +1,7 @@
 // SR1 on a 4D block-structured saddle (from saddlepoint_driver_multi.morpho)
 
 import optimize4
-import "../../examples/saddle.morpho"
+import "../examples/saddle.morpho"
 
 var problem = BlockSaddle4D()
 var fadapt = problem.build()

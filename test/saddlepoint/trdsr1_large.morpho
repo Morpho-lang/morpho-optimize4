@@ -1,0 +1,18 @@
+// TRDSR1 on the 8D coupled block saddle (CoupledBlockSaddle8D)
+
+import optimize4
+import "../examples/saddle.morpho"
+
+var problem = CoupledBlockSaddle8D()
+var fadapt = problem.build()
+
+var opt = TRDSR1Controller(fadapt, maximize=[0, 1, 2, 3], maxhistorylength=10)
+opt.gradtol = 1e-4
+opt.optimize(300)
+
+var x = fadapt.get()
+print x.norm() < 1e-3
+// expect: true
+
+print opt.gradient().norm() < 1e-3
+// expect: true

@@ -1,7 +1,7 @@
 // LSR1 on an 8D coupled block saddle (from saddlepoint_driver_large.morpho)
 
 import optimize4
-import "../../examples/saddle.morpho"
+import "../examples/saddle.morpho"
 
 var problem = CoupledBlockSaddle8D()
 var fadapt = problem.build()

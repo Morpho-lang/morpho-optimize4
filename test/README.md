@@ -6,9 +6,10 @@
 |-----------|----------|
 | [`examples/`](examples/) | Reference problems (loop, thomson, cholesteric, saddle, …) — not run by the test runner |
 | [`sqp/`](sqp/), [`pgd/`](pgd/), [`penalty/`](penalty/) | Same problems under different controllers |
+| [`saddlepoint/`](saddlepoint/) | Saddle-point problems (SR1, LSR1, TRSR1, TRDSR1, QuadTR; import `examples/saddle.morpho` or `examples/ferronematic.morpho`) |
 | [`unconstrained/`](unconstrained/) | Unconstrained mesh/field examples |
 | [`adapter/`](adapter/), [`controllers/`](controllers/) | Unit-style adapter and controller tests |
-| [`controllers/newton/`](controllers/newton/) | SR1 / TRSR1 / TRDSR1 tests (saddle, quadratic, nonlinear, 8D coupled block; import `examples/saddle.morpho` where needed) |
+| [`controllers/newton/`](controllers/newton/) | BFGS, L-BFGS, Newton |
 | [`old/`](old/) | Legacy scripts — excluded from the runner |
 
 ## Running tests
@@ -42,7 +43,7 @@ Tests are classified from comments in each `.morpho` file:
 | Mode | How it is selected | Pass criterion |
 |------|-------------------|----------------|
 | **exact** | `// [CI:Exact]` or any `// expect:` line | Expected lines appear in output, in order |
-| **converged** | `// [CI:Converged]`, or `test/sqp/`, `test/pgd/`, `test/penalty/`, `test/unconstrained/` | No terminal `OptMaxIter`, no `OptLnSrchStpsz`, no unexpected `Error`. For `test/penalty/`, `OptMaxIter` on early inner sub-solves is allowed if the penalty loop continues. |
+| **converged** | `// [CI:Converged]`, or `test/sqp/`, `test/pgd/`, `test/penalty/`, `test/unconstrained/`, `test/saddlepoint/` | No terminal `OptMaxIter`, no `OptLnSrchStpsz`, no unexpected `Error`. For `test/penalty/`, `OptMaxIter` on early inner sub-solves is allowed if the penalty loop continues. |
 | **smoke** | `// [CI:Smoke]` | Runs without unexpected `Error` |
 | **ignore** | `// [CI:Ignore]` | Skipped (known failures) |
 
@@ -58,8 +59,3 @@ print x // expect: 1.25
 ```
 
 Failures are logged to `test/FailedTests.txt`.
-
-## Known skips
-
-- `sqp/constrainedloop.morpho` — SQP stalls on overdetermined active set (see penalty/pgd variants)
-- `sqp/wrap.morpho` — multilevel SQP; use penalty/PGD examples instead

@@ -1,0 +1,31 @@
+// DSR1 forward apply matches dense SR1 when history is complete
+
+import optimize4
+
+var c = 0.25
+
+fn f(x, y) {
+  return x^2 + y^2 + c*x*y
+}
+
+var fadapt = FunctionAdapter(f, start=Matrix([1, 1.5]))
+var dense = SR1Controller(fadapt)
+var dsr1 = DSR1Controller(fadapt, maxhistorylength=20)
+dense.start()
+dsr1.start()
+
+for (i in 1..8) {
+  dense.begin()
+  if (dense.step()) {
+    var sk = dense.get() - dense._ox
+    var yk = dense.gradient() - dense._ogradient
+    dense.next()
+    dsr1.update(sk, yk)
+  }
+}
+
+var v = Matrix([1, 0.5])
+var Bv = dense.hessian()*v
+var Hv = dsr1.hmul(v)
+print (Bv - Hv).norm() < 1e-10
+// expect: true

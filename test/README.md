@@ -8,7 +8,7 @@
 | [`sqp/`](sqp/), [`pgd/`](pgd/), [`penalty/`](penalty/) | Same problems under different controllers |
 | [`unconstrained/`](unconstrained/) | Unconstrained mesh/field examples |
 | [`adapter/`](adapter/), [`controllers/`](controllers/) | Unit-style adapter and controller tests |
-| [`controllers/newton/`](controllers/newton/) | SR1 saddle tests (import `examples/saddle.morpho`) |
+| [`controllers/newton/`](controllers/newton/) | SR1 / TRSR1 / TRDSR1 tests (saddle, quadratic, nonlinear, 8D coupled block; import `examples/saddle.morpho` where needed) |
 | [`old/`](old/) | Legacy scripts — excluded from the runner |
 
 ## Running tests

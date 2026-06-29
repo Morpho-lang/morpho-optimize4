@@ -43,11 +43,10 @@ var _OptVerbosity = { "silent" : _OptSilent,
    the interface of an OptimizationAdapter. */ 
 
 class OptimizationController is DelegateAdapter {
-  init(OptimizationAdapter adapter, quiet=false, verbosity=nil) { 
-    super.init(adapter)
-    
-    // Fit a ProxyAdapter over the regular adapter if not present to avoid repeated calculations
+  init(adapter, quiet=false, verbosity=nil) {
+    // Set adapter directly; avoid super.init() MD picking DelegateAdapter.init for wrapped adapters
     if (adapter.clss()!=ProxyAdapter) self.adapter = ProxyAdapter(adapter)
+    else self.adapter = adapter
 
     // Control verbosity 
     self.verbosity = _OptNormal
@@ -63,7 +62,7 @@ class OptimizationController is DelegateAdapter {
     self.etol = 1e-8 // Convergence criterion based on change in value of objective function
     self.ctol = 1e-10 // Constraint tolerance
 
-    self.recoverLineSearchFailure = false // If true, optimize() continues after a failed step (see onStepFailure)
+    self.recoverlinesearchfailure = false // If true, optimize() continues after a failed step (see onStepFailure)
 
     self._valuehistory=[] // History of objective function values 
   } 
@@ -155,7 +154,7 @@ class OptimizationController is DelegateAdapter {
 
     for (i in 1..nsteps) {
       if (self.hasConverged()) return true
-      if (!self.iterate() && !self.recoverLineSearchFailure) return false
+      if (!self.iterate() && !self.recoverlinesearchfailure) return false
       self.report(i)
       self.record()
     }
@@ -181,7 +180,7 @@ class OptimizationController is DelegateAdapter {
  * ----------------------------------------- */ 
 
 class GradientDescentController is OptimizationController {
-  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, stepsize=0.1) { 
+  init(adapter, quiet=false, verbosity=nil, stepsize=0.1) { 
     super.init(adapter, quiet=quiet, verbosity=verbosity)
     if (self.adapter.countConstraints()>0) _OptCons.throw()
     self.stepsize=stepsize
@@ -220,7 +219,7 @@ class GradientDescentController is OptimizationController {
  * ----------------------------------------- */ 
 
 class LineSearchController is GradientDescentController {
-  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, stepsize=0.1, alpha=0.2, beta=0.5) {
+  init(adapter, quiet=false, verbosity=nil, stepsize=0.1, alpha=0.2, beta=0.5) {
     super.init(adapter, quiet=quiet, verbosity=verbosity, stepsize=stepsize)
     self.maxsteps = 50 // Maximum steps for reducing stepsize
     self.alpha = alpha // } Coefficients 
@@ -282,7 +281,7 @@ class LineSearchController is GradientDescentController {
  * ----------------------------------------- */ 
 
 class DirectedLineSearchController is LineSearchController {
-  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, stepsize=0.1, alpha=0.2, beta=0.5, direction=nil) {
+  init(adapter, quiet=false, verbosity=nil, stepsize=0.1, alpha=0.2, beta=0.5, direction=nil) {
     super.init(adapter, quiet=quiet, verbosity=verbosity, stepsize=stepsize, alpha=alpha, beta=beta)
     if (direction) self.setDirection(direction)  
   }
@@ -314,7 +313,7 @@ class DirectedLineSearchController is LineSearchController {
 // See also an implementation at https://github.com/gjkennedy/ae6310/blob/master/Line%20Search%20Algorithms.ipynb
 
 class WolfeLineSearchController is LineSearchController {
-  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, stepsize=1, steplimit=2, c1=1e-3, c2=0.9) {
+  init(adapter, quiet=false, verbosity=nil, stepsize=1, steplimit=2, c1=1e-3, c2=0.9) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)
     self.maxsteps = 50 // Maximum steps for reducing stepsize
     self.stepsize = stepsize   // Initial stepsize
@@ -441,7 +440,7 @@ class WolfeLineSearchController is LineSearchController {
  * ----------------------------------------- */ 
 
 class NewtonController is OptimizationController {
-  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, linesearch=nil) {
+  init(adapter, quiet=false, verbosity=nil, linesearch=nil) {
     var lsOpt = linesearch
     super.init(adapter, quiet=quiet, verbosity=verbosity)
     if (self.adapter.countConstraints()>0) _OptCons.throw()
@@ -593,15 +592,15 @@ class InvBFGSController is BFGSController {
  * ----------------------------------------- */ 
 
 class LBFGSController is InvBFGSController {
-  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, maxhistorylength=10, recoverLineSearchFailure=true) {
+  init(adapter, quiet=false, verbosity=nil, maxhistorylength=10, recoverlinesearchfailure=true) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)
     self.maxhistorylength = maxhistorylength
-    self.recoverLineSearchFailure = recoverLineSearchFailure
+    self.recoverlinesearchfailure = recoverlinesearchfailure
   }
 
   onStepFailure() { self.start() } // clear L-BFGS history (steepest-descent step next iteration)
 
-  _popfirst(lst) { // Pops the first element of a list
+  _popFirst(lst) { // Pops the first element of a list
     var a = lst.roll(-1)
     a.pop() 
     return a 
@@ -663,7 +662,7 @@ class LBFGSController is InvBFGSController {
 
     self._storage.append((sk, yk, yksk, yk.inner(yk)))
 
-    if (self._storage.count()>self.maxhistorylength) self._storage = self._popfirst(self._storage)
+    if (self._storage.count()>self.maxhistorylength) self._storage = self._popFirst(self._storage)
   }
 
   next() { // Update our estimate of the inverse Hessian
@@ -672,6 +671,212 @@ class LBFGSController is InvBFGSController {
     var yk = self.gradient() - self._ogradient
 
     self.update(sk, yk) 
+  }
+}
+
+/* -----------------------------------------
+ * DecreaseLineSearchController
+ *
+ * Armijo line search using objective decrease only (no gradient in accept()).
+ * Used with GradSqMeritAdapter for minimax / saddle-point SR1.
+ * ----------------------------------------- */
+
+class DecreaseLineSearchController is DirectedLineSearchController {
+  expectedDescent() {
+    self.df = -1
+    return self.df
+  }
+
+  accept(t) {
+    return self.value() < self._ovalue
+  }
+}
+
+/* -----------------------------------------
+ * SR1Controller
+ *
+ * Dense SR1 quasi-Newton (Hessian estimate in self.B).
+ * Optional maximize=[i,...] flips initial curvature on those DOFs and uses
+ * GradSqMeritAdapter line search (minimize 1/2|grad f|^2).
+ * ----------------------------------------- */
+
+class SR1Controller is BFGSController {
+  init(adapter, quiet=false, verbosity=nil, linesearch=nil, maximize=nil, skiptol=1e-8,
+       recoverlinesearchfailure=true) {
+    self.skiptol = skiptol
+    self.maximize = maximize
+    if (isint(maximize)) self.maximize = [maximize]
+
+    self.minlinesearchstep = 1e-12
+    self.rejected = false
+
+    super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=linesearch)
+    self.recoverlinesearchfailure = recoverlinesearchfailure
+
+    if (!isnil(self.maximize)) {
+      var merit = GradSqMeritAdapter(self.adapter)
+      self.lscontroller = DecreaseLineSearchController(merit, quiet=quiet, verbosity=self.verbosity)
+    }
+  }
+
+  hessian() { return self.B }
+
+  _setMaximizeCurvature() {
+    if (!isnil(self.maximize)) {
+      for (i in self.maximize) self.B[i,i] = -1
+    }
+  }
+
+  start() {
+    super.start()
+    self._setMaximizeCurvature()
+    self.rejected = false
+  }
+
+  onStepFailure() {
+    self.start()
+    self.rejected = true
+  }
+
+  step() {
+    var x0 = self.get()
+    var ok = self.lineSearch(self.direction())
+
+    if (!ok || self.lscontroller.stepsize <= self.minlinesearchstep) {
+      self.set(x0)
+      return false
+    }
+
+    self.rejected = false
+    return true
+  }
+
+  hasConverged() {
+    if (self.rejected) return false
+    var g = self.gradient()
+    if (g && g.norm() < self.gradtol) return true
+    return false
+  }
+
+  update(sk, yk) {
+    if (self.rejected) return
+
+    var u = yk - self.B*sk
+    var usk = u.inner(sk)
+    var unorm = u.norm()
+    var sknorm = sk.norm()
+
+    if (unorm==0 || sknorm==0) return
+    if (abs(usk) <= self.skiptol*unorm*sknorm) return
+
+    self.B += u*u.transpose()/usk
+  }
+}
+
+/* -----------------------------------------
+ * InvSR1Controller
+ *
+ * SR1 estimating the inverse Hessian (search direction -B*g).
+ * ----------------------------------------- */
+
+class InvSR1Controller is SR1Controller {
+  direction() {
+    return -self.B*self.gradient()
+  }
+
+  _hmul(p) {
+    return self.B*p
+  }
+
+  update(sk, yk) {
+    if (self.rejected) return
+
+    var u = sk - self.B*yk
+    var uyk = u.inner(yk)
+    var unorm = u.norm()
+    var yknorm = yk.norm()
+
+    if (unorm==0 || yknorm==0) return
+    if (abs(uyk) <= self.skiptol*unorm*yknorm) return
+
+    self.B += u*u.transpose()/uyk
+  }
+}
+
+/* -----------------------------------------
+ * LSR1Controller
+ *
+ * Limited-memory inverse SR1 (compact SR1 corrections on signed identity base).
+ * ----------------------------------------- */
+
+class LSR1Controller is InvSR1Controller {
+  init(adapter, quiet=false, verbosity=nil, linesearch=nil, maximize=nil, skiptol=1e-8,
+       maxhistorylength=10, recoverlinesearchfailure=true) {
+    super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=linesearch,
+               maximize=maximize, skiptol=skiptol, recoverlinesearchfailure=recoverlinesearchfailure)
+    self.maxhistorylength = maxhistorylength
+  }
+
+  _popFirst(lst) {
+    var a = lst.roll(-1)
+    a.pop()
+    return a
+  }
+
+  start() {
+    super.start()
+    self._storage = []
+  }
+
+  _baseHmul(p) {
+    var r = p.clone()
+    if (!isnil(self.maximize)) {
+      for (i in self.maximize) r[i] = -r[i]
+    }
+    return r
+  }
+
+  _apply(p, corr) {
+    var r = self._baseHmul(p)
+    for (z in corr) {
+      var v = z[0]
+      var denom = z[1]
+      r += v*(v.transpose()*p)/denom
+    }
+    return r
+  }
+
+  _corrections() {
+    var corr = []
+    for (z in self._storage) {
+      var sk = z[0]
+      var yk = z[1]
+      var v = sk - self._apply(yk, corr)
+      var denom = v.inner(yk)
+      var vnorm = v.norm()
+      var ynorm = yk.norm()
+      if (vnorm==0 || ynorm==0) continue
+      if (abs(denom) <= self.skiptol*vnorm*ynorm) continue
+      corr.append((v, denom))
+    }
+    return corr
+  }
+
+  _hmul(p) {
+    return self._apply(p, self._corrections())
+  }
+
+  direction() {
+    return -self._hmul(self.gradient())
+  }
+
+  update(sk, yk) {
+    if (self.rejected) return
+    if (sk.norm()==0 || yk.norm()==0) return
+    self._storage.append((sk, yk))
+    if (self._storage.count() > self.maxhistorylength) {
+      self._storage = self._popFirst(self._storage)
+    }
   }
 }
 
@@ -688,7 +893,7 @@ class LBFGSController is InvBFGSController {
     until convergence criteria and constraint goal has been achieved. */
 
 class PenaltyController is OptimizationController {
-  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, controller=nil, mu0=1, mumul=10.0, subProblemMaxiterations=100) {
+  init(adapter, quiet=false, verbosity=nil, controller=nil, mu0=1, mumul=10.0, subproblemmaxiterations=100) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)
 
     if (!self.isConstrained()) _OptUnCons.throw()
@@ -701,7 +906,7 @@ class PenaltyController is OptimizationController {
     self.controller = controller 
     if (!controller) self.controller = LBFGSController
 
-    self.subProblemMaxiterations=subProblemMaxiterations
+    self.subproblemmaxiterations=subproblemmaxiterations
   }
 
   begin() {
@@ -716,7 +921,7 @@ class PenaltyController is OptimizationController {
   }
 
   step() {
-    self.control.optimize(self.subProblemMaxiterations) 
+    self.control.optimize(self.subproblemmaxiterations) 
     return true
   }
 
@@ -786,7 +991,7 @@ class ReprojectionMixin with ActiveSetMixin {
     return _leastSquaresFromNormal(Ct*g, Ct*C)
   }
 
-  _l1Linesearch(xdirn, mu) {
+  _l1LineSearch(xdirn, mu) {
     var x0 = self.adapter.get()
     var restore = self.has("_l1restore") && self._l1restore
     if (!self.has("_l1merit")) self._l1merit = L1PenaltyAdapter(self.adapter, penalty=mu)
@@ -809,7 +1014,7 @@ class ReprojectionMixin with ActiveSetMixin {
     * Performs a reprojection step after each iteration */
 
 class ProjectedGradientDescentController is OptimizationController with ReprojectionMixin {
-  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, maxconstraintsteps=100, mu=2, steplimit=nil) {
+  init(adapter, quiet=false, verbosity=nil, maxconstraintsteps=100, mu=2, steplimit=nil) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)
     if (!self.isConstrained()) _OptUnCons.throw()
     self.maxconstraintsteps = maxconstraintsteps
@@ -840,7 +1045,7 @@ class ProjectedGradientDescentController is OptimizationController with Reprojec
 
   lineSearch(dirn) {
     var x0 = self.adapter.get()
-    var success = _l1Linesearch(dirn, self.mu)
+    var success = _l1LineSearch(dirn, self.mu)
     if (self.steplimit && self.stepsize>self.steplimit) {
       self.adapter.set(x0 + self.steplimit*dirn)
       self.stepsize = self.steplimit
@@ -873,7 +1078,7 @@ class ProjectedGradientDescentController is OptimizationController with Reprojec
      */
 
 class SQPController is OptimizationController with ReprojectionMixin {
-  init(OptimizationAdapter adapter, quiet=false, verbosity=nil, penalty=1, maxconstraintsteps=100,
+  init(adapter, quiet=false, verbosity=nil, penalty=1, maxconstraintsteps=100,
        feasol=nil, reprojecttol=1e-5, relgradtol=0.005, relgraditers=20,
        stagtol=1e-2, lamcap=100) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)
@@ -1053,7 +1258,7 @@ class SQPController is OptimizationController with ReprojectionMixin {
     var ndof = self.adapter.get().count()
     var xdirn = dirn[0...ndof]
     var mu = self._choosePenalty(xdirn)
-    return _l1Linesearch(xdirn, mu)
+    return _l1LineSearch(xdirn, mu)
   }
 
   step() {

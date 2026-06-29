@@ -1,0 +1,22 @@
+// LSR1 on an 8D coupled block saddle (from saddlepoint_driver_large.morpho)
+
+import optimize4
+import "../../examples/saddle.morpho"
+
+var problem = CoupledBlockSaddle8D()
+var fadapt = problem.build()
+
+var opt = LSR1Controller(fadapt, maximize=[0, 1, 2, 3], maxhistorylength=10)
+opt.gradtol = 1e-4
+opt.optimize(150)
+
+var x = fadapt.get()
+print x.norm() < 1e-3
+// expect: true
+
+print opt.gradient().norm() < 1e-3
+// expect: true
+
+var Mapprox = invHessianApprox(opt)
+print Mapprox.norm() > 0.1
+// expect: true

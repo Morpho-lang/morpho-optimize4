@@ -1,0 +1,17 @@
+// Controllers must construct with GradSqMeritAdapter merit wrappers (init dispatch)
+
+import optimize4
+
+fn func(x) { return x^2 }
+var adapt = FunctionAdapter(func, start=Matrix([2]))
+var merit = GradSqMeritAdapter(adapt)
+var ls = DecreaseLineSearchController(merit, quiet=true)
+
+print ls.clss()
+// expect: @DecreaseLineSearchController
+
+print ls.adapter.clss()
+// expect: @ProxyAdapter
+
+print ls.adapter.adapter.clss()
+// expect: @GradSqMeritAdapter

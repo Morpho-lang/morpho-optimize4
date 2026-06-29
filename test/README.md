@@ -4,10 +4,11 @@
 
 | Directory | Contents |
 |-----------|----------|
-| [`examples/`](examples/) | Reference problems (loop, thomson, cholesteric, …) — not run by the test runner |
+| [`examples/`](examples/) | Reference problems (loop, thomson, cholesteric, saddle, …) — not run by the test runner |
 | [`sqp/`](sqp/), [`pgd/`](pgd/), [`penalty/`](penalty/) | Same problems under different controllers |
 | [`unconstrained/`](unconstrained/) | Unconstrained mesh/field examples |
 | [`adapter/`](adapter/), [`controllers/`](controllers/) | Unit-style adapter and controller tests |
+| [`controllers/newton/`](controllers/newton/) | SR1 saddle tests (import `examples/saddle.morpho`) |
 | [`old/`](old/) | Legacy scripts — excluded from the runner |
 
 ## Running tests

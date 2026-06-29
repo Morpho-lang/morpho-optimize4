@@ -1,0 +1,17 @@
+// SR1 on a small nonlinear 2D saddle (from saddlepoint_driver_nonlinear.morpho)
+
+import optimize4
+import "../../examples/saddle.morpho"
+
+var problem = NonlinearSaddle2D()
+var fadapt = problem.build()
+var opt = SR1Controller(fadapt, maximize=[0])
+opt.gradtol = 1e-5
+opt.optimize(100)
+
+var x = fadapt.get()
+print x.norm() < 1e-6
+// expect: true
+
+print opt.gradient().norm() < 1e-5
+// expect: true

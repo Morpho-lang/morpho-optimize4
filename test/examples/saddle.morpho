@@ -1,0 +1,272 @@
+// Saddle-point test problems (from Research/SaddlePoint drivers)
+
+import optimize4
+
+class NonlinearSaddle2D {
+  init(c=0.25, a=0.10, b=0.05, e=0.10) {
+    self.c = c
+    self.a = a
+    self.b = b
+    self.e = e
+  }
+
+  func() {
+    var c = self.c
+    var a = self.a
+    var b = self.b
+    var e = self.e
+    fn f(x, y) {
+      return -x^2 + y^2 + c*x*y + a*x^3 + b*y^4 + e*x^2*y
+    }
+    return f
+  }
+
+  grad() {
+    var c = self.c
+    var a = self.a
+    var b = self.b
+    var e = self.e
+    fn gradf(x, y) {
+      return Matrix([
+        -2*x + c*y + 3*a*x^2 + 2*e*x*y,
+         2*y + c*x + 4*b*y^3 + e*x^2
+      ])
+    }
+    return gradf
+  }
+
+  hess() {
+    var c = self.c
+    var a = self.a
+    var b = self.b
+    var e = self.e
+    fn hessf(x, y) {
+      return Matrix([
+        [-2 + 6*a*x + 2*e*y, c + 2*e*x],
+        [ c + 2*e*x,          2 + 12*b*y^2]
+      ])
+    }
+    return hessf
+  }
+
+  build() {
+    return FunctionAdapter(self.func(), gradient=self.grad(), start=Matrix([0.8, 1.1]))
+  }
+}
+
+class BlockSaddle4D {
+  init() {
+    self.a11 = 3
+    self.a12 = 0.4
+    self.a22 = 2
+    self.c11 = 2
+    self.c12 = 0.3
+    self.c22 = 4
+    self.k11 = 0.5
+    self.k12 = -0.2
+    self.k21 = 0.1
+    self.k22 = 0.7
+  }
+
+  func() {
+    var a11 = self.a11
+    var a12 = self.a12
+    var a22 = self.a22
+    var c11 = self.c11
+    var c12 = self.c12
+    var c22 = self.c22
+    var k11 = self.k11
+    var k12 = self.k12
+    var k21 = self.k21
+    var k22 = self.k22
+    fn f(x1, x2, y1, y2) {
+      var xmax = -0.5*(a11*x1^2 + 2*a12*x1*x2 + a22*x2^2)
+      var ymin =  0.5*(c11*y1^2 + 2*c12*y1*y2 + c22*y2^2)
+      var coup = x1*(k11*y1 + k12*y2) + x2*(k21*y1 + k22*y2)
+      return xmax + ymin + coup
+    }
+    return f
+  }
+
+  grad() {
+    var a11 = self.a11
+    var a12 = self.a12
+    var a22 = self.a22
+    var c11 = self.c11
+    var c12 = self.c12
+    var c22 = self.c22
+    var k11 = self.k11
+    var k12 = self.k12
+    var k21 = self.k21
+    var k22 = self.k22
+    fn gradf(x1, x2, y1, y2) {
+      return Matrix([
+        -a11*x1 - a12*x2 + k11*y1 + k12*y2,
+        -a12*x1 - a22*x2 + k21*y1 + k22*y2,
+         k11*x1 + k21*x2 + c11*y1 + c12*y2,
+         k12*x1 + k22*x2 + c12*y1 + c22*y2
+      ])
+    }
+    return gradf
+  }
+
+  hess() {
+    var a11 = self.a11
+    var a12 = self.a12
+    var a22 = self.a22
+    var c11 = self.c11
+    var c12 = self.c12
+    var c22 = self.c22
+    var k11 = self.k11
+    var k12 = self.k12
+    var k21 = self.k21
+    var k22 = self.k22
+    fn hessf(x1, x2, y1, y2) {
+      return Matrix([
+        [-a11, -a12,  k11,  k12],
+        [-a12, -a22,  k21,  k22],
+        [ k11,  k21,  c11,  c12],
+        [ k12,  k22,  c12,  c22]
+      ])
+    }
+    return hessf
+  }
+
+  build() {
+    return FunctionAdapter(self.func(), gradient=self.grad(), hessian=self.hess(),
+                           start=Matrix([1, -0.5, 1.5, -1]))
+  }
+}
+
+class CoupledBlockSaddle8D {
+  init() {
+    self.nx = 4
+    self.ny = 4
+    self.A = Matrix([
+      [3.0, 0.4, 0.2, -0.1],
+      [0.4, 2.5, -0.3, 0.2],
+      [0.2, -0.3, 2.0, 0.5],
+      [-0.1, 0.2, 0.5, 3.5]
+    ])
+    self.C = Matrix([
+      [2.0, 0.3, -0.2, 0.1],
+      [0.3, 3.0, 0.4, -0.1],
+      [-0.2, 0.4, 2.5, 0.2],
+      [0.1, -0.1, 0.2, 4.0]
+    ])
+    self.K = Matrix([
+      [0.5, -0.2, 0.1, 0.0],
+      [0.1, 0.7, -0.3, 0.2],
+      [-0.4, 0.2, 0.6, -0.1],
+      [0.3, 0.0, -0.2, 0.8]
+    ])
+    self.ax = 0.05
+    self.qx = 0.02
+    self.qy = 0.03
+    self.e = 0.08
+  }
+
+  func() {
+    var nx = self.nx
+    var ny = self.ny
+    var A = self.A
+    var C = self.C
+    var K = self.K
+    var ax = self.ax
+    var qx = self.qx
+    var qy = self.qy
+    var e = self.e
+    fn f(...z) {
+      var total = 0
+      for (i in 0...nx) {
+        for (j in 0...nx) {
+          total += -0.5*z[i]*A[i,j]*z[j]
+        }
+      }
+      for (i in 0...ny) {
+        for (j in 0...ny) {
+          total += 0.5*z[nx+i]*C[i,j]*z[nx+j]
+        }
+      }
+      for (i in 0...nx) {
+        for (j in 0...ny) {
+          total += z[i]*K[i,j]*z[nx+j]
+        }
+      }
+      for (i in 0...nx) {
+        var x = z[i]
+        var y = z[nx+i]
+        total += ax*x^3 - qx*x^4 + qy*y^4 + e*x^2*y
+      }
+      return total
+    }
+    return f
+  }
+
+  grad() {
+    var nx = self.nx
+    var ny = self.ny
+    var n = nx + ny
+    var A = self.A
+    var C = self.C
+    var K = self.K
+    var ax = self.ax
+    var qx = self.qx
+    var qy = self.qy
+    var e = self.e
+    fn gradf(...z) {
+      var g = Matrix(n)
+      for (i in 0...nx) {
+        for (j in 0...nx) {
+          g[i] -= A[i,j]*z[j]
+        }
+        for (j in 0...ny) {
+          g[i] += K[i,j]*z[nx+j]
+        }
+        var x = z[i]
+        var y = z[nx+i]
+        g[i] += 3*ax*x^2 - 4*qx*x^3 + 2*e*x*y
+      }
+      for (i in 0...ny) {
+        for (j in 0...nx) {
+          g[nx+i] += K[j,i]*z[j]
+        }
+        for (j in 0...ny) {
+          g[nx+i] += C[i,j]*z[nx+j]
+        }
+        var x = z[i]
+        var y = z[nx+i]
+        g[nx+i] += 4*qy*y^3 + e*x^2
+      }
+      return g
+    }
+    return gradf
+  }
+
+  build() {
+    var start = Matrix([
+       0.7, -0.5,  1.0, -0.8,
+       0.9, -1.1,  0.6, -0.4
+    ])
+    return FunctionAdapter(self.func(), gradient=self.grad(), start=start)
+  }
+}
+
+fn listify(v) {
+  var l = []
+  for (u in v) {
+    l.append(u)
+  }
+  return l
+}
+
+fn invHessianApprox(opt) {
+  var n = opt.get().count()
+  var cols = []
+  for (i in 0...n) {
+    var ei = Matrix(n)
+    ei[i] = 1
+    cols.append(opt._hmul(ei))
+  }
+  return Matrix([cols])
+}

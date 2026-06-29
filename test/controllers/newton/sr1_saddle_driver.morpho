@@ -1,0 +1,17 @@
+// Smoke driver for SR1 saddle (from Research/SaddlePoint/saddlepoint_driver.morpho)
+// [CI:Smoke]
+
+import optimize4
+
+var c = 0.25
+
+fn f(x, y) {
+  return -x^2 + y^2 + c*x*y
+}
+
+var fadapt = FunctionAdapter(f, start=Matrix([1, 1.5]))
+var opt = SR1Controller(fadapt, maximize=[0])
+opt.optimize(100)
+
+print fadapt.get()
+print opt.hessian()

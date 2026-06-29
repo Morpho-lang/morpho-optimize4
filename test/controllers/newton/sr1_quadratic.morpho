@@ -1,0 +1,20 @@
+// SR1 unconstrained minimization on a convex quadratic (no maximize=)
+
+import optimize4
+
+var c = 0.25
+
+fn f(x, y) {
+  return x^2 + y^2 + c*x*y
+}
+
+var fadapt = FunctionAdapter(f, start=Matrix([1, 1.5]))
+var opt = SR1Controller(fadapt)
+opt.gradtol = 1e-5
+opt.optimize(100)
+
+print fadapt.get().norm() < 1e-10
+// expect: true
+
+print opt.gradient().norm() < 1e-10
+// expect: true

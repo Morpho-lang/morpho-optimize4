@@ -295,6 +295,8 @@ Only `value()` (and constraint methods, if present on the underlying adapter) ne
 
 The `OptimizationController` is a base class for implementing optimization algorithms. It provides a number of useful generic methods for checking convergence, reporting information consistently, etc.
 
+**API naming:** compound **method** names use camelCase (`lineSearch`, `hasConverged`, `setPenalty`, `addEnergy`). **Optional arguments** at construction use all lowercase (`linesearch=`, `maxhistorylength=`, `recoverlinesearchfailure=`). Legacy `addenergy` / `addconstraint` / `addlocalconstraint` on `OptimizationProblem` still forward to the camelCase methods.
+
 _Running an optimization_
 
 Call `optimize(nsteps)` to run up to `nsteps` iterations. The method returns `true` if convergence criteria are met, `false` otherwise (including if a step fails or the iteration limit is reached without convergence).
@@ -442,9 +444,9 @@ by performing the matrix multiplication implicitly. Because it scales well with 
 
 In addition to the standard options for an `OptimizationController`, you can control the history length maintained when you create an `LBFGSController`:
 
-    var opt = LBFGSController(adapter, maxhistorylength=20)
+    var opt = LBFGSController(adapter, maxhistorylength=20, recoverlinesearchfailure=true)
 
-Increasing the history length may improve the estimate of the inverse hessian at the expense of memory and work per iteration. The default value of 10 has been found sufficient for many applications.
+Increasing the history length may improve the estimate of the inverse hessian at the expense of memory and work per iteration. The default value of 10 has been found sufficient for many applications. Set `recoverlinesearchfailure=true` (default on `LBFGSController` and SR1 variants) to continue optimizing after a failed line search instead of stopping immediately.
 
 ### PenaltyController
 [tagPenaltyController]: # (PenaltyController)
@@ -452,14 +454,14 @@ Increasing the history length may improve the estimate of the inverse hessian at
 Implements the classical penalty method for constrained problems. The adapter is wrapped in a `PenaltyAdapter` and a sequence of unconstrained subproblems is solved with increasing penalty parameter μ. This is often a method of choice for constrained problems, particularly those with inequality constraints.
 
     var opt = PenaltyController(adapter, mu0=1, mumul=10.0,
-                                subProblemMaxiterations=100,
+                                subproblemmaxiterations=100,
                                 controller=LBFGSController)
 
 Options:
 
 * `mu0` - initial penalty parameter (default `1`).
 * `mumul` - factor by which μ is multiplied after each outer iteration (default `10`).
-* `subProblemMaxiterations` - maximum iterations per subproblem (default `100`).
+* `subproblemmaxiterations` - maximum iterations per subproblem (default `100`).
 * `controller` - class used to solve each subproblem (default `LBFGSController`).
 
 Convergence requires both the inner controller's `hasConverged()` and ||c||_1 < `ctol`. Outer iterations report `mu` and the constraint norm.

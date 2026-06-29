@@ -9,6 +9,7 @@
 var _OptConsCountErr = Error("OptConsCount", "More equality constraints specified than provided.")
 var _OptUnConsErr = Error("OpUncons", "Problem is unconstrained; this adapter is intended for constrained problems.")
 var _OptNoHessErr = Error("OptNoHess", "Method requires a hessian.")
+var _OptNoGradErr = Error("OptNoGrad", "Method requires a gradient.")
 var _OptHessErr = Error("OptHess", "Adapter cannot be used with methods that require a hessian.")
 
 var _OptNoActiveFuncErr = Error("OptNoActiveFunc", "Problem has no active functionals.")
@@ -164,7 +165,7 @@ class OptimizationAdapter {
     that are intended to work with other adapters */
 
 class DelegateAdapter is OptimizationAdapter {
-  init(OptimizationAdapter adapter) {
+  init(adapter) {
     self.adapter = adapter
   }
 
@@ -184,6 +185,23 @@ class DelegateAdapter is OptimizationAdapter {
   constraintValueForActiveSet() { return self.adapter.constraintValueForActiveSet() }
   constraintGradient() { return self.adapter.constraintGradient() }
   constraintHessian() { return self.adapter.constraintHessian() } 
+}
+
+/* -------------------------
+ * GradSqMeritAdapter
+ * ------------------------- */
+
+/** Merit function Phi = 1/2 |grad f|^2 for Newton/SR1 line searches on saddle problems.
+    Does not provide a gradient (avoids Hessian evaluation through the adapter chain). */
+
+class GradSqMeritAdapter is DelegateAdapter {
+  value() {
+    var g = self.adapter.gradient()
+    return 0.5*g.inner(g)
+  }
+
+  gradient() { _OptNoGradErr.throw() }
+  hessian() { _OptNoHessErr.throw() }
 }
 
 /* --------------------------
@@ -211,7 +229,7 @@ class DeconstrainAdapter is DelegateAdapter {
     evaluations of each quantity. */
 
 class ProxyAdapter is DelegateAdapter {
-  init(OptimizationAdapter adapter) {
+  init(adapter) {
     super.init(adapter)
     self.reset() 
     self.count = [0,0,0,0,0,0]
@@ -280,12 +298,12 @@ class ProxyAdapter is DelegateAdapter {
    Their gradients are also set to zero. */
 
 class FixAdapter is DelegateAdapter {
-  init(OptimizationAdapter adapter, List fix) {
+  init(adapter, List fix) {
     super.init(adapter)
     self.fix = fix 
   }
 
-  init(OptimizationAdapter adapter, Int fix) {
+  init(adapter, Int fix) {
     self.init(adapter, [fix])
   }
 
@@ -320,7 +338,7 @@ class FixAdapter is DelegateAdapter {
  * ------------------------- */
 
 class DeflationAdapter is DelegateAdapter {
-  init(OptimizationAdapter adapter, radius=1, eps=0.1) { 
+  init(adapter, radius=1, eps=0.1) { 
     self.radius = radius
     self.adapter = adapter
     self.solns = []
@@ -506,7 +524,7 @@ class ActiveSetMixin {
     Used to implement the penalty method */
 
 class PenaltyAdapter is OptimizationAdapter with ConstraintVectorMixin {
-  init(OptimizationAdapter adapter, penalty=1) { 
+  init(adapter, penalty=1) { 
     self.adapter = adapter
     self._penalty = penalty 
   }
@@ -648,7 +666,7 @@ class L1PenaltyAdapter is PenaltyAdapter {
     Used to implement SQP */
 
 class LagrangeMultiplierAdapter is OptimizationAdapter with ActiveSetMixin {
-  init(OptimizationAdapter adapter) { 
+  init(adapter) { 
     self.adapter = adapter
     self._initialLagrangeMultipliers() 
   }

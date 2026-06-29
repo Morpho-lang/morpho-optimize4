@@ -1,10 +1,10 @@
-// L-BFGS clears history on line search failure and can continue optimizing
+// Check that L-BFGS clears history on line search failure and can continue optimizing
 
 import optimize4
 import "../../examples/quadratic.morpho"
 
 class UphillOnceLBFGS is LBFGSController {
-  init(OptimizationAdapter adapter) {
+  init(adapter) {
     super.init(adapter)
     self.uphill = false
   }

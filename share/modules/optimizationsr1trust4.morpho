@@ -387,7 +387,8 @@ class TrustRegionBFGSController is BFGSController with TrustRegionNewtonMixin {
 /* -----------------------------------------
  * StationarityStepMixin
  *
- * Step-acceptance thresholds for SR1 saddle-point globalization.
+ * Merit thresholds for trust-region saddle-point acceptance only.
+ * Line-search SR1 uses DecreaseLineSearchController (any strict phi decrease).
  * ----------------------------------------- */
 
 class StationarityStepMixin {
@@ -467,7 +468,7 @@ class SR1Controller is BFGSController with StationarityStepMixin {
       for (alpha in [2, 1, 0.25, 0.0625, 0.015625, 0.00390625]) {
         if (alpha <= self.minlinesearchstep) continue
         self.set(x0 + alpha*dir)
-        if (self._meritImproved(phi0, self._stationarityMerit())) {
+        if (self._stationarityMerit() < phi0) {
           self.lscontroller.stepsize = alpha
           return true
         }
@@ -484,15 +485,8 @@ class SR1Controller is BFGSController with StationarityStepMixin {
 
   _attemptStationarityStep(x0) {
     var g0 = self.gradient()
-    var phi0 = nil
-    if (!isnil(self.maximize)) phi0 = self._stationarityMerit()
     var ok = self.lineSearch(self.direction())
     if (!ok || self.lscontroller.stepsize <= self.minlinesearchstep) {
-      self.set(x0)
-      if (self._tryFallbackLineSearch(x0, g0)) return true
-      return false
-    }
-    if (!isnil(phi0) && !self._meritImproved(phi0, self._stationarityMerit())) {
       self.set(x0)
       if (self._tryFallbackLineSearch(x0, g0)) return true
       return false

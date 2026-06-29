@@ -60,10 +60,7 @@ class TrustRegionController is OptimizationController {
 
   solveSubproblem(g) { return nil }
 
-  _minStep() {
-    if (self.host.minlinesearchstep) return self.host.minlinesearchstep
-    return 1e-10
-  }
+  _minStep() { return self.host._minAcceptedStep() }
 
   _shrinkDelta() {
     if (self.delta <= self._delta0) return
@@ -112,12 +109,8 @@ class TrustRegionController is OptimizationController {
     var ared = phi0 - phi1
     var rho = ared/pred
     var pnorm = p.norm()
-    var meritTol = 1e-8
-    if (self.host.meritRelTol) meritTol = self.host.meritRelTol
-    var meritAbs = 1e-10
-    if (self.host.meritAbsTol) meritAbs = self.host.meritAbsTol
-    var minAred = meritTol*max(phi0, 1e-30)
-    if (phi0 >= meritAbs) minAred = max(minAred, meritAbs)
+    var minAred = self.host._stationarityMinAred(phi0)
+    var stationarityTol = !isnil(minAred)
 
     if (rho < self.eta1) {
       if (ared > minAred && pnorm > minStep) {
@@ -140,7 +133,14 @@ class TrustRegionController is OptimizationController {
       return false
     }
 
-    if (ared <= minAred) {
+    if (stationarityTol && ared <= minAred) {
+      self.set(x0)
+      self.stepsize = 0
+      self.success = false
+      return false
+    }
+
+    if (!stationarityTol && ared <= 0) {
       self.set(x0)
       self.stepsize = 0
       self.success = false
@@ -292,6 +292,115 @@ class QuadraticTrustRegionController is TrustRegionController with TrustRegionSu
 }
 
 /* -----------------------------------------
+ * ObjectiveTrustRegionController
+ *
+ * Standard trust-region globalization for smooth minimization:
+ *   m(p) = f(x) + g'p + 1/2 p' B p,  ||p|| <= Delta
+ * with B from the host (e.g. BFGS). Matches the objective-based rho used in
+ * SciPy trust-region methods (ared = f_k - f_{k+1}, pred = -g'p - 1/2 p'Bp).
+ * Compose via TrustRegionBFGSController(trustregion=ObjectiveTrustRegionController).
+ * ----------------------------------------- */
+
+class ObjectiveTrustRegionController is QuadraticTrustRegionController {
+  init(adapter, host, quiet=false, verbosity=nil,
+       delta0=1, eta1=0.15, eta2=0.75, gammaGrow=2, gammaShrink=0.25,
+       deltaMax=1e10, maxLambdaIters=20, deltaMin=nil,
+       cgMaxIters=200, cgTol=1e-10) {
+    super.init(adapter, host, quiet=quiet, verbosity=verbosity,
+        delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
+        gammaShrink=gammaShrink, deltaMax=deltaMax, maxLambdaIters=maxLambdaIters,
+        deltaMin=deltaMin, cgMaxIters=cgMaxIters, cgTol=cgTol)
+  }
+
+  _shrinkDelta() {
+    self.delta = max(self.gammaShrink*self.delta, self.deltaMin)
+  }
+
+  merit(g) { return self.value() }
+
+  modelMerit(g, p) {
+    var Bp = self.host.hmul(p)
+    return self.value() + g.inner(p) + 0.5*p.inner(Bp)
+  }
+}
+
+/* -----------------------------------------
+ * TrustRegionNewtonMixin
+ *
+ * Trust-region globalization for Newton/BFGS minimization hosts.
+ * ----------------------------------------- */
+
+class TrustRegionNewtonMixin {
+  _attachTrustRegion(trustregion) {
+    self.trcontroller = nil
+    if (isclass(trustregion)) {
+      self.trcontroller = trustregion(self.adapter, self, verbosity=self.verbosity)
+    } else if (isobject(trustregion)) {
+      self.trcontroller = trustregion
+    }
+  }
+
+  trustRegionStep() {
+    self.trcontroller.step()
+    return true
+  }
+
+  hmul(v) { return self.hessian()*v }
+
+  _minAcceptedStep() { return 1e-10 }
+
+  _stationarityMinAred(phi0) { return nil }
+
+  step() {
+    if (self.trcontroller) return self.trustRegionStep()
+    return super.step()
+  }
+
+  reportStepsize() {
+    if (self.trcontroller) return self.trcontroller.reportStepsize()
+    return super.reportStepsize()
+  }
+
+  hasConverged() {
+    if (self.trcontroller) {
+      var g = self.gradient()
+      if (g && g.norm() < self.gradtol) return true
+      return false
+    }
+    return super.hasConverged()
+  }
+}
+
+/* -----------------------------------------
+ * TrustRegionBFGSController
+ *
+ * BFGS with optional objective-based trust-region globalization.
+ * ----------------------------------------- */
+
+class TrustRegionBFGSController is BFGSController with TrustRegionNewtonMixin {
+  init(adapter, quiet=false, verbosity=nil, linesearch=nil, trustregion=nil) {
+    super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=linesearch)
+    self._attachTrustRegion(trustregion)
+  }
+}
+
+/* -----------------------------------------
+ * StationarityStepMixin
+ *
+ * Step-acceptance thresholds for SR1 saddle-point globalization.
+ * ----------------------------------------- */
+
+class StationarityStepMixin {
+  _minAcceptedStep() { return self.minlinesearchstep }
+
+  _stationarityMinAred(phi0) {
+    var minAred = self.meritRelTol*max(phi0, 1e-30)
+    if (phi0 >= self.meritAbsTol) minAred = max(minAred, self.meritAbsTol)
+    return minAred
+  }
+}
+
+/* -----------------------------------------
  * SR1Controller
  *
  * Dense SR1 quasi-Newton (Hessian estimate in self.B).
@@ -299,20 +408,19 @@ class QuadraticTrustRegionController is TrustRegionController with TrustRegionSu
  * GradSqMeritAdapter line search (minimize 1/2|grad f|^2).
  * ----------------------------------------- */
 
-class SR1Controller is BFGSController {
+class SR1Controller is BFGSController with StationarityStepMixin {
   init(adapter, quiet=false, verbosity=nil, linesearch=nil, maximize=nil, skiptol=1e-8,
        recoverlinesearchfailure=true) {
     self.skiptol = skiptol
     self.maximize = maximize
     if (isint(maximize)) self.maximize = [maximize]
-
-    self.minlinesearchstep = 1e-12
-    self.meritRelTol = 1e-8
-    self.meritAbsTol = 1e-10
     self.rejected = false
 
     super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=linesearch)
     self.recoverlinesearchfailure = recoverlinesearchfailure
+    self.minlinesearchstep = 1e-12
+    self.meritRelTol = 1e-8
+    self.meritAbsTol = 1e-10
 
     if (!isnil(self.maximize)) {
       var merit = GradSqMeritAdapter(self.adapter)
@@ -429,15 +537,23 @@ class SR1Controller is BFGSController {
  * ----------------------------------------- */
 
 class TrustRegionHostMixin {
+  trustRegionStep() {
+    self.trcontroller.step()
+    return true
+  }
+
   _trOrLineSearchStep() {
     var x0 = self.get()
     var phi0 = nil
     if (!isnil(self.maximize)) phi0 = self._stationarityMerit()
 
-    if (self.trustRegionStep() && self.trcontroller.stepsize > self.minlinesearchstep) {
-      if (isnil(phi0) || self._meritImproved(phi0, self._stationarityMerit())) {
-        self.rejected = false
-        return true
+    if (self.trustRegionStep()) {
+      var minStep = self._minAcceptedStep()
+      if (self.trcontroller.stepsize > minStep) {
+        if (isnil(phi0) || self._meritImproved(phi0, self._stationarityMerit())) {
+          self.rejected = false
+          return true
+        }
       }
     }
     self.set(x0)

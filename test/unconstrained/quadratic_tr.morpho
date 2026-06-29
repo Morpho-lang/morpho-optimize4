@@ -1,0 +1,14 @@
+// Unconstrained quadratic via BFGS + objective trust region
+
+import optimize4
+import "../examples/quadratic.morpho"
+
+var example = QuadraticExample()
+var adapt = example.build()
+
+var control = TrustRegionBFGSController(adapt, trustregion=ObjectiveTrustRegionController)
+control.gradtol = 1e-8
+control.optimize(100)
+
+print example.check() < 1e-6
+// expect: true

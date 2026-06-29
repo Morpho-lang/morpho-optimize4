@@ -440,17 +440,13 @@ class WolfeLineSearchController is LineSearchController {
  * ----------------------------------------- */ 
 
 class NewtonController is OptimizationController {
-  init(adapter, quiet=false, verbosity=nil, linesearch=nil, trustregion=nil) {
+  init(adapter, quiet=false, verbosity=nil, linesearch=nil) {
     var lsOpt = linesearch
-    var trOpt = trustregion
     super.init(adapter, quiet=quiet, verbosity=verbosity)
     if (self.adapter.countConstraints()>0) _OptCons.throw()
     if (isclass(lsOpt)) self.lscontroller = lsOpt(self.adapter, quiet=quiet, verbosity=self.verbosity)
     else if (isobject(lsOpt)) self.lscontroller = lsOpt
     else self.lscontroller = LineSearchController(self.adapter, verbosity=self.verbosity)
-    self.trcontroller = nil
-    if (isclass(trOpt)) self.trcontroller = trOpt(self.adapter, self, verbosity=self.verbosity)
-    else if (isobject(trOpt)) self.trcontroller = trOpt
   }
 
   lineSearch(dirn) {
@@ -465,10 +461,6 @@ class NewtonController is OptimizationController {
     return success
   }
 
-  trustRegionStep() {
-    return self.trcontroller.step()
-  }
-
   direction() {
     var g = self.gradient() 
     var H = self.hessian()
@@ -477,13 +469,11 @@ class NewtonController is OptimizationController {
   }
 
   step() {
-    if (self.trcontroller) return self.trustRegionStep()
     var d = self.direction()
     return self.lineSearch(d)
   }
 
   reportStepsize() {
-    if (self.trcontroller) return self.trcontroller.reportStepsize()
     return "stepsize=${self.lscontroller.stepsize}"
   }
 }

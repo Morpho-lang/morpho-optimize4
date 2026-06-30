@@ -68,6 +68,7 @@ class TrustRegionController is OptimizationController {
     self.stepsize = 0
     self.success = false
     self._diagSecantH = nil
+    self._trialDirection = nil
   }
 
   _onOptimizationStart() { }
@@ -97,13 +98,13 @@ class TrustRegionController is OptimizationController {
 
   _shrinkDelta() {
     if (self.delta <= self._delta0) return
-    self.delta = max(self.gammaShrink*self.delta, self._delta0)
+    self.delta = self._delta0
   }
 
   _updateTrustRadius(rho, pnorm) {
     if (rho >= self.eta2 && pnorm >= 0.8*self.delta) {
       self.delta = min(self.gammaGrow*self.delta, self.deltaMax)
-    } else if (rho < self.eta1 && self.delta > self._delta0) {
+    } else if (rho < self.eta1) {
       self._shrinkDelta()
     }
   }
@@ -186,6 +187,7 @@ class TrustRegionController is OptimizationController {
 
     var d = dirn
     if (isnil(d) && self.host.direction) d = self.host.direction()
+    self._trialDirection = d
     self._prepareTrialStep(g0, d)
     self._captureStepContext(g0, d)
 
@@ -393,7 +395,7 @@ class ResidualTrustRegionController is TrustRegionController with TrustRegionSub
  *   m(p) = f + g' p + 1/2 p' B p,  ||p|| <= Delta
  * (g is grad f; only the p-dependent part enters the subproblem.)
  * Steihaug truncated CG on B detects negative curvature and steps to the boundary.
- * rho uses the subproblem model for predicted decrease (g'p + 1/2 p'Bp); ared is
+ * rho uses the subproblem model for predicted decrease: pred = -(g'p + 1/2 p'Bp);
  * still measured on stationarity merit Phi = 1/2 |g|^2.
  * ----------------------------------------- */
 
@@ -414,7 +416,7 @@ class QuadraticTrustRegionController is TrustRegionController with TrustRegionSu
 
   modelMerit(g, p) {
     var Bp = self.host.hmul(p)
-    return self.merit(g) - g.inner(p) - 0.5*p.inner(Bp)
+    return self.merit(g) + g.inner(p) + 0.5*p.inner(Bp)
   }
 
   _trSubGrad(g) { return g }
@@ -432,6 +434,12 @@ class QuadraticTrustRegionController is TrustRegionController with TrustRegionSu
  * ----------------------------------------- */
 
 class ObjectiveTrustRegionMixin {
+  _subproblemDirection() {
+    var d = self._trialDirection
+    if (isnil(d) && self.host.direction) d = self.host.direction()
+    return d
+  }
+
   _configureObjectiveTrustRegion(delta0=1, delta0FromGrad=true,
        rejectDeltaFromStep=true, stabilizeAredPred=true,
        deltaFromDirection=true, deltaDirectionScale=1,
@@ -510,7 +518,7 @@ class ObjectiveTrustRegionMixin {
     ared = ared + buf
     var tol = 10000 * eps * max(1, absf)
     if (absf >= 1 && (abs(predOut) < tol || abs(ared) < tol)) {
-      ared = (g1.inner(p) + g0.inner(p)) / 2
+      ared = -(g1.inner(p) + g0.inner(p)) / 2
     }
     return [ared, predOut]
   }
@@ -555,7 +563,7 @@ class ObjectiveTrustRegionController is TrustRegionController with TrustRegionSu
   }
 
   solveSubproblem(g) {
-    return self._oneDTrustStepAlong(g, self.host.direction())
+    return self._oneDTrustStepAlong(g, self._subproblemDirection())
   }
 }
 
@@ -589,7 +597,7 @@ class DenseExactObjectiveTrustRegionController is ObjectiveTrustRegionController
   solveSubproblem(g) {
     var B = self.host.hessian()
     if (!B || g.count() > self.maxDenseDim) {
-      return self._oneDTrustStepAlong(g, self.host.direction())
+      return self._oneDTrustStepAlong(g, self._subproblemDirection())
     }
     return self._denseExactTrustStep(g, B)
   }
@@ -653,8 +661,7 @@ class TrustRegionNewtonMixin {
   }
 
   trustRegionStep() {
-    self.lineSearch(self.direction())
-    return true
+    return self.lineSearch(self.direction())
   }
 
   // skipQuasiNewtonOnReject (default true): return step failure on TR reject so
@@ -704,9 +711,10 @@ class TrustRegionNewtonMixin {
 
 class TrustRegionBFGSController is BFGSController with TrustRegionNewtonMixin {
   init(adapter, quiet=false, verbosity=nil, linesearch=nil, trustregion=nil,
-       skipQuasiNewtonOnReject=true) {
+       skipQuasiNewtonOnReject=true, recoverlinesearchfailure=true) {
     super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=linesearch)
     self.skipQuasiNewtonOnReject = skipQuasiNewtonOnReject
+    self.recoverlinesearchfailure = recoverlinesearchfailure
     self._attachTrustRegion(trustregion)
   }
 
@@ -716,6 +724,14 @@ class TrustRegionBFGSController is BFGSController with TrustRegionNewtonMixin {
   }
 
   modelHmul(v) { return self.hessian()*v }
+
+  update(sk, yk) {
+    var yksk = yk.inner(sk)
+    if (yksk <= 0) { self.start(); return }
+    var scale = sk.norm() * yk.norm()
+    if (scale > 0 && yksk < 1e-12 * scale) return
+    super.update(sk, yk)
+  }
 
   next() {
     var sk = self.get() - self._ox

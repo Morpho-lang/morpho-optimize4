@@ -1,0 +1,21 @@
+// TrustRegionController.step() without a direction must not dispatch to a no-op success.
+
+import optimize4
+import "../../examples/quadratic.morpho"
+
+var c = TrustRegionLBFGSController(QuadraticExample().build(), quiet=true,
+    verbosity="silent", trustregion=ObjectiveTrustRegionController)
+c.start()
+c.begin()
+
+var threw = false
+try {
+  c.trcontroller.step()
+} catch {
+  "OptTRNoDirection": threw = true
+}
+print threw
+// expect: true
+
+print c.trcontroller.step(c.direction())
+// expect: true

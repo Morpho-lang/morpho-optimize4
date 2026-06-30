@@ -10,6 +10,11 @@
 import optimizationadapter4
 import optimizationcontroller4
 
+var _OptTRNoDirection = Error(
+  "OptTRNoDirection",
+  "TrustRegionController.step requires a trial direction; call step(dirn)."
+)
+
 /* -----------------------------------------
  * TrustRegionController
  *
@@ -145,6 +150,8 @@ class TrustRegionController is OptimizationController {
     if (!isnil(self._diagPred)) s += " pred=${self._diagPred} ared=${self._diagAred}"
     return s
   }
+
+  step() { _OptTRNoDirection.throw() }
 
   step(dirn) {
     var x0 = self.get()

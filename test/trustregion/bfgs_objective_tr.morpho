@@ -1,7 +1,7 @@
 // BFGS with objective-based trust region on a poorly scaled quadratic
 
 import optimize4
-import "../../examples/quadratic.morpho"
+import "../examples/quadratic.morpho"
 
 var example = QuadraticExample()
 var adapt = example.build()

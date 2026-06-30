@@ -7,6 +7,7 @@
 | [`examples/`](examples/) | Reference problems (loop, thomson, cholesteric, saddle, …) — not run by the test runner |
 | [`sqp/`](sqp/), [`pgd/`](pgd/), [`penalty/`](penalty/) | Same problems under different controllers |
 | [`saddlepoint/`](saddlepoint/) | Saddle-point problems (SR1, LSR1, TRSR1, TRDSR1, QuadTR; import `examples/saddle.morpho` or `examples/ferronematic.morpho`) |
+| [`trustregion/`](trustregion/) | Trust-region minimization on example problems (quadratic, qtensor, …) |
 | [`unconstrained/`](unconstrained/) | Unconstrained mesh/field examples |
 | [`adapter/`](adapter/), [`controllers/`](controllers/) | Unit-style adapter and controller tests |
 | [`controllers/newton/`](controllers/newton/) | BFGS, L-BFGS, Newton |
@@ -43,7 +44,7 @@ Tests are classified from comments in each `.morpho` file:
 | Mode | How it is selected | Pass criterion |
 |------|-------------------|----------------|
 | **exact** | `// [CI:Exact]` or any `// expect:` line | Expected lines appear in output, in order |
-| **converged** | `// [CI:Converged]`, or `test/sqp/`, `test/pgd/`, `test/penalty/`, `test/unconstrained/`, `test/saddlepoint/` | No terminal `OptMaxIter`, no `OptLnSrchStpsz`, no unexpected `Error`. For `test/penalty/`, `OptMaxIter` on early inner sub-solves is allowed if the penalty loop continues. |
+| **converged** | `// [CI:Converged]`, or `test/sqp/`, `test/pgd/`, `test/penalty/`, `test/unconstrained/`, `test/saddlepoint/`, `test/trustregion/` | No terminal `OptMaxIter`, no `OptLnSrchStpsz`, no unexpected `Error`. For `test/penalty/`, `OptMaxIter` on early inner sub-solves is allowed if the penalty loop continues. |
 | **smoke** | `// [CI:Smoke]` | Runs without unexpected `Error` |
 | **ignore** | `// [CI:Ignore]` | Skipped (known failures) |
 

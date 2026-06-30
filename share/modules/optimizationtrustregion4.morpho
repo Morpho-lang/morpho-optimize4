@@ -1,35 +1,14 @@
 /* ************************************************************
- * SR1 quasi-Newton and trust-region globalization
+ * Trust-region globalization for smooth minimization
  *
- * Smooth minimization:
  *   L-BFGS / mesh: TrustRegionLBFGSController(trustregion=ObjectiveTrustRegionController)
  *     — 1D TR along d = -B^{-1}g; Delta tracked to |d|.
  *   Dense BFGS (small n): TrustRegionBFGSController(trustregion=DenseExactObjectiveTrustRegionController)
  *     — exact full-rank TR via (B+lambda I)^{-1}g; falls back to 1D if n > maxDenseDim.
- *
- * Saddle-point / SR1: ResidualTrustRegionController, TRSR1Controller, etc.
  * ************************************************************ */
 
 import optimizationadapter4
 import optimizationcontroller4
-
-/* -----------------------------------------
- * DecreaseLineSearchController
- *
- * Armijo line search using objective decrease only (no gradient in accept()).
- * Used with GradSqMeritAdapter for minimax / saddle-point SR1.
- * ----------------------------------------- */
-
-class DecreaseLineSearchController is DirectedLineSearchController {
-  expectedDescent() {
-    self.df = -1
-    return self.df
-  }
-
-  accept(t) {
-    return self.value() < self._ovalue
-  }
-}
 
 /* -----------------------------------------
  * TrustRegionController
@@ -37,17 +16,6 @@ class DecreaseLineSearchController is DirectedLineSearchController {
  * Trust-region step acceptance and radius management. Subclasses define the
  * model (merit, predicted reduction, subproblem). The host quasi-Newton
  * controller supplies modelHmul(v) / hmul(v) for the model Hessian B.
- *
- * Per-iteration diagnostics (reportStepsize): at normal verbosity, delta, |p|,
- * rho, and accept/reject reason; at verbose (verbosity>=3), also |g|, |d|,
- * dBd, Delta/|d|, |p|/|d|, secant h=y's/s's, pred, and ared.
- *
- * Not a drop-in for DirectedLineSearchController: line search takes a fixed
- * direction d and finds a scalar stepsize alpha with x <- x0 + alpha*d. Trust
- * region solves for the step vector p (direction and length) from the model
- * min_p m(p) s.t. ||p|| <= Delta. Plug in via TrustRegionNewtonMixin (overrides
- * step()) or override lineSearch() to call trcontroller.step() without applying
- * x0 + stepsize*direction afterward.
  * ----------------------------------------- */
 
 class TrustRegionController is OptimizationController {
@@ -81,7 +49,6 @@ class TrustRegionController is OptimizationController {
 
   _minStep() { return self.host._minAcceptedStep() }
 
-  // Euclidean step/direction norms for Delta management and diagnostics.
   _directionNorm(d) {
     if (!d) return 0
     return d.norm()
@@ -275,10 +242,7 @@ class TrustRegionController is OptimizationController {
 /* -----------------------------------------
  * TrustRegionSubproblemMixin
  *
- * Matrix-free Steihaug truncated CG for  min_p  grad0' p + 1/2 p' H p  s.t.  ||p|| <= Delta.
- * Subclasses supply the model gradient grad0 = _trSubGrad(g) and Hessian apply H = _trSubHmul(v).
- * For indefinite H (standard Newton TR on B), negative curvature exits to the sphere boundary.
- * (Full MINRES-TR / GLTR on the same model is a possible refinement.)
+ * Matrix-free Steihaug truncated CG and 1D along-d subproblem helpers.
  * ----------------------------------------- */
 
 class TrustRegionSubproblemMixin {
@@ -332,7 +296,6 @@ class TrustRegionSubproblemMixin {
     return p
   }
 
-  // 1D trust region along a fixed direction d (||alpha*d|| <= Delta).
   _oneDTrustStepAlong(g, d) {
     if (d.norm() == 0) return 0*g
     var gtd = g.inner(d)
@@ -354,83 +317,10 @@ class TrustRegionSubproblemMixin {
 }
 
 /* -----------------------------------------
- * ResidualTrustRegionController
- *
- * Residual trust region for root-finding g(z)=0:
- *   m(p) = 1/2 ||g + B p||^2,  ||p|| <= Delta.
- * Model gradient Bg and Hessian B^2 (PSD). Steihaug truncated CG on B^2.
- * ----------------------------------------- */
-
-class ResidualTrustRegionController is TrustRegionController with TrustRegionSubproblemMixin {
-  init(adapter, host, quiet=false, verbosity=nil,
-       delta0=2, eta1=0.1, eta2=0.75, gammaGrow=2, gammaShrink=0.25,
-       deltaMax=1e10, deltaMin=nil,
-       cgMaxIters=200, cgTol=1e-10) {
-    super.init(adapter, host, quiet=quiet, verbosity=verbosity,
-        delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax,
-        deltaMin=deltaMin)
-    self.cgMaxIters = cgMaxIters
-    self.cgTol = cgTol
-  }
-
-  merit(g) { return 0.5*g.inner(g) }
-
-  modelMerit(g, p) {
-    var r = g + self.host.hmul(p)
-    return 0.5*r.inner(r)
-  }
-
-  _trSubGrad(g) { return self.host.hmul(g) }
-
-  _trSubHmul(v) { return self.host.hmul(self.host.hmul(v)) }
-
-  solveSubproblem(g) { return self._steihaugTrustStep(g) }
-}
-
-/* -----------------------------------------
- * QuadraticTrustRegionController
- *
- * Standard trust-region quadratic model with indefinite Hessian B:
- *   m(p) = f + g' p + 1/2 p' B p,  ||p|| <= Delta
- * (g is grad f; only the p-dependent part enters the subproblem.)
- * Steihaug truncated CG on B detects negative curvature and steps to the boundary.
- * rho uses the subproblem model for predicted decrease: pred = -(g'p + 1/2 p'Bp);
- * still measured on stationarity merit Phi = 1/2 |g|^2.
- * ----------------------------------------- */
-
-class QuadraticTrustRegionController is TrustRegionController with TrustRegionSubproblemMixin {
-  init(adapter, host, quiet=false, verbosity=nil,
-       delta0=2, eta1=0.1, eta2=0.75, gammaGrow=2, gammaShrink=0.25,
-       deltaMax=1e10, deltaMin=nil,
-       cgMaxIters=200, cgTol=1e-10) {
-    super.init(adapter, host, quiet=quiet, verbosity=verbosity,
-        delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax,
-        deltaMin=deltaMin)
-    self.cgMaxIters = cgMaxIters
-    self.cgTol = cgTol
-  }
-
-  merit(g) { return 0.5*g.inner(g) }
-
-  modelMerit(g, p) {
-    var Bp = self.host.hmul(p)
-    return self.merit(g) + g.inner(p) + 0.5*p.inner(Bp)
-  }
-
-  _trSubGrad(g) { return g }
-
-  _trSubHmul(v) { return self.host.hmul(v) }
-
-  solveSubproblem(g) { return self._steihaugTrustStep(g) }
-}
-
-/* -----------------------------------------
  * ObjectiveTrustRegionMixin
  *
- * Objective merit (f, not Phi = |g|^2/2), delta-from-direction tracking, and
- * ared/pred stabilization for smooth minimization trust regions.
+ * Objective merit (f), delta-from-direction tracking, and ared/pred
+ * stabilization for smooth minimization trust regions.
  * ----------------------------------------- */
 
 class ObjectiveTrustRegionMixin {
@@ -534,16 +424,7 @@ class ObjectiveTrustRegionMixin {
 /* -----------------------------------------
  * ObjectiveTrustRegionController
  *
- * 1D objective trust region for matrix-free hosts (L-BFGS, large mesh):
- *   m(p) = f + g'p + 1/2 p' B p,  ||alpha*d|| <= Delta
- * with d = -B^{-1}g from the host. Compose via
- * TrustRegionLBFGSController(trustregion=ObjectiveTrustRegionController).
- *
- * delta0FromGrad (default true): Delta <- max(delta0, |g|/10) at start (TRON).
- * rejectDeltaFromStep (default true): on reject, Delta <- |p|/4.
- * eta1 (default 1e-4): minimum rho = ared/pred to accept.
- * stabilizeAredPred (default true): ared/pred roundoff guard for large |f|.
- * deltaFromDirection (default true): each trial, Delta <- c*|d| (cap |g|/10).
+ * 1D objective trust region for matrix-free hosts (L-BFGS, large mesh).
  * ----------------------------------------- */
 
 class ObjectiveTrustRegionController is TrustRegionController with TrustRegionSubproblemMixin, ObjectiveTrustRegionMixin {
@@ -570,10 +451,7 @@ class ObjectiveTrustRegionController is TrustRegionController with TrustRegionSu
 /* -----------------------------------------
  * DenseExactObjectiveTrustRegionController
  *
- * Full-rank exact trust region for dense B (small n): solve (B + lambda I)p = -g
- * with bisection on lambda so ||p|| = Delta. Uses host.hessian() when available
- * and n <= maxDenseDim; otherwise falls back to 1D along d = -B^{-1}g.
- * Compose via TrustRegionBFGSController(trustregion=DenseExactObjectiveTrustRegionController).
+ * Full-rank exact trust region for dense B (small n).
  * ----------------------------------------- */
 
 class DenseExactObjectiveTrustRegionController is ObjectiveTrustRegionController {
@@ -664,8 +542,6 @@ class TrustRegionNewtonMixin {
     return self.lineSearch(self.direction())
   }
 
-  // skipQuasiNewtonOnReject (default true): return step failure on TR reject so
-  // iterate() skips next(); TrustRegionLBFGSController.onStepFailure keeps history.
   lineSearch(dirn) {
     if (!self.trcontroller) return super.lineSearch(dirn)
     self.trcontroller.step(dirn)
@@ -703,10 +579,6 @@ class TrustRegionNewtonMixin {
 
 /* -----------------------------------------
  * TrustRegionBFGSController
- *
- * BFGS with optional objective-based trust-region globalization.
- * For small n use DenseExactObjectiveTrustRegionController (full-rank exact TR);
- * ObjectiveTrustRegionController is the 1D along-d variant (same as L-BFGS hosts).
  * ----------------------------------------- */
 
 class TrustRegionBFGSController is BFGSController with TrustRegionNewtonMixin {
@@ -744,9 +616,6 @@ class TrustRegionBFGSController is BFGSController with TrustRegionNewtonMixin {
 
 /* -----------------------------------------
  * TrustRegionLBFGSController
- *
- * L-BFGS with optional objective-based trust-region globalization.
- * modelHmul routes the TR quadratic model through the two-loop L-BFGS apply.
  * ----------------------------------------- */
 
 class TrustRegionLBFGSController is LBFGSController with TrustRegionNewtonMixin {
@@ -778,7 +647,6 @@ class TrustRegionLBFGSController is LBFGSController with TrustRegionNewtonMixin 
     self.update(sk, yk)
   }
 
-  // Forward L-BFGS two-loop apply (inverse of _hmul); used by the TR model only.
   _forwardHmul(p) {
     var q = p
     var n = self._storage.count()
@@ -807,461 +675,5 @@ class TrustRegionLBFGSController is LBFGSController with TrustRegionNewtonMixin 
     }
 
     return r
-  }
-}
-
-/* -----------------------------------------
- * StationarityStepMixin
- *
- * Merit thresholds for trust-region saddle-point acceptance only.
- * Line-search SR1 uses DecreaseLineSearchController (any strict phi decrease).
- * ----------------------------------------- */
-
-class StationarityStepMixin {
-  _minAcceptedStep() { return self.minlinesearchstep }
-
-  _stationarityMinAred(phi0) {
-    var minAred = self.meritRelTol*max(phi0, 1e-30)
-    if (phi0 >= self.meritAbsTol) minAred = max(minAred, self.meritAbsTol)
-    return minAred
-  }
-}
-
-/* -----------------------------------------
- * SR1Controller
- *
- * Dense SR1 quasi-Newton (Hessian estimate in self.B).
- * Optional maximize=[i,...] flips initial curvature on those DOFs and uses
- * GradSqMeritAdapter line search (minimize 1/2|grad f|^2).
- * ----------------------------------------- */
-
-class SR1Controller is BFGSController with StationarityStepMixin {
-  init(adapter, quiet=false, verbosity=nil, linesearch=nil, maximize=nil, skiptol=1e-8,
-       recoverlinesearchfailure=true) {
-    self.skiptol = skiptol
-    self.maximize = maximize
-    if (isint(maximize)) self.maximize = [maximize]
-    self.rejected = false
-
-    super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=linesearch)
-    self.recoverlinesearchfailure = recoverlinesearchfailure
-    self.minlinesearchstep = 1e-12
-    self.meritRelTol = 1e-8
-    self.meritAbsTol = 1e-10
-
-    if (!isnil(self.maximize)) {
-      var merit = GradSqMeritAdapter(self.adapter)
-      self.lscontroller = DecreaseLineSearchController(merit, quiet=quiet, verbosity=self.verbosity)
-    }
-  }
-
-  _setMaximizeCurvature() {
-    if (!isnil(self.maximize)) {
-      for (i in self.maximize) self.B[i,i] = -1
-    }
-  }
-
-  start() {
-    super.start()
-    self._setMaximizeCurvature()
-    self.rejected = false
-  }
-
-  _stationarityMerit() {
-    if (!isnil(self.maximize)) {
-      var g = self.gradient()
-      return 0.5*g.inner(g)
-    }
-    return self.value()
-  }
-
-  _meritImproved(phi0, phi1) {
-    if (phi1 >= phi0) return false
-    var ared = phi0 - phi1
-    if (ared <= self.meritRelTol*max(phi0, 1e-30)) return false
-    if (phi0 >= self.meritAbsTol && ared < self.meritAbsTol) return false
-    return true
-  }
-
-  _tryFallbackLineSearch(x0, g0) {
-    if (isnil(self.maximize)) return false
-    var phi0 = self._stationarityMerit()
-    var dirs = []
-    var qn = self.direction()
-    if (qn.norm() > 0) dirs.append(qn/qn.norm())
-    if (g0.norm() > 0) dirs.append(-g0/g0.norm())
-    for (dir in dirs) {
-      for (alpha in [2, 1, 0.25, 0.0625, 0.015625, 0.00390625]) {
-        if (alpha <= self.minlinesearchstep) continue
-        self.set(x0 + alpha*dir)
-        if (self._stationarityMerit() < phi0) {
-          self.lscontroller.stepsize = alpha
-          return true
-        }
-      }
-    }
-    self.set(x0)
-    return false
-  }
-
-  onStepFailure() {
-    self.start()
-    self.rejected = true
-  }
-
-  _attemptStationarityStep(x0) {
-    var g0 = self.gradient()
-    var ok = self.lineSearch(self.direction())
-    if (!ok || self.lscontroller.stepsize <= self.minlinesearchstep) {
-      self.set(x0)
-      if (self._tryFallbackLineSearch(x0, g0)) return true
-      return false
-    }
-    return true
-  }
-
-  step() {
-    var x0 = self.get()
-    if (!self._attemptStationarityStep(x0)) return false
-    self.rejected = false
-    return true
-  }
-
-  hasConverged() {
-    if (self.rejected) return false
-    var g = self.gradient()
-    if (g && g.norm() < self.gradtol) return true
-    return false
-  }
-
-  update(sk, yk) {
-    if (self.rejected) return
-
-    var u = yk - self.B*sk
-    var usk = u.inner(sk)
-    var unorm = u.norm()
-    var sknorm = sk.norm()
-
-    if (unorm==0 || sknorm==0) return
-    if (abs(usk) <= self.skiptol*unorm*sknorm) return
-
-    self.B += u*u.transpose()/usk
-  }
-}
-
-/* -----------------------------------------
- * TrustRegionHostMixin
- *
- * Hybrid globalization for SR1 hosts with a composed trcontroller:
- * try trust region first, then fall back to line search on stationarity merit.
- * ----------------------------------------- */
-
-class TrustRegionHostMixin {
-  _hostTrustMerit() {
-    if (!isnil(self.maximize)) return self._stationarityMerit()
-    var g = self.gradient()
-    return 0.5*g.inner(g)
-  }
-
-  trustRegionStep() {
-    var d = nil
-    if (self.direction) d = self.direction()
-    return self.trcontroller.step(d)
-  }
-
-  _trOrLineSearchStep() {
-    var x0 = self.get()
-    var phi0 = self._hostTrustMerit()
-
-    if (self.trustRegionStep()) {
-      var minStep = self._minAcceptedStep()
-      if (self.trcontroller.success && self.trcontroller.stepsize > minStep) {
-        if (self._meritImproved(phi0, self._hostTrustMerit())) {
-          self.rejected = false
-          return true
-        }
-      }
-    }
-    self.set(x0)
-    if (self._attemptStationarityStep(x0)) {
-      self.trcontroller.stepsize = (self.get() - x0).norm()
-      self.rejected = false
-      return true
-    }
-    return false
-  }
-
-  step() { return self._trOrLineSearchStep() }
-}
-
-/* -----------------------------------------
- * TRSR1Controller
- *
- * Dense forward SR1 with ResidualTrustRegionController globalization.
- * ----------------------------------------- */
-
-class TRSR1Controller is SR1Controller with TrustRegionHostMixin {
-  init(adapter, quiet=false, verbosity=nil, maximize=nil, skiptol=1e-8,
-       recoverlinesearchfailure=true, delta0=2, eta1=0.1, eta2=0.75,
-       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10) {
-    super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=nil,
-               maximize=maximize, skiptol=skiptol, recoverlinesearchfailure=recoverlinesearchfailure)
-    self.trcontroller = ResidualTrustRegionController(self.adapter, self,
-        delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax,
-        verbosity=self.verbosity)
-  }
-
-  hmul(v) { return self.hessian()*v }
-}
-
-/* -----------------------------------------
- * QuadTRSR1Controller
- *
- * Dense forward SR1 with QuadraticTrustRegionController (indefinite B model).
- * ----------------------------------------- */
-
-class QuadTRSR1Controller is SR1Controller with TrustRegionHostMixin {
-  init(adapter, quiet=false, verbosity=nil, maximize=nil, skiptol=1e-8,
-       recoverlinesearchfailure=true, delta0=2, eta1=0.1, eta2=0.75,
-       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10,
-       cgMaxIters=200, cgTol=1e-10) {
-    super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=nil,
-               maximize=maximize, skiptol=skiptol, recoverlinesearchfailure=recoverlinesearchfailure)
-    self.trcontroller = QuadraticTrustRegionController(self.adapter, self,
-        delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax,
-        cgMaxIters=cgMaxIters, cgTol=cgTol, verbosity=self.verbosity)
-  }
-
-  hmul(v) { return self.hessian()*v }
-}
-
-/* -----------------------------------------
- * InvSR1Controller
- *
- * SR1 estimating the inverse Hessian (search direction -B*g).
- * ----------------------------------------- */
-
-class InvSR1Controller is SR1Controller {
-  direction() {
-    return -self.B*self.gradient()
-  }
-
-  _hmul(p) {
-    return self.B*p
-  }
-
-  update(sk, yk) {
-    if (self.rejected) return
-
-    var u = sk - self.B*yk
-    var uyk = u.inner(yk)
-    var unorm = u.norm()
-    var yknorm = yk.norm()
-
-    if (unorm==0 || yknorm==0) return
-    if (abs(uyk) <= self.skiptol*unorm*yknorm) return
-
-    self.B += u*u.transpose()/uyk
-  }
-}
-
-/* -----------------------------------------
- * LimitedMemorySR1Mixin
- *
- * Shared compact SR1 storage and apply for inverse (LSR1) and direct (DSR1).
- * ----------------------------------------- */
-
-class LimitedMemorySR1Mixin {
-  _popFirst(lst) {
-    var a = lst.roll(-1)
-    a.pop()
-    return a
-  }
-
-  _lmStart() {
-    self._storage = []
-    self._lmInvalidateCorrections()
-  }
-
-  _lmInvalidateCorrections() {
-    self._lmCorrInv = nil
-    self._lmCorrDirect = nil
-  }
-
-  _compactApply(p, corr) {
-    var r = p.clone()
-    if (!isnil(self.maximize)) {
-      for (i in self.maximize) r[i] = -r[i]
-    }
-    for (z in corr) {
-      r.acc(z[0].inner(p)/z[1], z[0])
-    }
-    return r
-  }
-
-  _lmSkipCorrection(vec, sk, yk, direct, denom) {
-    var vnorm = vec.norm()
-    if (direct) {
-      var snorm = sk.norm()
-      if (vnorm==0 || snorm==0) return true
-      return abs(denom) <= self.skiptol*vnorm*snorm
-    }
-    var ynorm = yk.norm()
-    if (vnorm==0 || ynorm==0) return true
-    return abs(denom) <= self.skiptol*vnorm*ynorm
-  }
-
-  _lmCorrections(direct) {
-    var corr = []
-    for (z in self._storage) {
-      var sk = z[0]
-      var yk = z[1]
-      var v = nil
-      if (direct) v = yk - self._compactApply(sk, corr)
-      else v = sk - self._compactApply(yk, corr)
-      var denom = v.inner(direct ? sk : yk)
-      if (self._lmSkipCorrection(v, sk, yk, direct, denom)) continue
-      corr.append((v, denom))
-    }
-    return corr
-  }
-
-  _lmCachedCorrections(direct) {
-    if (direct) {
-      if (isnil(self._lmCorrDirect)) self._lmCorrDirect = self._lmCorrections(true)
-      return self._lmCorrDirect
-    }
-    if (isnil(self._lmCorrInv)) self._lmCorrInv = self._lmCorrections(false)
-    return self._lmCorrInv
-  }
-
-  _lmUpdate(sk, yk) {
-    if (self.rejected) return
-    if (sk.norm()==0 || yk.norm()==0) return
-    self._storage.append((sk, yk))
-    if (self._storage.count() > self.maxhistorylength) {
-      self._storage = self._popFirst(self._storage)
-    }
-    self._lmInvalidateCorrections()
-  }
-}
-
-/* -----------------------------------------
- * LSR1Controller
- *
- * Limited-memory inverse SR1 (compact SR1 corrections on signed identity base).
- * ----------------------------------------- */
-
-class LSR1Controller is InvSR1Controller with LimitedMemorySR1Mixin {
-  init(adapter, quiet=false, verbosity=nil, linesearch=nil, maximize=nil, skiptol=1e-8,
-       maxhistorylength=10, recoverlinesearchfailure=true) {
-    super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=linesearch,
-               maximize=maximize, skiptol=skiptol, recoverlinesearchfailure=recoverlinesearchfailure)
-    self.maxhistorylength = maxhistorylength
-  }
-
-  start() {
-    super.start()
-    self._lmStart()
-  }
-
-  _corrections() {
-    return self._lmCachedCorrections(false)
-  }
-
-  _hmul(p) {
-    return self._compactApply(p, self._lmCachedCorrections(false))
-  }
-
-  direction() {
-    return -self._hmul(self.gradient())
-  }
-
-  update(sk, yk) {
-    self._lmUpdate(sk, yk)
-  }
-}
-
-/* -----------------------------------------
- * DSR1Controller
- *
- * Limited-memory direct SR1 (compact forward corrections on signed identity base).
- * hmul(v) applies the forward Hessian estimate B*v.
- * ----------------------------------------- */
-
-class DSR1Controller is SR1Controller with LimitedMemorySR1Mixin {
-  init(adapter, quiet=false, verbosity=nil, linesearch=nil, maximize=nil, skiptol=1e-8,
-       maxhistorylength=10, recoverlinesearchfailure=true) {
-    super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=linesearch,
-               maximize=maximize, skiptol=skiptol, recoverlinesearchfailure=recoverlinesearchfailure)
-    self.maxhistorylength = maxhistorylength
-  }
-
-  hessian() { return nil }
-
-  start() {
-    self._lmStart()
-    self.rejected = false
-  }
-
-  hmul(p) {
-    return self._compactApply(p, self._lmCachedCorrections(true))
-  }
-
-  searchDirection(g) {
-    return -self._compactApply(g, self._lmCachedCorrections(false))
-  }
-
-  direction() {
-    return self.searchDirection(self.gradient())
-  }
-
-  update(sk, yk) {
-    self._lmUpdate(sk, yk)
-  }
-}
-
-/* -----------------------------------------
- * TRDSR1Controller
- *
- * Limited-memory direct SR1 with ResidualTrustRegionController globalization.
- * Trust-region subproblems are solved matrix-free by Steihaug truncated CG on B².
- * ----------------------------------------- */
-
-class TRDSR1Controller is DSR1Controller with TrustRegionHostMixin {
-  init(adapter, quiet=false, verbosity=nil, maximize=nil, skiptol=1e-8,
-       maxhistorylength=10, recoverlinesearchfailure=true, delta0=2, eta1=0.1, eta2=0.75,
-       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10,
-       cgMaxIters=200, cgTol=1e-10) {
-    super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=nil,
-               maximize=maximize, skiptol=skiptol, maxhistorylength=maxhistorylength,
-               recoverlinesearchfailure=recoverlinesearchfailure)
-    self.trcontroller = ResidualTrustRegionController(self.adapter, self,
-        delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax,
-        cgMaxIters=cgMaxIters, cgTol=cgTol, verbosity=self.verbosity)
-  }
-}
-
-/* -----------------------------------------
- * QuadTRDSR1Controller
- *
- * Limited-memory direct SR1 with QuadraticTrustRegionController (indefinite B).
- * ----------------------------------------- */
-
-class QuadTRDSR1Controller is DSR1Controller with TrustRegionHostMixin {
-  init(adapter, quiet=false, verbosity=nil, maximize=nil, skiptol=1e-8,
-       maxhistorylength=10, recoverlinesearchfailure=true, delta0=2, eta1=0.1, eta2=0.75,
-       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10,
-       cgMaxIters=200, cgTol=1e-10) {
-    super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=nil,
-               maximize=maximize, skiptol=skiptol, maxhistorylength=maxhistorylength,
-               recoverlinesearchfailure=recoverlinesearchfailure)
-    self.trcontroller = QuadraticTrustRegionController(self.adapter, self,
-        delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax,
-        cgMaxIters=cgMaxIters, cgTol=cgTol, verbosity=self.verbosity)
   }
 }

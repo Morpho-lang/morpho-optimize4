@@ -1,7 +1,7 @@
 // 1D objective TR along L-BFGS direction on a quadratic.
 
 import optimize4
-import "../../examples/quadratic.morpho"
+import "../examples/quadratic.morpho"
 
 var example = QuadraticExample()
 var adapt = example.build()

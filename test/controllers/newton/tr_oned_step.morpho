@@ -1,4 +1,4 @@
-// BFGS with objective-based trust region on a poorly scaled quadratic
+// 1D objective TR along L-BFGS direction on a quadratic.
 
 import optimize4
 import "../../examples/quadratic.morpho"
@@ -6,7 +6,8 @@ import "../../examples/quadratic.morpho"
 var example = QuadraticExample()
 var adapt = example.build()
 
-var control = TrustRegionBFGSController(adapt, trustregion=DenseExactObjectiveTrustRegionController)
+var control = TrustRegionLBFGSController(adapt, quiet=true, verbosity="silent",
+    trustregion=ObjectiveTrustRegionController)
 control.gradtol = 1e-8
 control.optimize(100)
 

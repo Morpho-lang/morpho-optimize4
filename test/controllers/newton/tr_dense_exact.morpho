@@ -1,0 +1,35 @@
+// Dense exact objective TR on small BFGS problems.
+
+import optimize4
+import "../../examples/quadratic.morpho"
+
+var example = QuadraticExample()
+var adapt = example.build()
+
+var control = TrustRegionBFGSController(adapt, quiet=true, verbosity="silent",
+    trustregion=DenseExactObjectiveTrustRegionController)
+control.gradtol = 1e-8
+control.optimize(100)
+
+print example.check() < 1e-6
+// expect: true
+
+print control.hasConverged()
+// expect: true
+
+// maxDenseDim=0 forces 1D fallback even with a dense Hessian.
+class OneDFallbackTR is DenseExactObjectiveTrustRegionController {
+  init(adapter, host, quiet=false, verbosity=nil) {
+    super.init(adapter, host, quiet=quiet, verbosity=verbosity, maxDenseDim=0)
+  }
+}
+
+var fallback = TrustRegionBFGSController(adapt, quiet=true, verbosity="silent",
+    trustregion=OneDFallbackTR)
+fallback.start()
+fallback.begin()
+var g = fallback.gradient()
+var p1d = fallback.trcontroller.solveSubproblem(g)
+var d = fallback.direction()
+print abs(p1d.inner(d) - p1d.norm()*d.norm()) < 1e-10*max(1, p1d.norm()*d.norm())
+// expect: true

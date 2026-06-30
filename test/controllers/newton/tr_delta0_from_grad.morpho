@@ -1,0 +1,39 @@
+// ObjectiveTrustRegionController scales initial delta from |g|/10.
+
+import optimize4
+import "../../examples/quadratic.morpho"
+import "../../examples/electrostatics.morpho"
+
+class LegacyObjectiveTR is ObjectiveTrustRegionController {
+  init(adapter, host, quiet=false, verbosity=nil) {
+    super.init(adapter, host, quiet=quiet, verbosity=verbosity,
+        delta0FromGrad=false, rejectDeltaFromStep=false)
+  }
+}
+
+fn initialDelta(buildAdapt, trClass) {
+  var c = TrustRegionLBFGSController(buildAdapt(), quiet=true, verbosity="silent",
+      trustregion=trClass)
+  c.start()
+  return c.trcontroller.delta
+}
+
+var adaptQ = QuadraticExample().build()
+var gradNormQ = adaptQ.gradient().norm()
+
+var dFixed = initialDelta(fn () QuadraticExample().build(), LegacyObjectiveTR)
+var dScaled = initialDelta(fn () QuadraticExample().build(), ObjectiveTrustRegionController)
+print dFixed == 1
+// expect: true
+print abs(dScaled - max(1, gradNormQ/10)) < 1e-10*max(1, gradNormQ)
+// expect: true
+
+var adaptE = ElectrostaticsExample().build()
+var gradNormE = adaptE.gradient().norm()
+
+var dEFixed = initialDelta(fn () ElectrostaticsExample().build(), LegacyObjectiveTR)
+var dEScaled = initialDelta(fn () ElectrostaticsExample().build(), ObjectiveTrustRegionController)
+print dEFixed == 1
+// expect: true
+print abs(dEScaled - max(1, gradNormE/10)) < 1e-10*max(1, gradNormE)
+// expect: true

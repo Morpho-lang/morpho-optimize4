@@ -1,0 +1,30 @@
+// Trust-region step diagnostics are populated after each trial step.
+
+import optimize4
+import "../../examples/quadratic.morpho"
+
+var c = TrustRegionLBFGSController(QuadraticExample().build(), quiet=true,
+    verbosity="verbose", trustregion=ObjectiveTrustRegionController)
+c.start()
+c.begin()
+c.step()
+
+var tr = c.trcontroller
+print tr._diagGn > 0
+// expect: true
+
+print tr._diagDn > 0
+// expect: true
+
+print !isnil(tr._diagDBd)
+// expect: true
+
+print tr._diagDeltaOverD > 0
+// expect: true
+
+print !isnil(tr._diagRho)
+// expect: true
+
+c.iterate()
+print !isnil(tr._diagSecantH)
+// expect: true

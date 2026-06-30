@@ -1,0 +1,21 @@
+// Experiment 6: rejected TR steps must not clear L-BFGS history via onStepFailure.
+
+import optimize4
+import "../../examples/quadratic.morpho"
+
+fn storageAfterFailure(skipQN) {
+  var c = TrustRegionLBFGSController(QuadraticExample().build(), quiet=true,
+      verbosity="silent", trustregion=ObjectiveTrustRegionController,
+      skipQuasiNewtonOnReject=skipQN)
+  c.start()
+  c._storage.append((c.get()*0, c.get()*0, 1, 1))
+  c.trcontroller.success = false
+  c.onStepFailure()
+  return c._storage.count()
+}
+
+print storageAfterFailure(true) == 1
+// expect: true
+
+print storageAfterFailure(false) == 0
+// expect: true

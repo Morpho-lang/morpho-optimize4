@@ -6,7 +6,7 @@ import "../examples/quadratic.morpho"
 var example = QuadraticExample()
 var adapt = example.build()
 
-var control = TrustRegionBFGSController(adapt, trustregion=ObjectiveTrustRegionController)
+var control = TrustRegionBFGSController(adapt, trustregion=DenseExactObjectiveTrustRegionController)
 control.gradtol = 1e-8
 control.optimize(100)
 

@@ -1,0 +1,10 @@
+// [CI:Converged]
+// L-BFGS + objective trust region on Q-tensor (mesh field problem).
+
+import optimize4
+import "../../examples/qtensor.morpho"
+
+var control = TrustRegionLBFGSController(QTensor().build(), quiet=true,
+    verbosity="silent", trustregion=ObjectiveTrustRegionController)
+control.gradtol = 1e-6
+control.optimize(500)

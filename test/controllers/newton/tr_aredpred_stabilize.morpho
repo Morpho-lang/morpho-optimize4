@@ -1,0 +1,23 @@
+// stabilizeAredPred uses slope average for tiny reductions.
+
+import optimize4
+import "../../examples/electrostatics.morpho"
+
+class NoStabilizeTR is ObjectiveTrustRegionController {
+  init(adapter, host, quiet=false, verbosity=nil) {
+    super.init(adapter, host, quiet=quiet, verbosity=verbosity,
+        stabilizeAredPred=false)
+  }
+}
+
+fn stabilizedFlag(trClass) {
+  var c = TrustRegionLBFGSController(ElectrostaticsExample().build(), quiet=true,
+      verbosity="silent", trustregion=trClass)
+  return c.trcontroller.stabilizeAredPred
+}
+
+print stabilizedFlag(NoStabilizeTR) == false
+// expect: true
+
+print stabilizedFlag(ObjectiveTrustRegionController) == true
+// expect: true

@@ -1,0 +1,39 @@
+// deltaFromDirection: Delta <- c*|d| at each trial step (d = quasi-Newton direction).
+
+import optimize4
+import "../../examples/quadratic.morpho"
+
+fn deltaOverD(deltaFromDirection) {
+  var c = TrustRegionLBFGSController(QuadraticExample().build(), quiet=true,
+      verbosity="silent", trustregion=ObjectiveTrustRegionController)
+  c.trcontroller.deltaFromDirection = deltaFromDirection
+  c.trcontroller.deltaDirectionScale = 0.5
+  c.trcontroller.deltaFromDirectionGradCap = false
+  c.start()
+  c.begin()
+  c.step()
+  return c.trcontroller._diagDeltaOverD
+}
+
+print abs(deltaOverD(true) - 0.5) < 1e-10
+// expect: true
+
+print deltaOverD(false) != 0.5
+// expect: true
+
+// After a reject, sync must not expand delta back above |p|/4.
+fn deltaAfterReject() {
+  var c = TrustRegionLBFGSController(QuadraticExample().build(), quiet=true,
+      verbosity="silent", trustregion=ObjectiveTrustRegionController)
+  c.trcontroller.deltaFromDirectionGradCap = false
+  c.start()
+  c.begin()
+  c.iterate()
+  var deltaBefore = c.trcontroller.delta
+  c.begin()
+  c.iterate()
+  return c.trcontroller.delta <= deltaBefore
+}
+
+print deltaAfterReject()
+// expect: true

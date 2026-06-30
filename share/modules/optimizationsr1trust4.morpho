@@ -1,8 +1,13 @@
 /* ************************************************************
  * SR1 quasi-Newton and trust-region globalization
  *
- * Split from optimizationcontroller4 while under active development.
- * Imported by optimize4 after optimizationcontroller4.
+ * Smooth minimization:
+ *   L-BFGS / mesh: TrustRegionLBFGSController(trustregion=ObjectiveTrustRegionController)
+ *     — 1D TR along d = -B^{-1}g; Delta tracked to |d|.
+ *   Dense BFGS (small n): TrustRegionBFGSController(trustregion=DenseExactObjectiveTrustRegionController)
+ *     — exact full-rank TR via (B+lambda I)^{-1}g; falls back to 1D if n > maxDenseDim.
+ *
+ * Saddle-point / SR1: ResidualTrustRegionController, TRSR1Controller, etc.
  * ************************************************************ */
 
 import optimizationadapter4
@@ -33,6 +38,10 @@ class DecreaseLineSearchController is DirectedLineSearchController {
  * model (merit, predicted reduction, subproblem). The host quasi-Newton
  * controller supplies modelHmul(v) / hmul(v) for the model Hessian B.
  *
+ * Per-iteration diagnostics (reportStepsize): at normal verbosity, delta, |p|,
+ * rho, and accept/reject reason; at verbose (verbosity>=3), also |g|, |d|,
+ * dBd, Delta/|d|, |p|/|d|, secant h=y's/s's, pred, and ared.
+ *
  * Not a drop-in for DirectedLineSearchController: line search takes a fixed
  * direction d and finds a scalar stepsize alpha with x <- x0 + alpha*d. Trust
  * region solves for the step vector p (direction and length) from the model
@@ -44,7 +53,7 @@ class DecreaseLineSearchController is DirectedLineSearchController {
 class TrustRegionController is OptimizationController {
   init(adapter, host, quiet=false, verbosity=nil,
        delta0=2, eta1=0.1, eta2=0.75, gammaGrow=2, gammaShrink=0.25,
-       deltaMax=1e10, maxLambdaIters=20, deltaMin=nil) {
+       deltaMax=1e10, deltaMin=nil) {
     super.init(adapter, quiet=quiet, verbosity=verbosity)
     self.host = host
     self._delta0 = delta0
@@ -54,12 +63,14 @@ class TrustRegionController is OptimizationController {
     self.gammaGrow = gammaGrow
     self.gammaShrink = gammaShrink
     self.deltaMax = deltaMax
-    self.maxLambdaIters = maxLambdaIters
     self.deltaMin = deltaMin
     if (isnil(self.deltaMin)) self.deltaMin = max(1e-12, 1e-4*delta0)
     self.stepsize = 0
     self.success = false
+    self._diagSecantH = nil
   }
+
+  _onOptimizationStart() { }
 
   merit(g) { return 0 }
 
@@ -68,6 +79,21 @@ class TrustRegionController is OptimizationController {
   solveSubproblem(g) { return nil }
 
   _minStep() { return self.host._minAcceptedStep() }
+
+  // Euclidean step/direction norms for Delta management and diagnostics.
+  _directionNorm(d) {
+    if (!d) return 0
+    return d.norm()
+  }
+
+  _stepNorm(p) {
+    if (!p) return 0
+    return p.norm()
+  }
+
+  _stepNormTag() { return "|p|" }
+
+  _directionNormTag() { return "|d|" }
 
   _shrinkDelta() {
     if (self.delta <= self._delta0) return
@@ -82,21 +108,86 @@ class TrustRegionController is OptimizationController {
     }
   }
 
-  _recoverDeltaIfProgress(ared) {
+  _recoverDeltaIfProgress(ared, rho, pnorm) {
     if (ared > 0 && self.delta < self._delta0/4) {
       self.delta = min(2*self.delta, self._delta0)
     }
   }
 
-  _recordStepDiag(rho, ared, pred, pnorm, success, reason) {
-    self._lastDiag = [rho, ared, pred, pnorm, (success ? 1 : 0), reason]
+  _onStepRejected(rho, pnorm, reason) {
+    if (rho < self.eta1) self._updateTrustRadius(rho, pnorm)
   }
 
-  step() {
+  _trialReductions(phi0, phi1, g0, g1, p, pred) {
+    return [phi0 - phi1, pred]
+  }
+
+  _prepareTrialStep(g0, d) { }
+
+  _captureStepContext(g0, d) {
+    self._diagGn = g0 ? g0.norm() : nil
+    self._diagDn = nil
+    self._diagDBd = nil
+    self._diagDeltaOverD = nil
+    self._diagPnormOverD = nil
+    if (d && self._directionNorm(d) > 0) {
+      self._diagDn = self._directionNorm(d)
+      var Bd = self.host.hmul(d)
+      self._diagDBd = d.inner(Bd)
+      self._diagDeltaOverD = self.delta/self._diagDn
+    }
+  }
+
+  _recordStepDiag(rho, ared, pred, pnorm, success, reason) {
+    self._lastDiag = [rho, ared, pred, pnorm, (success ? 1 : 0), reason]
+    self._diagRho = rho
+    self._diagAred = ared
+    self._diagPred = pred
+    self._diagPnorm = pnorm
+    self._diagSuccess = success
+    self._diagReason = reason
+    if (self._diagDn && self._diagDn > 0 && pnorm && pnorm > 0) {
+      self._diagPnormOverD = pnorm/self._diagDn
+    } else {
+      self._diagPnormOverD = nil
+    }
+  }
+
+  reportStepsize() {
+    var pnorm = self.stepsize
+    if (self._diagPnorm && self._diagPnorm > 0) pnorm = self._diagPnorm
+
+    var s = "delta=${self.delta}"
+    if (pnorm > 0) s += " ${self._stepNormTag()}=${pnorm}"
+    if (self._diagReason) {
+      var tag = "no"
+      if (self._diagSuccess) tag = "ok"
+      s += " ${tag}:${self._diagReason}"
+      if (!isnil(self._diagRho)) s += " rho=${self._diagRho}"
+    }
+
+    if (self.verbosity < 3) return s
+
+    if (!isnil(self._diagGn)) s += " |g|=${self._diagGn}"
+    if (self._diagDn) s += " ${self._directionNormTag()}=${self._diagDn}"
+    if (!isnil(self._diagDBd)) s += " dBd=${self._diagDBd}"
+    if (self._diagDeltaOverD) s += " Delta/|d|=${self._diagDeltaOverD}"
+    if (self._diagPnormOverD) s += " |p|/|d|=${self._diagPnormOverD}"
+    if (!isnil(self._diagSecantH)) s += " h=${self._diagSecantH}"
+    if (!isnil(self._diagPred)) s += " pred=${self._diagPred} ared=${self._diagAred}"
+    return s
+  }
+
+  step(dirn) {
     var x0 = self.get()
     var g0 = self.gradient()
     var phi0 = self.merit(g0)
     var minStep = self._minStep()
+
+    var d = dirn
+    if (isnil(d) && self.host.direction) d = self.host.direction()
+    self._prepareTrialStep(g0, d)
+    self._captureStepContext(g0, d)
 
     var p = self.solveSubproblem(g0)
     if (!p) {
@@ -112,29 +203,31 @@ class TrustRegionController is OptimizationController {
       self._shrinkDelta()
       self.stepsize = 0
       self.success = false
-      self._recordStepDiag(nil, nil, pred, p.norm(), false, "nonpositive_pred")
+      self._recordStepDiag(nil, nil, pred, self._stepNorm(p), false, "nonpositive_pred")
       return false
     }
 
     self.set(x0 + p)
     var g1 = self.gradient()
     var phi1 = self.merit(g1)
-    var ared = phi0 - phi1
+    var reductions = self._trialReductions(phi0, phi1, g0, g1, p, pred)
+    var ared = reductions[0]
+    pred = reductions[1]
     var rho = ared/pred
-    var pnorm = p.norm()
+    var pnorm = self._stepNorm(p)
     var minAred = self.host._stationarityMinAred(phi0)
     var stationarityTol = !isnil(minAred)
 
     if (rho < self.eta1) {
       if (stationarityTol && ared > minAred && pnorm > minStep) {
         self.stepsize = pnorm
-        self._recoverDeltaIfProgress(ared)
+        self._recoverDeltaIfProgress(ared, rho, pnorm)
         self.success = true
         self._recordStepDiag(rho, ared, pred, pnorm, true, "soft_accept")
         return true
       }
       self.set(x0)
-      self._updateTrustRadius(rho, pnorm)
+      self._onStepRejected(rho, pnorm, "low_rho")
       self.stepsize = 0
       self.success = false
       self._recordStepDiag(rho, ared, pred, pnorm, false, "low_rho")
@@ -143,6 +236,7 @@ class TrustRegionController is OptimizationController {
 
     if (pnorm <= minStep) {
       self.set(x0)
+      self._onStepRejected(rho, pnorm, "tiny_step")
       self.stepsize = 0
       self.success = false
       self._recordStepDiag(rho, ared, pred, pnorm, false, "tiny_step")
@@ -151,6 +245,7 @@ class TrustRegionController is OptimizationController {
 
     if (stationarityTol && ared <= minAred) {
       self.set(x0)
+      self._onStepRejected(rho, pnorm, "merit_tol")
       self.stepsize = 0
       self.success = false
       self._recordStepDiag(rho, ared, pred, pnorm, false, "merit_tol")
@@ -159,6 +254,7 @@ class TrustRegionController is OptimizationController {
 
     if (!stationarityTol && ared <= 0) {
       self.set(x0)
+      self._onStepRejected(rho, pnorm, "no_decrease")
       self.stepsize = 0
       self.success = false
       self._recordStepDiag(rho, ared, pred, pnorm, false, "no_decrease")
@@ -167,13 +263,11 @@ class TrustRegionController is OptimizationController {
 
     self.stepsize = pnorm
     self._updateTrustRadius(rho, pnorm)
-    self._recoverDeltaIfProgress(ared)
+    self._recoverDeltaIfProgress(ared, rho, pnorm)
     self.success = true
     self._recordStepDiag(rho, ared, pred, pnorm, true, "accept")
     return true
   }
-
-  reportStepsize() { return "delta=${self.delta} |step|=${self.stepsize}" }
 }
 
 /* -----------------------------------------
@@ -235,6 +329,26 @@ class TrustRegionSubproblemMixin {
     if (p.norm() > delta) p = p*(delta/p.norm())
     return p
   }
+
+  // 1D trust region along a fixed direction d (||alpha*d|| <= Delta).
+  _oneDTrustStepAlong(g, d) {
+    if (d.norm() == 0) return 0*g
+    var gtd = g.inner(d)
+    var Bd = self.host.hmul(d)
+    var dBd = d.inner(Bd)
+    var alphaMax = self.delta/d.norm()
+
+    var alpha = 0
+    if (dBd > 0) {
+      alpha = -gtd/dBd
+      alpha = max(-alphaMax, min(alphaMax, alpha))
+    } else if (gtd < 0) {
+      alpha = alphaMax
+    } else if (gtd > 0) {
+      alpha = -alphaMax
+    }
+    return alpha*d
+  }
 }
 
 /* -----------------------------------------
@@ -248,11 +362,11 @@ class TrustRegionSubproblemMixin {
 class ResidualTrustRegionController is TrustRegionController with TrustRegionSubproblemMixin {
   init(adapter, host, quiet=false, verbosity=nil,
        delta0=2, eta1=0.1, eta2=0.75, gammaGrow=2, gammaShrink=0.25,
-       deltaMax=1e10, maxLambdaIters=20, deltaMin=nil,
+       deltaMax=1e10, deltaMin=nil,
        cgMaxIters=200, cgTol=1e-10) {
     super.init(adapter, host, quiet=quiet, verbosity=verbosity,
         delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax, maxLambdaIters=maxLambdaIters,
+        gammaShrink=gammaShrink, deltaMax=deltaMax,
         deltaMin=deltaMin)
     self.cgMaxIters = cgMaxIters
     self.cgTol = cgTol
@@ -286,11 +400,11 @@ class ResidualTrustRegionController is TrustRegionController with TrustRegionSub
 class QuadraticTrustRegionController is TrustRegionController with TrustRegionSubproblemMixin {
   init(adapter, host, quiet=false, verbosity=nil,
        delta0=2, eta1=0.1, eta2=0.75, gammaGrow=2, gammaShrink=0.25,
-       deltaMax=1e10, maxLambdaIters=20, deltaMin=nil,
+       deltaMax=1e10, deltaMin=nil,
        cgMaxIters=200, cgTol=1e-10) {
     super.init(adapter, host, quiet=quiet, verbosity=verbosity,
         delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax, maxLambdaIters=maxLambdaIters,
+        gammaShrink=gammaShrink, deltaMax=deltaMax,
         deltaMin=deltaMin)
     self.cgMaxIters = cgMaxIters
     self.cgTol = cgTol
@@ -311,28 +425,94 @@ class QuadraticTrustRegionController is TrustRegionController with TrustRegionSu
 }
 
 /* -----------------------------------------
- * ObjectiveTrustRegionController
+ * ObjectiveTrustRegionMixin
  *
- * Standard trust-region globalization for smooth minimization:
- *   m(p) = f(x) + g'p + 1/2 p' B p,  ||p|| <= Delta
- * with B from the host (e.g. BFGS). Matches the objective-based rho used in
- * SciPy trust-region methods (ared = f_k - f_{k+1}, pred = -g'p - 1/2 p'Bp).
- * Compose via TrustRegionBFGSController(trustregion=ObjectiveTrustRegionController).
+ * Objective merit (f, not Phi = |g|^2/2), delta-from-direction tracking, and
+ * ared/pred stabilization for smooth minimization trust regions.
  * ----------------------------------------- */
 
-class ObjectiveTrustRegionController is QuadraticTrustRegionController {
-  init(adapter, host, quiet=false, verbosity=nil,
-       delta0=1, eta1=0.15, eta2=0.75, gammaGrow=2, gammaShrink=0.25,
-       deltaMax=1e10, maxLambdaIters=20, deltaMin=nil,
-       cgMaxIters=200, cgTol=1e-10) {
-    super.init(adapter, host, quiet=quiet, verbosity=verbosity,
-        delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax, maxLambdaIters=maxLambdaIters,
-        deltaMin=deltaMin, cgMaxIters=cgMaxIters, cgTol=cgTol)
+class ObjectiveTrustRegionMixin {
+  _configureObjectiveTrustRegion(delta0=1, delta0FromGrad=true,
+       rejectDeltaFromStep=true, stabilizeAredPred=true,
+       deltaFromDirection=true, deltaDirectionScale=1,
+       deltaFromDirectionGradCap=true) {
+    self.delta0FromGrad = delta0FromGrad
+    self.rejectDeltaFromStep = rejectDeltaFromStep
+    self.stabilizeAredPred = stabilizeAredPred
+    self.deltaFromDirection = deltaFromDirection
+    self.deltaDirectionScale = deltaDirectionScale
+    self.deltaFromDirectionGradCap = deltaFromDirectionGradCap
+    self._delta0Floor = delta0
+    self._shrankFromReject = false
+  }
+
+  _targetDeltaFromDirection(g0, d) {
+    if (!d) return self.deltaMin
+    var dn = self._directionNorm(d)
+    var scaled = self.deltaDirectionScale*dn
+    if (self.deltaFromDirectionGradCap && g0) {
+      var cap = max(self._delta0Floor, g0.norm()/10)
+      scaled = min(scaled, cap)
+    }
+    return min(max(scaled, self.deltaMin), self.deltaMax)
+  }
+
+  _syncDeltaFromDirection(g0, d) {
+    if (!self.deltaFromDirection) return
+    if (!d || self._directionNorm(d) <= 0) return
+    var target = self._targetDeltaFromDirection(g0, d)
+    if (self._shrankFromReject) {
+      self.delta = min(self.delta, target)
+      self._shrankFromReject = false
+    } else {
+      self.delta = target
+    }
+    self._delta0 = self.delta
+  }
+
+  _prepareTrialStep(g0, d) {
+    self._syncDeltaFromDirection(g0, d)
+  }
+
+  _onOptimizationStart() {
+    if (self.delta0FromGrad) {
+      var g = self.gradient()
+      if (!g) return
+      var scaled = max(self._delta0Floor, g.norm()/10)
+      scaled = min(scaled, self.deltaMax)
+      self._delta0 = scaled
+      self.delta = scaled
+    }
   }
 
   _shrinkDelta() {
     self.delta = max(self.gammaShrink*self.delta, self.deltaMin)
+  }
+
+  _onStepRejected(rho, pnorm, reason) {
+    self._shrankFromReject = true
+    if (pnorm <= 0) return
+    if (self.rejectDeltaFromStep) {
+      self.delta = pnorm/4
+      return
+    }
+    if (reason == "low_rho" && rho < self.eta1) self._shrinkDelta()
+  }
+
+  _trialReductions(phi0, phi1, g0, g1, p, pred) {
+    var ared = phi0 - phi1
+    if (!self.stabilizeAredPred) return [ared, pred]
+
+    var eps = 1e-16
+    var absf = abs(phi0)
+    var buf = max(1, absf) * 10 * eps
+    var predOut = pred + buf
+    ared = ared + buf
+    var tol = 10000 * eps * max(1, absf)
+    if (absf >= 1 && (abs(predOut) < tol || abs(ared) < tol)) {
+      ared = (g1.inner(p) + g0.inner(p)) / 2
+    }
+    return [ared, predOut]
   }
 
   merit(g) { return self.value() }
@@ -340,6 +520,109 @@ class ObjectiveTrustRegionController is QuadraticTrustRegionController {
   modelMerit(g, p) {
     var Bp = self.host.hmul(p)
     return self.value() + g.inner(p) + 0.5*p.inner(Bp)
+  }
+}
+
+/* -----------------------------------------
+ * ObjectiveTrustRegionController
+ *
+ * 1D objective trust region for matrix-free hosts (L-BFGS, large mesh):
+ *   m(p) = f + g'p + 1/2 p' B p,  ||alpha*d|| <= Delta
+ * with d = -B^{-1}g from the host. Compose via
+ * TrustRegionLBFGSController(trustregion=ObjectiveTrustRegionController).
+ *
+ * delta0FromGrad (default true): Delta <- max(delta0, |g|/10) at start (TRON).
+ * rejectDeltaFromStep (default true): on reject, Delta <- |p|/4.
+ * eta1 (default 1e-4): minimum rho = ared/pred to accept.
+ * stabilizeAredPred (default true): ared/pred roundoff guard for large |f|.
+ * deltaFromDirection (default true): each trial, Delta <- c*|d| (cap |g|/10).
+ * ----------------------------------------- */
+
+class ObjectiveTrustRegionController is TrustRegionController with TrustRegionSubproblemMixin, ObjectiveTrustRegionMixin {
+  init(adapter, host, quiet=false, verbosity=nil,
+       delta0=1, eta1=1e-4, eta2=0.75, gammaGrow=2, gammaShrink=0.25,
+       deltaMax=1e10, deltaMin=nil, delta0FromGrad=true,
+       rejectDeltaFromStep=true, stabilizeAredPred=true,
+       deltaFromDirection=true, deltaDirectionScale=1,
+       deltaFromDirectionGradCap=true) {
+    super.init(adapter, host, quiet=quiet, verbosity=verbosity,
+        delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
+        gammaShrink=gammaShrink, deltaMax=deltaMax, deltaMin=deltaMin)
+    self._configureObjectiveTrustRegion(delta0=delta0, delta0FromGrad=delta0FromGrad,
+        rejectDeltaFromStep=rejectDeltaFromStep, stabilizeAredPred=stabilizeAredPred,
+        deltaFromDirection=deltaFromDirection, deltaDirectionScale=deltaDirectionScale,
+        deltaFromDirectionGradCap=deltaFromDirectionGradCap)
+  }
+
+  solveSubproblem(g) {
+    return self._oneDTrustStepAlong(g, self.host.direction())
+  }
+}
+
+/* -----------------------------------------
+ * DenseExactObjectiveTrustRegionController
+ *
+ * Full-rank exact trust region for dense B (small n): solve (B + lambda I)p = -g
+ * with bisection on lambda so ||p|| = Delta. Uses host.hessian() when available
+ * and n <= maxDenseDim; otherwise falls back to 1D along d = -B^{-1}g.
+ * Compose via TrustRegionBFGSController(trustregion=DenseExactObjectiveTrustRegionController).
+ * ----------------------------------------- */
+
+class DenseExactObjectiveTrustRegionController is ObjectiveTrustRegionController {
+  init(adapter, host, quiet=false, verbosity=nil,
+       delta0=1, eta1=1e-4, eta2=0.75, gammaGrow=2, gammaShrink=0.25,
+       deltaMax=1e10, deltaMin=nil, delta0FromGrad=true,
+       rejectDeltaFromStep=true, stabilizeAredPred=true,
+       deltaFromDirection=true, deltaDirectionScale=1,
+       deltaFromDirectionGradCap=true, maxDenseDim=200, maxLambdaIters=20) {
+    super.init(adapter, host, quiet=quiet, verbosity=verbosity,
+        delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
+        gammaShrink=gammaShrink, deltaMax=deltaMax, deltaMin=deltaMin,
+        delta0FromGrad=delta0FromGrad, rejectDeltaFromStep=rejectDeltaFromStep,
+        stabilizeAredPred=stabilizeAredPred, deltaFromDirection=deltaFromDirection,
+        deltaDirectionScale=deltaDirectionScale,
+        deltaFromDirectionGradCap=deltaFromDirectionGradCap)
+    self.maxDenseDim = maxDenseDim
+    self.maxLambdaIters = maxLambdaIters
+  }
+
+  solveSubproblem(g) {
+    var B = self.host.hessian()
+    if (!B || g.count() > self.maxDenseDim) {
+      return self._oneDTrustStepAlong(g, self.host.direction())
+    }
+    return self._denseExactTrustStep(g, B)
+  }
+
+  _denseExactTrustStep(g, B) {
+    var delta = self.delta
+    if (delta <= 0) return 0*g
+
+    var n = g.count()
+    var I = IdentityMatrix(n)
+    var p = -g/B
+    var pnorm = p.norm()
+    if (pnorm <= delta) return p
+
+    var lamLo = 0
+    var lamHi = 1
+    var pHi = -(g/(B + lamHi*I))
+    while (pHi.norm() > delta && lamHi < 1e16) {
+      lamHi *= 2
+      pHi = -(g/(B + lamHi*I))
+    }
+    if (pHi.norm() > delta) return p*(delta/pnorm)
+
+    for (_ in 1..self.maxLambdaIters) {
+      var lamMid = (lamLo + lamHi)/2
+      var pMid = -(g/(B + lamMid*I))
+      var pn = pMid.norm()
+      var tol = 1e-10*max(delta, 1)
+      if (abs(pn - delta) <= tol) return pMid
+      if (pn > delta) lamLo = lamMid
+      else lamHi = lamMid
+    }
+    return -(g/(B + (lamLo + lamHi)/2*I))
   }
 }
 
@@ -359,21 +642,34 @@ class TrustRegionNewtonMixin {
     }
   }
 
+  _startTrustRegion() {
+    if (self.trcontroller) self.trcontroller._onOptimizationStart()
+  }
+
+  _recordTrustRegionSecant(sk, yk) {
+    if (!self.trcontroller) return
+    var sksk = sk.inner(sk)
+    if (sksk > 0) self.trcontroller._diagSecantH = sk.inner(yk)/sksk
+  }
+
   trustRegionStep() {
     self.lineSearch(self.direction())
     return true
   }
 
+  // skipQuasiNewtonOnReject (default true): return step failure on TR reject so
+  // iterate() skips next(); TrustRegionLBFGSController.onStepFailure keeps history.
   lineSearch(dirn) {
     if (!self.trcontroller) return super.lineSearch(dirn)
-    self.trcontroller.step()
+    self.trcontroller.step(dirn)
     self.lscontroller.stepsize = self.trcontroller.stepsize
+    if (self.skipQuasiNewtonOnReject) return self.trcontroller.success
     return true
   }
 
-  hmul(v) { return self.modelHmul(v) }
-
   _minAcceptedStep() { return 1e-10 }
+
+  hmul(v) { return self.modelHmul(v) }
 
   _stationarityMinAred(phi0) { return nil }
 
@@ -390,7 +686,8 @@ class TrustRegionNewtonMixin {
   hasConverged() {
     if (self.trcontroller) {
       var g = self.gradient()
-      if (g && g.norm() < self.gradtol) return true
+      if (!g) return false
+      if (g.norm() < self.gradtol) return true
       return false
     }
     return super.hasConverged()
@@ -401,15 +698,32 @@ class TrustRegionNewtonMixin {
  * TrustRegionBFGSController
  *
  * BFGS with optional objective-based trust-region globalization.
+ * For small n use DenseExactObjectiveTrustRegionController (full-rank exact TR);
+ * ObjectiveTrustRegionController is the 1D along-d variant (same as L-BFGS hosts).
  * ----------------------------------------- */
 
 class TrustRegionBFGSController is BFGSController with TrustRegionNewtonMixin {
-  init(adapter, quiet=false, verbosity=nil, linesearch=nil, trustregion=nil) {
+  init(adapter, quiet=false, verbosity=nil, linesearch=nil, trustregion=nil,
+       skipQuasiNewtonOnReject=true) {
     super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=linesearch)
+    self.skipQuasiNewtonOnReject = skipQuasiNewtonOnReject
     self._attachTrustRegion(trustregion)
   }
 
+  start() {
+    super.start()
+    self._startTrustRegion()
+  }
+
   modelHmul(v) { return self.hessian()*v }
+
+  next() {
+    var sk = self.get() - self._ox
+    if (sk.norm() == 0) return
+    var yk = self.gradient() - self._ogradient
+    self._recordTrustRegionSecant(sk, yk)
+    self.update(sk, yk)
+  }
 }
 
 /* -----------------------------------------
@@ -421,13 +735,32 @@ class TrustRegionBFGSController is BFGSController with TrustRegionNewtonMixin {
 
 class TrustRegionLBFGSController is LBFGSController with TrustRegionNewtonMixin {
   init(adapter, quiet=false, verbosity=nil, linesearch=nil, trustregion=nil,
-       maxhistorylength=10, recoverlinesearchfailure=true) {
+       maxhistorylength=10, recoverlinesearchfailure=true, skipQuasiNewtonOnReject=true) {
     super.init(adapter, quiet=quiet, verbosity=verbosity,
                maxhistorylength=maxhistorylength, recoverlinesearchfailure=recoverlinesearchfailure)
+    self.skipQuasiNewtonOnReject = skipQuasiNewtonOnReject
     self._attachTrustRegion(trustregion)
   }
 
+  start() {
+    super.start()
+    self._startTrustRegion()
+  }
+
   modelHmul(v) { return self._forwardHmul(v) }
+
+  onStepFailure() {
+    if (self.trcontroller && self.skipQuasiNewtonOnReject && !self.trcontroller.success) return
+    super.onStepFailure()
+  }
+
+  next() {
+    var sk = self.get() - self._ox
+    if (sk.norm() == 0) return
+    var yk = self.gradient() - self._ogradient
+    self._recordTrustRegionSecant(sk, yk)
+    self.update(sk, yk)
+  }
 
   // Forward L-BFGS two-loop apply (inverse of _hmul); used by the TR model only.
   _forwardHmul(p) {
@@ -608,20 +941,26 @@ class SR1Controller is BFGSController with StationarityStepMixin {
  * ----------------------------------------- */
 
 class TrustRegionHostMixin {
+  _hostTrustMerit() {
+    if (!isnil(self.maximize)) return self._stationarityMerit()
+    var g = self.gradient()
+    return 0.5*g.inner(g)
+  }
+
   trustRegionStep() {
-    self.trcontroller.step()
-    return true
+    var d = nil
+    if (self.direction) d = self.direction()
+    return self.trcontroller.step(d)
   }
 
   _trOrLineSearchStep() {
     var x0 = self.get()
-    var phi0 = nil
-    if (!isnil(self.maximize)) phi0 = self._stationarityMerit()
+    var phi0 = self._hostTrustMerit()
 
     if (self.trustRegionStep()) {
       var minStep = self._minAcceptedStep()
-      if (self.trcontroller.stepsize > minStep) {
-        if (isnil(phi0) || self._meritImproved(phi0, self._stationarityMerit())) {
+      if (self.trcontroller.success && self.trcontroller.stepsize > minStep) {
+        if (self._meritImproved(phi0, self._hostTrustMerit())) {
           self.rejected = false
           return true
         }
@@ -648,12 +987,12 @@ class TrustRegionHostMixin {
 class TRSR1Controller is SR1Controller with TrustRegionHostMixin {
   init(adapter, quiet=false, verbosity=nil, maximize=nil, skiptol=1e-8,
        recoverlinesearchfailure=true, delta0=2, eta1=0.1, eta2=0.75,
-       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10, maxLambdaIters=20) {
+       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10) {
     super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=nil,
                maximize=maximize, skiptol=skiptol, recoverlinesearchfailure=recoverlinesearchfailure)
     self.trcontroller = ResidualTrustRegionController(self.adapter, self,
         delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax, maxLambdaIters=maxLambdaIters,
+        gammaShrink=gammaShrink, deltaMax=deltaMax,
         verbosity=self.verbosity)
   }
 
@@ -669,13 +1008,13 @@ class TRSR1Controller is SR1Controller with TrustRegionHostMixin {
 class QuadTRSR1Controller is SR1Controller with TrustRegionHostMixin {
   init(adapter, quiet=false, verbosity=nil, maximize=nil, skiptol=1e-8,
        recoverlinesearchfailure=true, delta0=2, eta1=0.1, eta2=0.75,
-       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10, maxLambdaIters=20,
+       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10,
        cgMaxIters=200, cgTol=1e-10) {
     super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=nil,
                maximize=maximize, skiptol=skiptol, recoverlinesearchfailure=recoverlinesearchfailure)
     self.trcontroller = QuadraticTrustRegionController(self.adapter, self,
         delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax, maxLambdaIters=maxLambdaIters,
+        gammaShrink=gammaShrink, deltaMax=deltaMax,
         cgMaxIters=cgMaxIters, cgTol=cgTol, verbosity=self.verbosity)
   }
 
@@ -878,14 +1217,14 @@ class DSR1Controller is SR1Controller with LimitedMemorySR1Mixin {
 class TRDSR1Controller is DSR1Controller with TrustRegionHostMixin {
   init(adapter, quiet=false, verbosity=nil, maximize=nil, skiptol=1e-8,
        maxhistorylength=10, recoverlinesearchfailure=true, delta0=2, eta1=0.1, eta2=0.75,
-       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10, maxLambdaIters=20,
+       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10,
        cgMaxIters=200, cgTol=1e-10) {
     super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=nil,
                maximize=maximize, skiptol=skiptol, maxhistorylength=maxhistorylength,
                recoverlinesearchfailure=recoverlinesearchfailure)
     self.trcontroller = ResidualTrustRegionController(self.adapter, self,
         delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax, maxLambdaIters=maxLambdaIters,
+        gammaShrink=gammaShrink, deltaMax=deltaMax,
         cgMaxIters=cgMaxIters, cgTol=cgTol, verbosity=self.verbosity)
   }
 }
@@ -899,14 +1238,14 @@ class TRDSR1Controller is DSR1Controller with TrustRegionHostMixin {
 class QuadTRDSR1Controller is DSR1Controller with TrustRegionHostMixin {
   init(adapter, quiet=false, verbosity=nil, maximize=nil, skiptol=1e-8,
        maxhistorylength=10, recoverlinesearchfailure=true, delta0=2, eta1=0.1, eta2=0.75,
-       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10, maxLambdaIters=20,
+       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10,
        cgMaxIters=200, cgTol=1e-10) {
     super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=nil,
                maximize=maximize, skiptol=skiptol, maxhistorylength=maxhistorylength,
                recoverlinesearchfailure=recoverlinesearchfailure)
     self.trcontroller = QuadraticTrustRegionController(self.adapter, self,
         delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax, maxLambdaIters=maxLambdaIters,
+        gammaShrink=gammaShrink, deltaMax=deltaMax,
         cgMaxIters=cgMaxIters, cgTol=cgTol, verbosity=self.verbosity)
   }
 }

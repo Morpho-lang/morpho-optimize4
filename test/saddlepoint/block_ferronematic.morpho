@@ -1,0 +1,52 @@
+// Block ferronematic: phi stationarity + LSR1 on P (experimental subclass)
+
+import optimize4
+import "../examples/ferronematic.morpho"
+
+class FerronematicBlock is Ferronematic {
+  coupledGradientNorm() {
+    return self._coupledAdapter().gradient().norm()
+  }
+
+  // Phi block is linear in phi for fixed P; solve to tight stationarity.
+  solvePhiLinear(gradtol=1e-10, niter=50) {
+    var adapt = ProblemAdapter(self.problem, self.phi)
+    var fadapt = FixAdapter(adapt, self._phiFixIndices())
+    var phidofs = self._phiDofs()
+    var opt = LSR1Controller(fadapt, maximize=phidofs, maxhistorylength=20, verbosity="verbose")
+    opt.gradtol = gradtol
+    opt.optimize(niter)
+  }
+
+  optimizeBlock(nouter=100, piter=100, gradtol=1e-6, maxhistorylength=100) {
+    for (k in 1...nouter) {
+      print "--- outer ${k}/${nouter} ---"
+      print "--- phi block ---"
+      self.solvePhiLinear()
+      print "--- P block ---"
+      var adapt = ProblemAdapter(self.problem, self.P)
+      var fadapt = FixAdapter(adapt, self._leftids())
+      var opt = LSR1Controller(fadapt, maxhistorylength=maxhistorylength, verbosity="verbose")
+      opt.gradtol = gradtol
+      opt.optimize(piter)
+      var gnorm = self.coupledGradientNorm()
+      var merit = self._coupledAdapter().value()
+      print "--- outer ${k} done: E=${merit} |g|=${gnorm} ---"
+      if (gnorm < gradtol) return [k, gnorm]
+    }
+    return [nouter, self.coupledGradientNorm()]
+  }
+}
+
+fn p0(x,y,z) {
+  if (x < 0) return Matrix([0, 0, 0])
+  if (x > 0) return Matrix([1, 1, 0])
+  return Matrix([1/2, 0, 0])
+}
+
+var sim = FerronematicBlock(L=4, dx=0.5)
+sim.build(p0=p0, delta=1)
+
+var result = sim.optimizeBlock(gradtol=1e-6)
+print result[1] < 1e-6
+// expect: true

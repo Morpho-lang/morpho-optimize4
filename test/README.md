@@ -6,7 +6,7 @@
 |-----------|----------|
 | [`examples/`](examples/) | Reference problems (loop, thomson, cholesteric, saddle, …) — not run by the test runner |
 | [`sqp/`](sqp/), [`pgd/`](pgd/), [`penalty/`](penalty/) | Same problems under different controllers |
-| [`saddlepoint/`](saddlepoint/) | Saddle-point problems (SR1, LSR1, TRSR1, TRDSR1, QuadTR; import `examples/saddle.morpho` or `examples/ferronematic.morpho`) |
+| [`saddlepoint/`](saddlepoint/) | Saddle-point stationarity (`LSR1Controller`, `TRSR1Controller`; `block_ferronematic.morpho` for block Gauss–Seidel on ferronematic) |
 | [`trustregion/`](trustregion/) | Trust-region minimization on example problems (quadratic, qtensor, …) |
 | [`unconstrained/`](unconstrained/) | Unconstrained mesh/field examples |
 | [`adapter/`](adapter/), [`controllers/`](controllers/) | Unit-style adapter and controller tests |

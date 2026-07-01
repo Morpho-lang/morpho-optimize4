@@ -448,25 +448,28 @@ In addition to the standard options for an `OptimizationController`, you can con
 
 Increasing the history length may improve the estimate of the inverse hessian at the expense of memory and work per iteration. The default value of 10 has been found sufficient for many applications. Set `recoverlinesearchfailure=true` (default on `LBFGSController` and SR1 variants) to continue optimizing after a failed line search instead of stopping immediately.
 
-### TRDSR1Controller
-[tagTRDSR1Controller]: # (TRDSR1Controller)
+### LSR1Controller and TRSR1Controller
+[tagLSR1Controller]: # (LSR1Controller)
 
-`TRDSR1Controller` combines `DSR1Controller` (limited-memory **direct** SR1: `hmul(v)` applies \(Bv\)) with `ResidualTrustRegionController`. Trust-region subproblems \((B^2+\lambda I)p=-Bg\) are solved matrix-free by conjugate gradient on \(v \mapsto B(Bv)+\lambda v\), so memory stays \(O(mn)\) without forming \(B\).
+For saddle-point / stationarity problems, pass `maximize=[i,...]` to flip the initial curvature on those degrees of freedom (ascent in max variables, descent in min variables) and minimize the merit \(\Phi=\frac12\|\nabla f\|^2\).
 
-    var opt = TRDSR1Controller(adapter, maximize=[0, 1, 2, 3], maxhistorylength=10)
+`LSR1Controller` is the primary large-scale method: limited-memory **inverse** SR1 with a line search on \(\Phi\).
 
-### SR1Controller and TRSR1Controller
-[tagSR1Controller]: # (SR1Controller)
+    var opt = LSR1Controller(adapter, maximize=[0, 1, 2, 3], maxhistorylength=10)
 
-`SR1Controller` implements dense symmetric rank-one quasi-Newton updates. For saddle-point / stationarity problems, pass `maximize=[i,...]` to flip the initial curvature on those degrees of freedom (ascent in max variables, descent in min variables) and use a line search on the merit \(\Phi=\frac12\|\nabla f\|^2\).
-
-`TRSR1Controller` subclasses `SR1Controller` and composes a `ResidualTrustRegionController` for globalization. It globalizes steps with a **residual trust region**: minimize \(\frac12\|g + Bp\|^2\) subject to \(\|p\|\le\Delta\), accepting steps when the ratio \(\rho\) of actual to predicted decrease in \(\Phi\) exceeds `eta1` (default `0.1`). Convergence is still measured by \(\|\nabla f\|<\texttt{gradtol}\).
+`TRSR1Controller` globalizes with a **residual trust region**: minimize \(\frac12\|g + Bp\|^2\) subject to \(\|p\|\le\Delta\), accepting steps when the ratio \(\rho\) of actual to predicted decrease in \(\Phi\) exceeds `eta1` (default `0.1`). It uses a dense SR1 Hessian approximation \(B\) and falls back to the same line search if the trust-region step is rejected. Convergence is measured by \(\|\nabla f\|<\texttt{gradtol}\).
 
     var opt = TRSR1Controller(adapter, maximize=[0])
 
-Trust-region globalization is provided by composable controllers parallel to line search: `TrustRegionController` manages radius and step acceptance; `ResidualTrustRegionController` implements the residual model above. `NewtonController` accepts `trustregion=` for hosts that use its default `step()` (e.g. `BFGSController`); saddle-point SR1 with trust regions uses `TRSR1Controller`.
+Trust-region globalization is provided by composable controllers parallel to line search: `TrustRegionController` manages radius and step acceptance; `ResidualTrustRegionController` implements the residual model above.
 
-Use `InvSR1Controller` / `LSR1Controller` for limited-memory **inverse** SR1 with line search. For large-scale residual trust regions, use `TRDSR1Controller` (limited-memory direct SR1 via `DSR1Controller`, matrix-free CG subproblem) or dense `TRSR1Controller`.
+### Archived saddle-point controllers
+[tagTRDSR1Controller]: # (TRDSR1Controller)
+
+Superseded variants (`DSR1Controller`, `TRDSR1Controller`, `QuadTRSR1Controller`, `QuadTRDSR1Controller`, dense-SR1-only workflows) live under [`archive/share/modules/`](../../archive/share/modules/). Copy back into `share/modules/` or import by file path when needed:
+
+    import optimize4
+    import "../../archive/share/modules/optimizationsaddlepoint_archive4.morpho"
 
 ### PenaltyController
 [tagPenaltyController]: # (PenaltyController)

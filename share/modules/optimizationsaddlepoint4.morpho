@@ -2,9 +2,11 @@
  * Saddle-point / stationarity SR1 quasi-Newton and trust regions
  *
  * Minimize Phi = 1/2 |grad f|^2 (or root-finding on grad f = 0) with optional
- * maximize=[i,...] curvature flips. Trust-region models use stationarity
- * merit Phi, not the raw objective f — see ResidualTrustRegionController and
- * QuadraticTrustRegionController.
+ * maximize=[i,...] curvature flips. Primary controllers: LSR1Controller (line
+ * search) and TRSR1Controller (residual trust region + fallback line search).
+ *
+ * Legacy variants (DSR1, QuadTR, dense SR1-only, etc.) live in
+ * archive/share/modules/optimizationsaddlepoint_archive4.morpho.
  * ************************************************************ */
 
 import optimizationadapter4
@@ -59,40 +61,6 @@ class ResidualTrustRegionController is TrustRegionController with TrustRegionSub
   _trSubGrad(g) { return self.host.hmul(g) }
 
   _trSubHmul(v) { return self.host.hmul(self.host.hmul(v)) }
-
-  solveSubproblem(g) { return self._steihaugTrustStep(g) }
-}
-
-/* -----------------------------------------
- * QuadraticTrustRegionController
- *
- * Trust-region quadratic model on stationarity merit Phi = 1/2 |g|^2 with
- * indefinite Hessian B. rho uses pred = -(g'p + 1/2 p'Bp).
- * ----------------------------------------- */
-
-class QuadraticTrustRegionController is TrustRegionController with TrustRegionSubproblemMixin {
-  init(adapter, host, quiet=false, verbosity=nil,
-       delta0=2, eta1=0.1, eta2=0.75, gammaGrow=2, gammaShrink=0.25,
-       deltaMax=1e10, deltaMin=nil,
-       cgMaxIters=200, cgTol=1e-10) {
-    super.init(adapter, host, quiet=quiet, verbosity=verbosity,
-        delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax,
-        deltaMin=deltaMin)
-    self.cgMaxIters = cgMaxIters
-    self.cgTol = cgTol
-  }
-
-  merit(g) { return 0.5*g.inner(g) }
-
-  modelMerit(g, p) {
-    var Bp = self.host.hmul(p)
-    return self.merit(g) + g.inner(p) + 0.5*p.inner(Bp)
-  }
-
-  _trSubGrad(g) { return g }
-
-  _trSubHmul(v) { return self.host.hmul(v) }
 
   solveSubproblem(g) { return self._steihaugTrustStep(g) }
 }
@@ -326,27 +294,6 @@ class TRSR1Controller is SR1Controller with TrustRegionHostMixin {
 }
 
 /* -----------------------------------------
- * QuadTRSR1Controller
- * ----------------------------------------- */
-
-class QuadTRSR1Controller is SR1Controller with TrustRegionHostMixin {
-  init(adapter, quiet=false, verbosity=nil, maximize=nil, skiptol=1e-8,
-       recoverlinesearchfailure=true, delta0=2, eta1=0.1, eta2=0.75,
-       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10,
-       cgMaxIters=200, cgTol=1e-10) {
-    super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=nil,
-               maximize=maximize, skiptol=skiptol, recoverlinesearchfailure=recoverlinesearchfailure)
-    self.trcontroller = QuadraticTrustRegionController(self.adapter, self,
-        delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax,
-        cgMaxIters=cgMaxIters, cgTol=cgTol, verbosity=self.verbosity)
-    self._ensureStationarityLineSearch(quiet, verbosity)
-  }
-
-  hmul(v) { return self.hessian()*v }
-}
-
-/* -----------------------------------------
  * InvSR1Controller
  * ----------------------------------------- */
 
@@ -484,82 +431,5 @@ class LSR1Controller is InvSR1Controller with LimitedMemorySR1Mixin {
 
   update(sk, yk) {
     self._lmUpdate(sk, yk)
-  }
-}
-
-/* -----------------------------------------
- * DSR1Controller
- * ----------------------------------------- */
-
-class DSR1Controller is SR1Controller with LimitedMemorySR1Mixin {
-  init(adapter, quiet=false, verbosity=nil, linesearch=nil, maximize=nil, skiptol=1e-8,
-       maxhistorylength=10, recoverlinesearchfailure=true) {
-    super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=linesearch,
-               maximize=maximize, skiptol=skiptol, recoverlinesearchfailure=recoverlinesearchfailure)
-    self.maxhistorylength = maxhistorylength
-  }
-
-  hessian() { return nil }
-
-  start() {
-    self._lmStart()
-    self.rejected = false
-    self._lastStepSource = nil
-  }
-
-  hmul(p) {
-    return self._compactApply(p, self._lmCachedCorrections(true))
-  }
-
-  searchDirection(g) {
-    return -self._compactApply(g, self._lmCachedCorrections(false))
-  }
-
-  direction() {
-    return self.searchDirection(self.gradient())
-  }
-
-  update(sk, yk) {
-    self._lmUpdate(sk, yk)
-  }
-}
-
-/* -----------------------------------------
- * TRDSR1Controller
- * ----------------------------------------- */
-
-class TRDSR1Controller is DSR1Controller with TrustRegionHostMixin {
-  init(adapter, quiet=false, verbosity=nil, maximize=nil, skiptol=1e-8,
-       maxhistorylength=10, recoverlinesearchfailure=true, delta0=2, eta1=0.1, eta2=0.75,
-       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10,
-       cgMaxIters=200, cgTol=1e-10) {
-    super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=nil,
-               maximize=maximize, skiptol=skiptol, maxhistorylength=maxhistorylength,
-               recoverlinesearchfailure=recoverlinesearchfailure)
-    self.trcontroller = ResidualTrustRegionController(self.adapter, self,
-        delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax,
-        cgMaxIters=cgMaxIters, cgTol=cgTol, verbosity=self.verbosity)
-    self._ensureStationarityLineSearch(quiet, verbosity)
-  }
-}
-
-/* -----------------------------------------
- * QuadTRDSR1Controller
- * ----------------------------------------- */
-
-class QuadTRDSR1Controller is DSR1Controller with TrustRegionHostMixin {
-  init(adapter, quiet=false, verbosity=nil, maximize=nil, skiptol=1e-8,
-       maxhistorylength=10, recoverlinesearchfailure=true, delta0=2, eta1=0.1, eta2=0.75,
-       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10,
-       cgMaxIters=200, cgTol=1e-10) {
-    super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=nil,
-               maximize=maximize, skiptol=skiptol, maxhistorylength=maxhistorylength,
-               recoverlinesearchfailure=recoverlinesearchfailure)
-    self.trcontroller = QuadraticTrustRegionController(self.adapter, self,
-        delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
-        gammaShrink=gammaShrink, deltaMax=deltaMax,
-        cgMaxIters=cgMaxIters, cgTol=cgTol, verbosity=self.verbosity)
-    self._ensureStationarityLineSearch(quiet, verbosity)
   }
 }

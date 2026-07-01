@@ -1,0 +1,23 @@
+// TRDSR1 on the 1D ferronematic P–phi coupled stationarity problem
+
+import optimize4
+import "../examples/ferronematic.morpho"
+
+fn p0(x,y,z) {
+  if (x < 0) return Matrix([0, 0, 0])
+  if (x > 0) return Matrix([1, 1, 0])
+  return Matrix([1/2, 0, 0])
+}
+
+var sim = Ferronematic(L=4, dx=0.5)
+var fadapt = sim.build(p0=p0, delta=1)
+
+var phidofs = List(0...sim.phi.__linearize().count())
+var opt = TRDSR1Controller(fadapt, maximize=phidofs, maxhistorylength=100)
+opt.optimize(600)
+
+print opt.gradient().norm() < 1e-6
+// expect: true
+
+print opt.hasConverged()
+// expect: true

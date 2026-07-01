@@ -106,10 +106,36 @@ class QuadraticTrustRegionController is TrustRegionController with TrustRegionSu
 class StationarityStepMixin {
   _minAcceptedStep() { return self.minlinesearchstep }
 
+  _objectiveMerit() { return self.value() }
+
+  _stationarityMerit() {
+    var g = self.gradient()
+    return 0.5*g.inner(g)
+  }
+
+  _globalizationMerit() {
+    if (self._usesStationarityGlobalization()) return self._stationarityMerit()
+    return self._objectiveMerit()
+  }
+
+  _usesStationarityGlobalization() {
+    if (!isnil(self.maximize)) return true
+    if (!isnil(self.trcontroller)) return true
+    return false
+  }
+
   _stationarityMinAred(phi0) {
     var minAred = self.meritRelTol*max(phi0, 1e-30)
     if (phi0 >= self.meritAbsTol) minAred = max(minAred, self.meritAbsTol)
     return minAred
+  }
+
+  _meritImproved(phi0, phi1) {
+    if (phi1 >= phi0) return false
+    var ared = phi0 - phi1
+    if (ared <= self.meritRelTol*max(phi0, 1e-30)) return false
+    if (phi0 >= self.meritAbsTol && ared < self.meritAbsTol) return false
+    return true
   }
 }
 
@@ -124,6 +150,8 @@ class SR1Controller is BFGSController with StationarityStepMixin {
     self.maximize = maximize
     if (isint(maximize)) self.maximize = [maximize]
     self.rejected = false
+    self.trcontroller = nil
+    self._lastStepSource = nil
 
     super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=linesearch)
     self.recoverlinesearchfailure = recoverlinesearchfailure
@@ -147,27 +175,11 @@ class SR1Controller is BFGSController with StationarityStepMixin {
     super.start()
     self._setMaximizeCurvature()
     self.rejected = false
+    self._lastStepSource = nil
   }
 
-  _stationarityMerit() {
-    if (!isnil(self.maximize)) {
-      var g = self.gradient()
-      return 0.5*g.inner(g)
-    }
-    return self.value()
-  }
-
-  _meritImproved(phi0, phi1) {
-    if (phi1 >= phi0) return false
-    var ared = phi0 - phi1
-    if (ared <= self.meritRelTol*max(phi0, 1e-30)) return false
-    if (phi0 >= self.meritAbsTol && ared < self.meritAbsTol) return false
-    return true
-  }
-
-  _tryFallbackLineSearch(x0, g0) {
-    if (isnil(self.maximize)) return false
-    var phi0 = self._stationarityMerit()
+  _tryFallbackLineSearch(x0, g0, phi0) {
+    if (!self._usesStationarityGlobalization()) return false
     var dirs = []
     var qn = self.direction()
     if (qn.norm() > 0) dirs.append(qn/qn.norm())
@@ -176,7 +188,7 @@ class SR1Controller is BFGSController with StationarityStepMixin {
       for (alpha in [2, 1, 0.25, 0.0625, 0.015625, 0.00390625]) {
         if (alpha <= self.minlinesearchstep) continue
         self.set(x0 + alpha*dir)
-        if (self._stationarityMerit() < phi0) {
+        if (self._meritImproved(phi0, self._stationarityMerit())) {
           self.lscontroller.stepsize = alpha
           return true
         }
@@ -192,11 +204,14 @@ class SR1Controller is BFGSController with StationarityStepMixin {
   }
 
   _attemptStationarityStep(x0) {
+    var phi0 = self._stationarityMerit()
     var g0 = self.gradient()
     var ok = self.lineSearch(self.direction())
     if (!ok || self.lscontroller.stepsize <= self.minlinesearchstep) {
       self.set(x0)
-      if (self._tryFallbackLineSearch(x0, g0)) return true
+      if (self._usesStationarityGlobalization()) {
+        return self._tryFallbackLineSearch(x0, g0, phi0)
+      }
       return false
     }
     return true
@@ -238,10 +253,12 @@ class SR1Controller is BFGSController with StationarityStepMixin {
  * ----------------------------------------- */
 
 class TrustRegionHostMixin {
-  _hostTrustMerit() {
-    if (!isnil(self.maximize)) return self._stationarityMerit()
-    var g = self.gradient()
-    return 0.5*g.inner(g)
+  _hostTrustMerit() { return self._stationarityMerit() }
+
+  _ensureStationarityLineSearch(quiet, verbosity) {
+    var merit = GradSqMeritAdapter(self.adapter)
+    self.lscontroller = DecreaseLineSearchController(merit, quiet=quiet,
+        verbosity=isnil(verbosity) ? self.verbosity : verbosity)
   }
 
   trustRegionStep() {
@@ -258,6 +275,7 @@ class TrustRegionHostMixin {
       var minStep = self._minAcceptedStep()
       if (self.trcontroller.success && self.trcontroller.stepsize > minStep) {
         if (self._meritImproved(phi0, self._hostTrustMerit())) {
+          self._lastStepSource = "tr"
           self.rejected = false
           return true
         }
@@ -265,6 +283,7 @@ class TrustRegionHostMixin {
     }
     self.set(x0)
     if (self._attemptStationarityStep(x0)) {
+      self._lastStepSource = "fallback_ls"
       self.trcontroller.stepsize = (self.get() - x0).norm()
       self.rejected = false
       return true
@@ -273,6 +292,17 @@ class TrustRegionHostMixin {
   }
 
   step() { return self._trOrLineSearchStep() }
+
+  reportStepsize() {
+    if (self._lastStepSource == "tr") {
+      return "source=tr ${self.trcontroller.reportStepsize()}"
+    }
+    if (self._lastStepSource == "fallback_ls") {
+      return "source=fallback_ls stepsize=${self.lscontroller.stepsize}"
+    }
+    if (self.trcontroller) return self.trcontroller.reportStepsize()
+    return "stepsize=${self.lscontroller.stepsize}"
+  }
 }
 
 /* -----------------------------------------
@@ -289,6 +319,7 @@ class TRSR1Controller is SR1Controller with TrustRegionHostMixin {
         delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
         gammaShrink=gammaShrink, deltaMax=deltaMax,
         verbosity=self.verbosity)
+    self._ensureStationarityLineSearch(quiet, verbosity)
   }
 
   hmul(v) { return self.hessian()*v }
@@ -309,6 +340,7 @@ class QuadTRSR1Controller is SR1Controller with TrustRegionHostMixin {
         delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
         gammaShrink=gammaShrink, deltaMax=deltaMax,
         cgMaxIters=cgMaxIters, cgTol=cgTol, verbosity=self.verbosity)
+    self._ensureStationarityLineSearch(quiet, verbosity)
   }
 
   hmul(v) { return self.hessian()*v }
@@ -472,6 +504,7 @@ class DSR1Controller is SR1Controller with LimitedMemorySR1Mixin {
   start() {
     self._lmStart()
     self.rejected = false
+    self._lastStepSource = nil
   }
 
   hmul(p) {
@@ -507,6 +540,7 @@ class TRDSR1Controller is DSR1Controller with TrustRegionHostMixin {
         delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
         gammaShrink=gammaShrink, deltaMax=deltaMax,
         cgMaxIters=cgMaxIters, cgTol=cgTol, verbosity=self.verbosity)
+    self._ensureStationarityLineSearch(quiet, verbosity)
   }
 }
 
@@ -526,5 +560,6 @@ class QuadTRDSR1Controller is DSR1Controller with TrustRegionHostMixin {
         delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
         gammaShrink=gammaShrink, deltaMax=deltaMax,
         cgMaxIters=cgMaxIters, cgTol=cgTol, verbosity=self.verbosity)
+    self._ensureStationarityLineSearch(quiet, verbosity)
   }
 }

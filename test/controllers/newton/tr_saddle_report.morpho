@@ -1,0 +1,15 @@
+// TR saddle hosts report trust-region diagnostics and step source.
+
+import optimize4
+import "../../examples/quadratic.morpho"
+
+var c = TRSR1Controller(QuadraticExample().build(), quiet=true, verbosity="verbose")
+c.start()
+c.begin()
+c.step()
+
+print c._lastStepSource == "tr"
+// expect: true
+
+print c.reportStepsize() != ""
+// expect: true

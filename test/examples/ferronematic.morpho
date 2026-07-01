@@ -150,7 +150,7 @@ class Ferronematic {
     var phidofs = self._phiDofs()
     var opt = controller
     if (isnil(opt)) {
-      opt = QuadTRDSR1Controller(fadapt, maximize=phidofs, maxhistorylength=maxhistorylength)
+      opt = LSR1Controller(fadapt, maximize=phidofs, maxhistorylength=maxhistorylength)
     }
     opt.optimize(niter)
     return opt

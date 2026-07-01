@@ -1,0 +1,28 @@
+// Stationarity merit is always Phi = 1/2|grad f|^2; objective merit is f.
+
+import optimize4
+
+fn f(x, y) { return x^2 + y^2 }
+var adapt = FunctionAdapter(f, start=Matrix([1, 2]))
+var opt = SR1Controller(adapt)
+
+opt.start()
+opt.begin()
+
+var g = opt.gradient()
+print abs(opt._stationarityMerit() - 0.5*g.inner(g)) < 1e-30
+// expect: true
+
+print abs(opt._objectiveMerit() - opt.value()) < 1e-30
+// expect: true
+
+print opt._usesStationarityGlobalization() == false
+// expect: true
+
+var sadd = TRSR1Controller(adapt, maximize=[0])
+sadd.start()
+print sadd._usesStationarityGlobalization() == true
+// expect: true
+
+print abs(sadd._hostTrustMerit() - sadd._stationarityMerit()) < 1e-30
+// expect: true

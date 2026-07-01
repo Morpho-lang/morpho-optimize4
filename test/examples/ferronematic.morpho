@@ -111,12 +111,17 @@ class Ferronematic {
 
   _coupledAdapter() {
     var adapt = ProblemAdapter(self.problem, self.phi, self.P)
-    var fixphiids = self.bnd.idlistforgrade(0)
+    var fixphiids = adapt.selectionToIndexList(self.bnd, self.phi)
     var fixpids = self._leftids(baseid=self.phi.count())
     return FixAdapter(adapt, fixphiids.join(fixpids))
   }
 
   _phiDofs() { return List(0...self.phi.__linearize().count()) }
+
+  _phiFixIndices() {
+    var padapt = ProblemAdapter(self.problem, self.phi)
+    return padapt.selectionToIndexList(self.bnd, self.phi)
+  }
 
   build(p0=nil, delta=nil, randomphi=false) {
     if (!isnil(delta)) self.delta = delta
@@ -130,7 +135,7 @@ class Ferronematic {
 
   optimizePhi(niter) {
     var adapt = ProblemAdapter(self.problem, self.phi)
-    var fadapt = FixAdapter(adapt, self.bnd.idlistforgrade(0))
+    var fadapt = FixAdapter(adapt, self._phiFixIndices())
     var phidofs = self._phiDofs()
     var opt = LSR1Controller(fadapt, maximize=phidofs, maxhistorylength=100)
     opt.optimize(niter)
@@ -159,7 +164,7 @@ class Ferronematic {
   outputPhi(fname) {
     var f = File(fname, "write")
     for (i in 0...self.mesh.count()) {
-      f.write("${self.mesh.vertexposition(i)[0]}, ${self.phi[0,i]}")
+      f.write("${self.mesh.vertexposition(i)[0]}, ${self.phi[0,i]}\n")
     }
     f.close()
   }
@@ -168,7 +173,7 @@ class Ferronematic {
     var f = File(fname, "write")
     for (i in 0...self.mesh.count()) {
       var p = self.P[0,i]
-      f.write("${self.mesh.vertexposition(i)[0]}, ${p[0]}, ${p[1]}, ${p[2]}")
+      f.write("${self.mesh.vertexposition(i)[0]}, ${p[0]}, ${p[1]}, ${p[2]}\n")
     }
     f.close()
   }

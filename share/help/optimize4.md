@@ -448,34 +448,35 @@ In addition to the standard options for an `OptimizationController`, you can con
 
 Increasing the history length may improve the estimate of the inverse hessian at the expense of memory and work per iteration. The default value of 10 has been found sufficient for many applications. Set `recoverlinesearchfailure=true` (default on `LBFGSController` and SR1 variants) to continue optimizing after a failed line search instead of stopping immediately.
 
-### LSR1Controller and TRSR1Controller
+### LSR1Controller
 [tagLSR1Controller]: # (LSR1Controller)
 
-`LSR1Controller` is the primary large-scale method: limited-memory **inverse** SR1 with line search.
+`LSR1Controller` is the primary large-scale method: limited-memory *inverse* SR1 with line search. It can be used for both minimization, maximization and minimax (saddle-point) problems. 
 
-* With `maximize=[i,...]` and `gradmerit=true` (the default when `maximize` is set), it flips initial inverse curvature on those degrees of freedom and line-searches on \(\Phi=\frac12\|\nabla f\|^2\).
-* With `gradmerit=false`, it line-searches on the objective \(f\) — useful for block minimization subproblems (e.g. \(\mathbf P\)-only solves).
-* Alternatively, pass a custom `linesearch=` controller; when set, `gradmerit` does not replace it (use e.g. `DecreaseLineSearchController` on a `GradSqMeritAdapter` for \(\Phi\)).
+Solve a regular minimization problem:
 
-    // Coupled saddle/root solve
+    var opt = LSR1Controller(adapt)
+
+Solve a problem specifying variables to maximize, supplied as a collection of indices:
+
     var opt = LSR1Controller(adapter, maximize=[0, 1, 2, 3], maxhistorylength=10)
 
-    // Block minimization subproblem
+See `ProblemAdapter` and the `selectionToIndexList` method for information on how to obtain variable indices for shape optimization problems. 
+
+Note that if `maximize` is set, a specialist merit function Φ = ½‖∇f‖² is used to measure progress. Control this with the optional argument `gradmerit`; the default is `true` when `maximize` is set. If `gradmerit` is false the regular objective function is used:
+
     var opt = LSR1Controller(adapter, gradmerit=false)
 
-`TRSR1Controller` globalizes with a **residual trust region**: minimize \(\frac12\|g + Bp\|^2\) subject to \(\|p\|\le\Delta\), accepting steps when the ratio \(\rho\) of actual to predicted decrease in \(\Phi\) exceeds `eta1` (default `0.1`). It uses a dense SR1 Hessian approximation \(B\) and falls back to grad-merit line search if the trust-region step is rejected. Intended for small or diagnostic saddle/root solves. Pass `cgMaxIters` and `cgTol` to tune the Steihaug CG subproblem.
+As for `LBFGSController`, you can pass a custom linesearch controller by setting `linesearch`; in this case `gradmerit is ignored`.
+
+### TRSR1Controller
+[tagTRSR1Controller]: # (TRSR1Controller)
+
+`TRSR1Controller` is a trust region variant of the SR1 algorithm. It always uses grad merit Φ = ½‖∇f‖²: residual trust region on ½‖g + Bp‖², with grad-merit line-search fallback if the TR step is rejected. Intended for small or diagnostic saddle/root solves. Pass `cgMaxIters` and `cgTol` to tune the Steihaug CG subproblem.
 
     var opt = TRSR1Controller(adapter, maximize=[0], cgMaxIters=200, cgTol=1e-10)
 
 Trust-region globalization is provided by composable controllers parallel to line search: `TrustRegionController` manages radius and step acceptance; `ResidualTrustRegionController` implements the residual model above.
-
-### Archived saddle-point controllers
-[tagTRDSR1Controller]: # (TRDSR1Controller)
-
-Superseded variants (`DSR1Controller`, `TRDSR1Controller`, `QuadTRSR1Controller`, `QuadTRDSR1Controller`, dense-SR1-only workflows) live under [`archive/share/modules/`](../../archive/share/modules/). Copy back into `share/modules/` or import by file path when needed:
-
-    import optimize4
-    import "../../archive/share/modules/optimizationsaddlepoint_archive4.morpho"
 
 ### PenaltyController
 [tagPenaltyController]: # (PenaltyController)

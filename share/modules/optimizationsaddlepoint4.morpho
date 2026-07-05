@@ -161,7 +161,7 @@ class SR1Controller is BFGSController with StationarityStepMixin {
     var qn = self.direction()
     if (qn.norm() > 0) dirs.append(qn/qn.norm())
     if (g0.norm() > 0) dirs.append(-g0/g0.norm())
-    if (self.hmul) {
+    if (self.trcontroller && self.hmul) {
       var bg = self.hmul(g0)
       if (bg.norm() > 0) dirs.append(-bg/bg.norm())
     }
@@ -185,8 +185,10 @@ class SR1Controller is BFGSController with StationarityStepMixin {
   }
 
   _gradMeritLineSearchOk(phi0) {
+    var phi1 = self._gradMerit()
+    if (phi1 >= phi0) return false
     if (self.lscontroller.stepsize >= self.minmeaningfulstepsize) return true
-    return self._meritImproved(phi0, self._gradMerit())
+    return self._meritImproved(phi0, phi1)
   }
 
   _attemptGlobalizedStep(x0) {
@@ -310,12 +312,12 @@ class TrustRegionHostMixin {
  * ----------------------------------------- */
 
 class TRSR1Controller is SR1Controller with TrustRegionHostMixin {
-  init(adapter, quiet=false, verbosity=nil, maximize=nil, gradmerit=true,
+  init(adapter, quiet=false, verbosity=nil, maximize=nil,
        skiptol=1e-8, recoverlinesearchfailure=true, delta0=2, eta1=0.1, eta2=0.75,
        gammaGrow=2, gammaShrink=0.25, deltaMax=1e10,
        cgMaxIters=200, cgTol=1e-10) {
     super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=nil,
-               maximize=maximize, gradmerit=gradmerit, skiptol=skiptol,
+               maximize=maximize, gradmerit=true, skiptol=skiptol,
                recoverlinesearchfailure=recoverlinesearchfailure)
     self.trcontroller = ResidualTrustRegionController(self.adapter, self,
         delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,

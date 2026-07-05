@@ -467,7 +467,7 @@ Note that if `maximize` is set, a specialist merit function Φ = ½‖∇f‖² 
 
     var opt = LSR1Controller(adapter, gradmerit=false)
 
-As for `LBFGSController`, you can pass a custom linesearch controller by setting `linesearch`; in this case `gradmerit is ignored`.
+As for `LBFGSController`, you can pass a custom linesearch controller by setting `linesearch`; in this case `gradmerit` is ignored.
 
 ### TRSR1Controller
 [tagTRSR1Controller]: # (TRSR1Controller)

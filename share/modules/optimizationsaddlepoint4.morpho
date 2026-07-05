@@ -1,9 +1,15 @@
 /* ************************************************************
  * Saddle-point / stationarity SR1 quasi-Newton and trust regions
  *
- * Minimize Phi = 1/2 |grad f|^2 (or root-finding on grad f = 0) with optional
- * maximize=[i,...] curvature flips. Primary controllers: LSR1Controller (line
- * search) and TRSR1Controller (residual trust region + fallback line search).
+ * LSR1Controller: inverse limited-memory SR1 with line search. With
+ * maximize=[...] and gradmerit=true (default when maximize is set), flips
+ * initial inverse curvature on maximized variables and globalizes with
+ * grad merit Phi = 1/2 |grad f|^2. With gradmerit=false, behaves as an
+ * objective line-search inverse-SR1 method (e.g. block minimization).
+ *
+ * TRSR1Controller: dense direct SR1 with residual trust-region globalization
+ * on grad merit, plus grad-merit line-search fallback. For small or
+ * diagnostic saddle/root solves.
  *
  * Legacy variants (DSR1, QuadTR, dense SR1-only, etc.) live in
  * archive/share/modules/optimizationsaddlepoint_archive4.morpho.
@@ -76,23 +82,23 @@ class StationarityStepMixin {
 
   _objectiveMerit() { return self.value() }
 
-  _stationarityMerit() {
+  _gradMerit() {
     var g = self.gradient()
     return 0.5*g.inner(g)
   }
 
   _globalizationMerit() {
-    if (self._usesStationarityGlobalization()) return self._stationarityMerit()
+    if (self._usesGradMerit()) return self._gradMerit()
     return self._objectiveMerit()
   }
 
-  _usesStationarityGlobalization() {
-    if (!isnil(self.maximize)) return true
+  _usesGradMerit() {
+    if (self.gradmerit) return true
     if (!isnil(self.trcontroller)) return true
     return false
   }
 
-  _stationarityMinAred(phi0) {
+  _gradMeritMinAred(phi0) {
     var minAred = self.meritRelTol*max(phi0, 1e-30)
     if (phi0 >= self.meritAbsTol) minAred = max(minAred, self.meritAbsTol)
     return minAred
@@ -112,11 +118,13 @@ class StationarityStepMixin {
  * ----------------------------------------- */
 
 class SR1Controller is BFGSController with StationarityStepMixin {
-  init(adapter, quiet=false, verbosity=nil, linesearch=nil, maximize=nil, skiptol=1e-8,
-       recoverlinesearchfailure=true) {
+  init(adapter, quiet=false, verbosity=nil, linesearch=nil, maximize=nil,
+       gradmerit=nil, skiptol=1e-8, recoverlinesearchfailure=true) {
     self.skiptol = skiptol
     self.maximize = maximize
     if (isint(maximize)) self.maximize = [maximize]
+    if (isnil(gradmerit)) gradmerit = !isnil(self.maximize)
+    self.gradmerit = gradmerit
     self.rejected = false
     self.trcontroller = nil
     self._lastStepSource = nil
@@ -124,10 +132,11 @@ class SR1Controller is BFGSController with StationarityStepMixin {
     super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=linesearch)
     self.recoverlinesearchfailure = recoverlinesearchfailure
     self.minlinesearchstep = 1e-12
+    self.minmeaningfulstepsize = 1e-4
     self.meritRelTol = 1e-8
     self.meritAbsTol = 1e-10
 
-    if (!isnil(self.maximize)) {
+    if (self.gradmerit && isnil(linesearch)) {
       var merit = GradSqMeritAdapter(self.adapter)
       self.lscontroller = DecreaseLineSearchController(merit, quiet=quiet, verbosity=self.verbosity)
     }
@@ -147,16 +156,20 @@ class SR1Controller is BFGSController with StationarityStepMixin {
   }
 
   _tryFallbackLineSearch(x0, g0, phi0) {
-    if (!self._usesStationarityGlobalization()) return false
+    if (!self._usesGradMerit()) return false
     var dirs = []
     var qn = self.direction()
     if (qn.norm() > 0) dirs.append(qn/qn.norm())
     if (g0.norm() > 0) dirs.append(-g0/g0.norm())
+    if (self.hmul) {
+      var bg = self.hmul(g0)
+      if (bg.norm() > 0) dirs.append(-bg/bg.norm())
+    }
     for (dir in dirs) {
       for (alpha in [2, 1, 0.25, 0.0625, 0.015625, 0.00390625]) {
         if (alpha <= self.minlinesearchstep) continue
         self.set(x0 + alpha*dir)
-        if (self._meritImproved(phi0, self._stationarityMerit())) {
+        if (self._meritImproved(phi0, self._gradMerit())) {
           self.lscontroller.stepsize = alpha
           return true
         }
@@ -171,23 +184,42 @@ class SR1Controller is BFGSController with StationarityStepMixin {
     self.rejected = true
   }
 
-  _attemptStationarityStep(x0) {
-    var phi0 = self._stationarityMerit()
-    var g0 = self.gradient()
+  _gradMeritLineSearchOk(phi0) {
+    if (self.lscontroller.stepsize >= self.minmeaningfulstepsize) return true
+    return self._meritImproved(phi0, self._gradMerit())
+  }
+
+  _attemptGlobalizedStep(x0) {
+    var useGradMerit = self._usesGradMerit()
+    var phi0 = nil
+    var g0 = nil
+
+    if (useGradMerit) {
+      phi0 = self._gradMerit()
+      g0 = self.gradient()
+    }
+
     var ok = self.lineSearch(self.direction())
+
     if (!ok || self.lscontroller.stepsize <= self.minlinesearchstep) {
       self.set(x0)
-      if (self._usesStationarityGlobalization()) {
+      if (useGradMerit) {
         return self._tryFallbackLineSearch(x0, g0, phi0)
       }
       return false
     }
+
+    if (useGradMerit && !self._gradMeritLineSearchOk(phi0)) {
+      self.set(x0)
+      return self._tryFallbackLineSearch(x0, g0, phi0)
+    }
+
     return true
   }
 
   step() {
     var x0 = self.get()
-    if (!self._attemptStationarityStep(x0)) return false
+    if (!self._attemptGlobalizedStep(x0)) return false
     self.rejected = false
     return true
   }
@@ -221,9 +253,9 @@ class SR1Controller is BFGSController with StationarityStepMixin {
  * ----------------------------------------- */
 
 class TrustRegionHostMixin {
-  _hostTrustMerit() { return self._stationarityMerit() }
+  _hostTrustMerit() { return self._gradMerit() }
 
-  _ensureStationarityLineSearch(quiet, verbosity) {
+  _ensureGradMeritLineSearch(quiet, verbosity) {
     var merit = GradSqMeritAdapter(self.adapter)
     self.lscontroller = DecreaseLineSearchController(merit, quiet=quiet,
         verbosity=isnil(verbosity) ? self.verbosity : verbosity)
@@ -250,7 +282,7 @@ class TrustRegionHostMixin {
       }
     }
     self.set(x0)
-    if (self._attemptStationarityStep(x0)) {
+    if (self._attemptGlobalizedStep(x0)) {
       self._lastStepSource = "fallback_ls"
       self.trcontroller.stepsize = (self.get() - x0).norm()
       self.rejected = false
@@ -278,16 +310,18 @@ class TrustRegionHostMixin {
  * ----------------------------------------- */
 
 class TRSR1Controller is SR1Controller with TrustRegionHostMixin {
-  init(adapter, quiet=false, verbosity=nil, maximize=nil, skiptol=1e-8,
-       recoverlinesearchfailure=true, delta0=2, eta1=0.1, eta2=0.75,
-       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10) {
+  init(adapter, quiet=false, verbosity=nil, maximize=nil, gradmerit=true,
+       skiptol=1e-8, recoverlinesearchfailure=true, delta0=2, eta1=0.1, eta2=0.75,
+       gammaGrow=2, gammaShrink=0.25, deltaMax=1e10,
+       cgMaxIters=200, cgTol=1e-10) {
     super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=nil,
-               maximize=maximize, skiptol=skiptol, recoverlinesearchfailure=recoverlinesearchfailure)
+               maximize=maximize, gradmerit=gradmerit, skiptol=skiptol,
+               recoverlinesearchfailure=recoverlinesearchfailure)
     self.trcontroller = ResidualTrustRegionController(self.adapter, self,
         delta0=delta0, eta1=eta1, eta2=eta2, gammaGrow=gammaGrow,
         gammaShrink=gammaShrink, deltaMax=deltaMax,
-        verbosity=self.verbosity)
-    self._ensureStationarityLineSearch(quiet, verbosity)
+        cgMaxIters=cgMaxIters, cgTol=cgTol, verbosity=self.verbosity)
+    self._ensureGradMeritLineSearch(quiet, verbosity)
   }
 
   hmul(v) { return self.hessian()*v }
@@ -339,7 +373,6 @@ class LimitedMemorySR1Mixin {
 
   _lmInvalidateCorrections() {
     self._lmCorrInv = nil
-    self._lmCorrDirect = nil
   }
 
   _compactApply(p, corr) {
@@ -353,39 +386,28 @@ class LimitedMemorySR1Mixin {
     return r
   }
 
-  _lmSkipCorrection(vec, sk, yk, direct, denom) {
+  _lmSkipInverseCorrection(vec, yk, denom) {
     var vnorm = vec.norm()
-    if (direct) {
-      var snorm = sk.norm()
-      if (vnorm==0 || snorm==0) return true
-      return abs(denom) <= self.skiptol*vnorm*snorm
-    }
     var ynorm = yk.norm()
     if (vnorm==0 || ynorm==0) return true
     return abs(denom) <= self.skiptol*vnorm*ynorm
   }
 
-  _lmCorrections(direct) {
+  _lmCorrections() {
     var corr = []
     for (z in self._storage) {
       var sk = z[0]
       var yk = z[1]
-      var v = nil
-      if (direct) v = yk - self._compactApply(sk, corr)
-      else v = sk - self._compactApply(yk, corr)
-      var denom = v.inner(direct ? sk : yk)
-      if (self._lmSkipCorrection(v, sk, yk, direct, denom)) continue
+      var v = sk - self._compactApply(yk, corr)
+      var denom = v.inner(yk)
+      if (self._lmSkipInverseCorrection(v, yk, denom)) continue
       corr.append((v, denom))
     }
     return corr
   }
 
-  _lmCachedCorrections(direct) {
-    if (direct) {
-      if (isnil(self._lmCorrDirect)) self._lmCorrDirect = self._lmCorrections(true)
-      return self._lmCorrDirect
-    }
-    if (isnil(self._lmCorrInv)) self._lmCorrInv = self._lmCorrections(false)
+  _lmCachedCorrections() {
+    if (isnil(self._lmCorrInv)) self._lmCorrInv = self._lmCorrections()
     return self._lmCorrInv
   }
 
@@ -405,24 +427,27 @@ class LimitedMemorySR1Mixin {
  * ----------------------------------------- */
 
 class LSR1Controller is InvSR1Controller with LimitedMemorySR1Mixin {
-  init(adapter, quiet=false, verbosity=nil, linesearch=nil, maximize=nil, skiptol=1e-8,
-       maxhistorylength=10, recoverlinesearchfailure=true) {
+  init(adapter, quiet=false, verbosity=nil, linesearch=nil, maximize=nil,
+       gradmerit=nil, skiptol=1e-8, maxhistorylength=10,
+       recoverlinesearchfailure=true) {
     super.init(adapter, quiet=quiet, verbosity=verbosity, linesearch=linesearch,
-               maximize=maximize, skiptol=skiptol, recoverlinesearchfailure=recoverlinesearchfailure)
+               maximize=maximize, gradmerit=gradmerit, skiptol=skiptol,
+               recoverlinesearchfailure=recoverlinesearchfailure)
     self.maxhistorylength = maxhistorylength
   }
 
   start() {
-    super.start()
+    self.rejected = false
+    self._lastStepSource = nil
     self._lmStart()
   }
 
-  _corrections() {
-    return self._lmCachedCorrections(false)
-  }
+  hessian() { return nil }
+
+  hmul(p) { return self._hmul(p) }
 
   _hmul(p) {
-    return self._compactApply(p, self._lmCachedCorrections(false))
+    return self._compactApply(p, self._lmCachedCorrections())
   }
 
   direction() {

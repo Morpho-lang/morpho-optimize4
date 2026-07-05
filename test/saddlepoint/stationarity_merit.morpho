@@ -1,4 +1,4 @@
-// Stationarity merit is always Phi = 1/2|grad f|^2; objective merit is f.
+// Grad merit Phi = 1/2|grad f|^2 vs objective merit f.
 
 import optimize4
 
@@ -10,19 +10,24 @@ opt.start()
 opt.begin()
 
 var g = opt.gradient()
-print abs(opt._stationarityMerit() - 0.5*g.inner(g)) < 1e-30
+print abs(opt._gradMerit() - 0.5*g.inner(g)) < 1e-30
 // expect: true
 
 print abs(opt._objectiveMerit() - opt.value()) < 1e-30
 // expect: true
 
-print opt._usesStationarityGlobalization() == false
+print opt._usesGradMerit() == false
 // expect: true
 
 var sadd = TRSR1Controller(adapt, maximize=[0])
 sadd.start()
-print sadd._usesStationarityGlobalization() == true
+print sadd._usesGradMerit() == true
 // expect: true
 
-print abs(sadd._hostTrustMerit() - sadd._stationarityMerit()) < 1e-30
+var block = LSR1Controller(adapt, maximize=[0], gradmerit=false)
+block.start()
+print block._usesGradMerit() == false
+// expect: true
+
+print abs(sadd._hostTrustMerit() - sadd._gradMerit()) < 1e-30
 // expect: true

@@ -26,7 +26,7 @@ class FerronematicBlock is Ferronematic {
       print "--- P block ---"
       var adapt = ProblemAdapter(self.problem, self.P)
       var fadapt = FixAdapter(adapt, self._leftids())
-      var opt = LSR1Controller(fadapt, maxhistorylength=maxhistorylength, verbosity="verbose")
+      var opt = LSR1Controller(fadapt, maxhistorylength=maxhistorylength, gradmerit=false, verbosity="verbose")
       opt.gradtol = gradtol
       opt.optimize(piter)
       var gnorm = self.coupledGradientNorm()

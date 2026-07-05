@@ -451,15 +451,21 @@ Increasing the history length may improve the estimate of the inverse hessian at
 ### LSR1Controller and TRSR1Controller
 [tagLSR1Controller]: # (LSR1Controller)
 
-For saddle-point / stationarity problems, pass `maximize=[i,...]` to flip the initial curvature on those degrees of freedom (ascent in max variables, descent in min variables) and minimize the merit \(\Phi=\frac12\|\nabla f\|^2\).
+`LSR1Controller` is the primary large-scale method: limited-memory **inverse** SR1 with line search.
 
-`LSR1Controller` is the primary large-scale method: limited-memory **inverse** SR1 with a line search on \(\Phi\).
+* With `maximize=[i,...]` and `gradmerit=true` (the default when `maximize` is set), it flips initial inverse curvature on those degrees of freedom and line-searches on \(\Phi=\frac12\|\nabla f\|^2\).
+* With `gradmerit=false`, it line-searches on the objective \(f\) — useful for block minimization subproblems (e.g. \(\mathbf P\)-only solves).
+* Alternatively, pass a custom `linesearch=` controller; when set, `gradmerit` does not replace it (use e.g. `DecreaseLineSearchController` on a `GradSqMeritAdapter` for \(\Phi\)).
 
+    // Coupled saddle/root solve
     var opt = LSR1Controller(adapter, maximize=[0, 1, 2, 3], maxhistorylength=10)
 
-`TRSR1Controller` globalizes with a **residual trust region**: minimize \(\frac12\|g + Bp\|^2\) subject to \(\|p\|\le\Delta\), accepting steps when the ratio \(\rho\) of actual to predicted decrease in \(\Phi\) exceeds `eta1` (default `0.1`). It uses a dense SR1 Hessian approximation \(B\) and falls back to the same line search if the trust-region step is rejected. Convergence is measured by \(\|\nabla f\|<\texttt{gradtol}\).
+    // Block minimization subproblem
+    var opt = LSR1Controller(adapter, gradmerit=false)
 
-    var opt = TRSR1Controller(adapter, maximize=[0])
+`TRSR1Controller` globalizes with a **residual trust region**: minimize \(\frac12\|g + Bp\|^2\) subject to \(\|p\|\le\Delta\), accepting steps when the ratio \(\rho\) of actual to predicted decrease in \(\Phi\) exceeds `eta1` (default `0.1`). It uses a dense SR1 Hessian approximation \(B\) and falls back to grad-merit line search if the trust-region step is rejected. Intended for small or diagnostic saddle/root solves. Pass `cgMaxIters` and `cgTol` to tune the Steihaug CG subproblem.
+
+    var opt = TRSR1Controller(adapter, maximize=[0], cgMaxIters=200, cgTol=1e-10)
 
 Trust-region globalization is provided by composable controllers parallel to line search: `TrustRegionController` manages radius and step acceptance; `ResidualTrustRegionController` implements the residual model above.
 

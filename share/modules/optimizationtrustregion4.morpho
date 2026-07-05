@@ -191,11 +191,11 @@ class TrustRegionController is OptimizationController {
     pred = reductions[1]
     var rho = ared/pred
     var pnorm = self._stepNorm(p)
-    var minAred = self.host._stationarityMinAred(phi0)
-    var stationarityTol = !isnil(minAred)
+    var minAred = self.host._gradMeritMinAred(phi0)
+    var gradMeritTol = !isnil(minAred)
 
     if (rho < self.eta1) {
-      if (stationarityTol && ared > minAred && pnorm > minStep) {
+      if (gradMeritTol && ared > minAred && pnorm > minStep) {
         self.stepsize = pnorm
         self._recoverDeltaIfProgress(ared, rho, pnorm)
         self.success = true
@@ -219,7 +219,7 @@ class TrustRegionController is OptimizationController {
       return false
     }
 
-    if (stationarityTol && ared <= minAred) {
+    if (gradMeritTol && ared <= minAred) {
       self.set(x0)
       self._onStepRejected(rho, pnorm, "merit_tol")
       self.stepsize = 0
@@ -228,7 +228,7 @@ class TrustRegionController is OptimizationController {
       return false
     }
 
-    if (!stationarityTol && ared <= 0) {
+    if (!gradMeritTol && ared <= 0) {
       self.set(x0)
       self._onStepRejected(rho, pnorm, "no_decrease")
       self.stepsize = 0
@@ -561,7 +561,7 @@ class TrustRegionNewtonMixin {
 
   hmul(v) { return self.modelHmul(v) }
 
-  _stationarityMinAred(phi0) { return nil }
+  _gradMeritMinAred(phi0) { return nil }
 
   step() {
     if (self.trcontroller) return self.lineSearch(self.direction())

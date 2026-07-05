@@ -145,7 +145,7 @@ class Ferronematic {
   optimizeP(niter) {
     var adapt = ProblemAdapter(self.problem, self.P)
     var fadapt = FixAdapter(adapt, self._leftids())
-    var opt = LSR1Controller(fadapt, maxhistorylength=100)
+    var opt = LSR1Controller(fadapt, maxhistorylength=100, gradmerit=false)
     opt.optimize(niter)
     return opt
   }

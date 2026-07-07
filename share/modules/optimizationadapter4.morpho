@@ -657,6 +657,97 @@ class L1PenaltyAdapter is PenaltyAdapter {
 }
 
 /* -------------------------
+ * LagrangeMultiplierListMixin
+ * ------------------------- */
+
+/** Shared lagrange multiplier list storage and active-set bookkeeping for
+    LagrangeMultiplierAdapter and AugmentedLagrangianAdapter. */
+
+class LagrangeMultiplierListMixin {
+  _initialLagrangeMultipliers(initial) {
+    var cv = self.adapter.constraintValue()
+    self.lambda = []
+    for (c in cv) self.lambda.append(initial+0*c)
+    self._checkLagrangeMultipliers()
+  }
+
+  _checkLagrangeMultipliers() {
+    var cv = self.adapter.constraintValueForActiveSet()
+    self._checkIneq(cv, self.lambda)
+  }
+
+  _unflatten(Matrix v, shape) {
+    var l = []
+    var n = 0
+    for (u, k in shape) {
+      if (ismatrix(u)) {
+        var m = u.count()
+        l.append(v[n...n+m,0])
+        n+=m
+      } else {
+        l.append(v[n])
+        n+=1
+      }
+    }
+    return l
+  }
+
+  _flatten(v) { return _flattenConstraintValues(v) }
+
+  setLagrangeMultipliers(lambda) {
+    self.lambda = self._unflatten(lambda, self.lambda)
+  }
+
+  lagrangeMultipliers() {
+    return self._flatten(self.lambda)
+  }
+
+  _zeroIneq(Matrix m, Matrix out) {
+    for (c, k in m) {
+      if (c>0) out[k] = 0
+    }
+    return out
+  }
+
+  _zeroIneq(u, out) {
+    if (u>0) return 0
+    return out
+  }
+
+  _checkIneq(c, out) {
+    var neq = self.adapter.countEqualityConstraints()
+    for (k in neq...c.count()) {
+      out[k]=self._zeroIneq(c[k], out[k])
+    }
+  }
+
+  _copyConstraints(cv) {
+    var l = []
+    for (c in cv) {
+      if (ismatrix(c)) l.append(c.clone())
+      else l.append(c)
+    }
+    return l
+  }
+
+  _inner(Matrix u, Matrix v) { return u.inner(v) }
+  _inner(u, v) { return u*v }
+
+  inner(c) {
+    var total = 0
+    for (u,k in c) total+=self._inner(self.lambda[k], u)
+    return total
+  }
+
+  _primalLagrangianGradient() {
+    var grad = self.adapter.gradient()
+    var cgrad = self.adapter.constraintGradient()
+    for (cg, k in cgrad) grad -= cg*self.lambda[k]
+    return grad
+  }
+}
+
+/* -------------------------
  * LagrangeMultiplierAdapter
  * ------------------------- */
 
@@ -665,22 +756,10 @@ class L1PenaltyAdapter is PenaltyAdapter {
        F = f + lambda . c + lambda' . d-
     Used to implement SQP */
 
-class LagrangeMultiplierAdapter is OptimizationAdapter with ActiveSetMixin {
+class LagrangeMultiplierAdapter is OptimizationAdapter with ActiveSetMixin, LagrangeMultiplierListMixin {
   init(adapter) { 
     self.adapter = adapter
-    self._initialLagrangeMultipliers() 
-  }
-
-  _initialLagrangeMultipliers() { // Initialize lagrange multipliers to 1
-    var cv = self.adapter.constraintValue()
-    self.lambda = []
-    for (c in cv) self.lambda.append(1+0*c)
-    self._checkLagrangeMultipliers()
-  }
-
-  _checkLagrangeMultipliers() { // Zeros lagrange multipliers for inactive constraints
-    var cv = self.adapter.constraintValueForActiveSet()
-    self._checkIneq(cv, self.lambda)
+    self._initialLagrangeMultipliers(1)
   }
 
   set(Matrix x) { // Sets parameters, separating off the lagrange multipliers and storing them
@@ -696,71 +775,6 @@ class LagrangeMultiplierAdapter is OptimizationAdapter with ActiveSetMixin {
     return Matrix([[x], [self._flatten(self.lambda)]]) 
   }
 
-  _unflatten(Matrix v, shape) { // Converts a Vector into a list of scalars and vectors according to a given shape
-    var l = []
-    var n = 0 
-    for (u, k in shape) {
-      if (ismatrix(u)) {
-        var m = u.count()
-        l.append(v[n...n+m,0])
-        n+=m
-      } else {
-        l.append(v[n])
-        n+=1
-      }
-    }
-
-    return l 
-  }  
-
-  _flatten(v) { return _flattenConstraintValues(v) }
-
-  setLagrangeMultipliers(lambda) {
-    self.lambda = self._unflatten(lambda, self.lambda)
-  }
-
-  lagrangeMultipliers() {
-    return self._flatten(self.lambda)
-  }
-
-  _zeroIneq(Matrix m, Matrix out) {
-    for (c, k in m) {
-      if (c>0) out[k] = 0  // strict: u=0 is active (matches _isActive)
-    }
-    return out 
-  }
-
-  _zeroIneq(u, out) {
-    if (u>0) return 0
-    return out
-  }
-
-  _checkIneq(c, out) { // Checks whether entries in c are inside the feasible 
-                       // region and sets the corresponding entry in out to zero
-    var neq = self.adapter.countEqualityConstraints()
-    for (k in neq...c.count()) {
-      out[k]=self._zeroIneq(c[k], out[k])
-    }
-  }
-
-  _copyConstraints(cv) { // Copy constraint values before active-set modification
-    var l = []
-    for (c in cv) {
-      if (ismatrix(c)) l.append(c.clone())
-      else l.append(c)
-    }
-    return l 
-  }
-
-  _inner(Matrix u, Matrix v) { return u.inner(v) }
-  _inner(u, v) { return u*v }
-
-  inner(c) { // Takes the inner product of the list c with the lagrange multipliers
-    var total = 0 
-    for (u,k in c) total+=self._inner(self.lambda[k], u)
-    return total
-  }
-
   value() { // Lagrangian function = f - lambda_i c_i
     var f = self.adapter.value() 
     var c = self._copyConstraints(self.adapter.constraintValue())
@@ -769,14 +783,7 @@ class LagrangeMultiplierAdapter is OptimizationAdapter with ActiveSetMixin {
     return f - self.inner(c)
   }
 
-  varGradient() { // Gradient of lagrangian wrt original degrees of freedom
-    var grad = self.adapter.gradient()
-    var cgrad = self.adapter.constraintGradient()
-
-    for (cg, k in cgrad) grad -= cg*self.lambda[k]
-
-    return grad 
-  }
+  varGradient() { return self._primalLagrangianGradient() }
 
   gradient() { // Gradient of Lagrangian is [ df - lambda_i dc_i , -c_i] 
     var c = self._copyConstraints(self.adapter.constraintValue())
@@ -805,6 +812,79 @@ class LagrangeMultiplierAdapter is OptimizationAdapter with ActiveSetMixin {
   setActiveLagrangeMultipliers(lambdaActive) { // Set multipliers on the active set only
     self.setLagrangeMultipliers(self.activeUpdate(lambdaActive))
     self._checkLagrangeMultipliers()
+  }
+}
+
+/* -------------------------
+ * AugmentedLagrangianAdapter
+ * ------------------------- */
+
+/** Converts a constrained problem into an unconstrained primal subproblem
+       L = f - lambda . c + (mu/2) |c_active|^2
+    Multipliers are updated externally (e.g. a future Percival-style controller). */
+
+class AugmentedLagrangianAdapter is OptimizationAdapter with ConstraintVectorMixin, LagrangeMultiplierListMixin {
+  init(adapter, penalty=1) {
+    self.adapter = adapter
+    self._penalty = penalty
+    self._initialLagrangeMultipliers(0)
+  }
+
+  setPenalty(penalty) { self._penalty = penalty }
+  penalty() { return self._penalty }
+
+  set(Matrix x) { self.adapter.set(x) }
+  get() { return self.adapter.get() }
+
+  updateMultipliers() {
+    var cv = self.adapter.constraintValue()
+    var mu = self._penalty
+    for (c, k in cv) {
+      self.lambda[k] = self.lambda[k] - mu * c
+    }
+    self._checkLagrangeMultipliers()
+  }
+
+  value() {
+    var f = self.adapter.value()
+    var c = self._copyConstraints(self.adapter.constraintValue())
+    self._checkIneq(c, c)
+    f -= self.inner(c)
+    var v = self.constraintVector()
+    if (v) f += 0.5*self._penalty*v.inner(v)
+    return f
+  }
+
+  gradient() {
+    var grad = self._primalLagrangianGradient()
+    var v = self.constraintVector()
+    if (v) {
+      var dg = self.adapter.constraintGradient()
+      var c = Matrix([dg])
+      grad += self._penalty*c*v
+    }
+    return grad
+  }
+
+  directionalDerivative(Matrix d) {
+    return self.gradient().inner(d)
+  }
+
+  hessian() {
+    var hess = self.adapter.hessian()
+    if (!hess) _OptNoHessErr.throw()
+
+    var v = self.constraintVector()
+    if (v) {
+      var dg = self.adapter.constraintGradient()
+      var hessg = self.adapter.constraintHessian()
+      for (vk, k in v) {
+        if (abs(vk)==0) continue
+        if (!hessg[k]) _OptNoHessErr.throw()
+        hess+=self._penalty*(vk*hessg[k] + dg[k].outer(dg[k]))
+      }
+    }
+    return hess
   }
 }
 

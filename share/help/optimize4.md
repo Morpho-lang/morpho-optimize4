@@ -238,6 +238,25 @@ The penalty can be changed with `setPenalty(mu)` and read with `penalty()`. The 
 
 If a Hessian is required, the underlying adapter must supply `hessian()` and `constraintHessian()`.
 
+### AugmentedLagrangianAdapter
+[tagAugmentedLagrangianAdapter]: # (AugmentedLagrangianAdapter)
+
+An `AugmentedLagrangianAdapter` forms a primal unconstrained subproblem from a constrained problem:
+
+    L(x) = f(x) - λ · c(x) + (μ/2) |c_active(x)|²
+
+where inactive inequality constraints are zeroed in the penalty term (as for `PenaltyAdapter`) and in the linear λ term (as for `LagrangeMultiplierAdapter`). Multipliers λ are stored on the adapter and updated externally; only the primal variables are passed to `set()` / `get()`.
+
+This adapter is retained as a building block for a future Percival-style controller. Augmented-Lagrangian controller experiments are archived under `archive/augmentedlagrangian/`.
+
+    var aladapt = AugmentedLagrangianAdapter(targetAdapter, penalty=1)
+
+Key methods:
+
+* `setPenalty(mu)` / `penalty()` — penalty parameter μ.
+* `setLagrangeMultipliers(lambda)` / `lagrangeMultipliers()` — current multipliers.
+* `updateMultipliers()` — one augmented-Lagrangian multiplier update λ ← λ - μ c using raw constraint values.
+
 ### LagrangeMultiplierAdapter
 [tagLagrangeMultiplierAdapter]: # (LagrangeMultiplierAdapter)
 

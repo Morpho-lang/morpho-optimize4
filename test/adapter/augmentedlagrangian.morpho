@@ -1,0 +1,23 @@
+// Test AugmentedLagrangianAdapter
+
+import optimize4
+
+import "../examples/constrainedfunction.morpho"
+
+var example = ConstrainedFunctionExample()
+var adapt = example.build()
+
+var aladapt = AugmentedLagrangianAdapter(adapt, penalty=1)
+
+print aladapt.value()
+// expect: 14.5
+
+print aladapt.gradient()
+// expect: [ 3 ]
+// expect: [ -3 ]
+// expect: [ -8 ]
+
+aladapt.updateMultipliers()
+print aladapt.lagrangeMultipliers()
+// expect: [ 1 ]
+// expect: [ 0 ]

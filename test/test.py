@@ -71,6 +71,7 @@ ERROR_RE = re.compile(r"Error\s+'([^']+)'", re.I)
 WARN_MAXITER = re.compile(r"Warning\s+'OptMaxIter'")
 WARN_LNSRCH = re.compile(r"Warning\s+'OptLnSrchStpsz'")
 PENALTY_ITER = "==Penalty iteration"
+OUTER_SUBPROBLEM_ITERS = (PENALTY_ITER,)
 
 
 class Mode(Enum):
@@ -216,20 +217,20 @@ def match_expected_in_order(output: Sequence[str], expected: Sequence[str]) -> T
     return False, f"matched {j}/{len(expected)} expected lines; next expected: {expected[j]!r}"
 
 
-def is_penalty_test(filepath: str) -> bool:
+def is_outer_subproblem_test(filepath: str) -> bool:
     rel = os.path.relpath(filepath, TEST_ROOT)
     return rel.split(os.sep)[0] == "penalty"
 
 
-def check_maxiter(output: Sequence[str], penalty: bool = False) -> Optional[str]:
+def check_maxiter(output: Sequence[str], outer_subproblem: bool = False) -> Optional[str]:
     """Return an error message if OptMaxIter should fail the test, else None."""
     for i, line in enumerate(output):
         if not WARN_MAXITER.search(line):
             continue
-        if penalty:
+        if outer_subproblem:
             rest = "\n".join(output[i + 1 :])
-            if PENALTY_ITER in rest:
-                continue  # inner sub-solve; outer penalty loop continued
+            if any(marker in rest for marker in OUTER_SUBPROBLEM_ITERS):
+                continue  # inner sub-solve; outer loop continued
         return "optimizer did not converge (OptMaxIter)"
     return None
 
@@ -249,18 +250,31 @@ def check_unexpected_errors(
     return True, ""
 
 
+def check_linesearch(output: Sequence[str], outer_subproblem: bool = False) -> Optional[str]:
+    """Return an error message if OptLnSrchStpsz should fail the test, else None."""
+    for i, line in enumerate(output):
+        if not WARN_LNSRCH.search(line):
+            continue
+        if outer_subproblem:
+            rest = "\n".join(output[i + 1 :])
+            if any(marker in rest for marker in OUTER_SUBPROBLEM_ITERS):
+                continue  # inner sub-solve; outer loop continued
+        return "linesearch failed (OptLnSrchStpsz)"
+    return None
+
+
 def check_converged(
-    output: Sequence[str], expected_errors: Sequence[str], *, penalty: bool = False
+    output: Sequence[str], expected_errors: Sequence[str], *, outer_subproblem: bool = False
 ) -> Tuple[bool, str]:
     ok, msg = check_unexpected_errors(output, expected_errors)
     if not ok:
         return False, msg
-    msg = check_maxiter(output, penalty=penalty)
+    msg = check_maxiter(output, outer_subproblem=outer_subproblem)
     if msg:
         return False, msg
-    text = "\n".join(output)
-    if WARN_LNSRCH.search(text):
-        return False, "linesearch failed (OptLnSrchStpsz)"
+    msg = check_linesearch(output, outer_subproblem=outer_subproblem)
+    if msg:
+        return False, msg
     return True, ""
 
 
@@ -313,7 +327,7 @@ def run_test(spec: TestSpec, command: List[str]) -> TestResult:
 
     if spec.mode == Mode.CONVERGED:
         ok, msg = check_converged(
-            output, expected_errors, penalty=is_penalty_test(spec.path)
+            output, expected_errors, outer_subproblem=is_outer_subproblem_test(spec.path)
         )
         if not ok:
             return TestResult(rel, spec.mode, False, message=msg)

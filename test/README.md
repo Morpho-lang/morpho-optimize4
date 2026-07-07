@@ -44,7 +44,7 @@ Tests are classified from comments in each `.morpho` file:
 | Mode | How it is selected | Pass criterion |
 |------|-------------------|----------------|
 | **exact** | `// [CI:Exact]` or any `// expect:` line | Expected lines appear in output, in order |
-| **converged** | `// [CI:Converged]`, or `test/sqp/`, `test/pgd/`, `test/penalty/`, `test/unconstrained/`, `test/saddlepoint/`, `test/trustregion/` | No terminal `OptMaxIter`, no `OptLnSrchStpsz`, no unexpected `Error`. For `test/penalty/`, `OptMaxIter` on early inner sub-solves is allowed if the penalty loop continues. |
+| **converged** | `// [CI:Converged]`, or `test/sqp/`, `test/pgd/`, `test/penalty/`, `test/unconstrained/`, `test/saddlepoint/`, `test/trustregion/` | No terminal `OptMaxIter`, no terminal `OptLnSrchStpsz`, no unexpected `Error`. For `test/penalty/`, `OptMaxIter` on early inner sub-solves is allowed if the outer penalty loop continues. |
 | **smoke** | `// [CI:Smoke]` | Runs without unexpected `Error` |
 | **ignore** | `// [CI:Ignore]` | Skipped (known failures) |
 
@@ -60,3 +60,5 @@ print x // expect: 1.25
 ```
 
 Failures are logged to `test/FailedTests.txt`.
+
+Archived augmented-Lagrangian controller experiments live under [`../archive/augmentedlagrangian/`](../archive/augmentedlagrangian/).

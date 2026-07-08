@@ -1,6 +1,6 @@
 # morpho-optimize4
 
-A flexible optimization framework for [Morpho](https://morpho-lang.org/), intended to replace the built-in `optimize` package in Morpho 0.6. It supports unconstrained and constrained shape optimization on meshes and fields, with a composable adapter architecture and a range of optimization algorithms.
+A flexible optimization framework for [Morpho](https://morpho-lang.org/), intended to replace the built-in `optimize` package as the Morpho 0.6 sequence evolves. It supports unconstrained and constrained shape optimization on meshes and fields, with a composable adapter architecture and a range of optimization algorithms.
 
 ## Installation
 
@@ -8,7 +8,6 @@ This package can be installed with the `morphopm` package manager. Run
 
     morphopm install optimize4
     
-
 from the Terminal app. 
 
 ## Quick start
@@ -74,4 +73,4 @@ A longer manual is in [`docs/manual.lyx`](docs/manual.lyx) (LyX source).
 
 ## Status
 
-This package is **experimental**. The API and algorithms are still evolving ahead of the Morpho 0.6 release. Feedback and bug reports are welcome via GitHub issues.
+This package is recommended for use in place of the old `optimize` package but remains experimental. The API and algorithms will continue to evolve as we benchmark them against common `morpho` use cases. Feedback and bug reports are welcome via GitHub issues.

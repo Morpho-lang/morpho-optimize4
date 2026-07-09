@@ -247,9 +247,7 @@ An `AugmentedLagrangianAdapter` forms a primal unconstrained subproblem from a c
 
 where inactive inequality constraints are zeroed in the penalty term (as for `PenaltyAdapter`) and in the linear λ term (as for `LagrangeMultiplierAdapter`). Multipliers λ are stored on the adapter and updated externally; only the primal variables are passed to `set()` / `get()`.
 
-This adapter is retained as a building block for a future Percival-style controller. Augmented-Lagrangian controller experiments are archived under `archive/augmentedlagrangian/`.
-
-    var aladapt = AugmentedLagrangianAdapter(targetAdapter, penalty=1)
+This adapter is intended as a building block for future controllers. 
 
 Key methods:
 

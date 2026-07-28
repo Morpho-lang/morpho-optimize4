@@ -429,9 +429,9 @@ The method iteratively builds an approximation to the Hessian matrix; the approx
 
 As in the Newton method, the search direction `d` at each iteration is obtained by solving:
 
-    H_BFGS.d = - g
+    Hbfgs.d = - g
 
-where g is the gradient of the objective function. Note that H_BFGS is the BFGS estimate of the Hessian, rather than the Hessian itself.
+where g is the gradient of the objective function. Note that Hbfgs is the BFGS estimate of the Hessian, rather than the Hessian itself.
 
 Having found the search direction, the `BFGSController` performs a linesearch in that direction. See `NewtonController` for additional options to control this process.
 
@@ -440,11 +440,11 @@ Having found the search direction, the `BFGSController` performs a linesearch in
 
 An `InvBFGSController` implements the BFGS algorithm, similar to `BFGSController`, except rather than estimating the hessian, it estimates the *inverse* hessian of the objective function instead. This leads to a more efficient algorithm, because an expensive linear solve
 
-    H_BFGS.d = - g
+    Hbfgs.d = - g
 
 can be replaced by a matrix multiply
 
-    d = - invH_BFGS.g
+    d = - invHbfgs.g
 
 Like a `BFGSController`, having found the search direction, the `InvBFGSController` performs a linesearch in that direction. See `NewtonController` for additional options to control this process.
 
@@ -455,7 +455,7 @@ The `InvBFGSController` is typically useful only for problems with a small numbe
 
 An `LBFGSController` implements the Limited-memory BFGS (LBFGS) algorithm for unconstrained optimization. In contrast to `InvBFGSController`, LBFGS does not store the estimated inverse hessian explicitly, but maintains a history of recent updates enabling it to find the search direction
 
-    d = - invH_BFGS.g
+    d = - invHbfgs.g
 
 by performing the matrix multiplication implicitly. Because it scales well with problem size, this is typically a preferred algorithm for unconstrained optimization.
 
@@ -511,7 +511,7 @@ Options:
 * `subproblemmaxiterations` - maximum iterations per subproblem (default `100`).
 * `controller` - class used to solve each subproblem (default `LBFGSController`).
 
-Convergence requires both the inner controller's `hasConverged()` and ||c||_1 < `ctol`. Outer iterations report `mu` and the constraint norm.
+Convergence requires both the inner controller's `hasConverged()` and ||c||\_1 < `ctol`. Outer iterations report `mu` and the constraint norm.
 
 When using `PenaltyAdapter` directly (without `PenaltyController`), increase the penalty between solves with `setPenalty` and read it with `penalty()`:
 
@@ -552,7 +552,7 @@ Specifically, an SQPController:-
 
 Key options:
 
-* `feasol` / `reprojecttol` - tolerance on ||c||_1 for feasibility and reprojection triggering.
+* `feasol` / `reprojecttol` - tolerance on ||c||\_1 for feasibility and reprojection triggering.
 * `relgradtol`, `relgraditers` - stop if ||∇L|| falls below `relgradtol` times its initial value for `relgraditers` consecutive iterations.
 * `stagtol` - alternative stop when the objective stagnates and ||∇L|| is moderate.
 * `lamcap` - maximum allowed magnitude of Lagrange multipliers after least-squares sync on the active set.

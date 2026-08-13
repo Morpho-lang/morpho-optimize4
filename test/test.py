@@ -316,12 +316,15 @@ def run_test(spec: TestSpec, command: List[str]) -> TestResult:
     returncode, raw = run_morpho(command, spec.path)
     output = normalize_output(raw)
     expected_errors = [e for e in spec.expected if e.startswith(ERR_TOKEN)]
+    # morpho6 exits non-zero on compile/runtime errors; that is success for
+    # tests that declare // expect error '...'
+    allow_nonzero = bool(expected_errors)
 
     if spec.mode == Mode.EXACT:
         ok, msg = match_expected_in_order(output, spec.expected)
         if not ok:
             return TestResult(rel, spec.mode, False, message=msg)
-        if returncode != 0:
+        if returncode != 0 and not allow_nonzero:
             return TestResult(rel, spec.mode, False, message=f"non-zero exit code {returncode}")
         return TestResult(rel, spec.mode, True)
 
@@ -336,14 +339,14 @@ def run_test(spec: TestSpec, command: List[str]) -> TestResult:
             ok, msg = match_expected_in_order(output, non_error)
             if not ok:
                 return TestResult(rel, spec.mode, False, message=msg)
-        if returncode != 0:
+        if returncode != 0 and not allow_nonzero:
             return TestResult(rel, spec.mode, False, message=f"non-zero exit code {returncode}")
         return TestResult(rel, spec.mode, True)
 
     ok, msg = check_smoke(output, expected_errors)
     if not ok:
         return TestResult(rel, spec.mode, False, message=msg)
-    if returncode != 0:
+    if returncode != 0 and not allow_nonzero:
         return TestResult(rel, spec.mode, False, message=f"non-zero exit code {returncode}")
     return TestResult(rel, spec.mode, True)
 

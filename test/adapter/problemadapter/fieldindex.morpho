@@ -32,7 +32,7 @@ print adapt.count(field)
 // expect: 69
 
 print field.shape()
-// expect: [ 1, 1 ]
+// expect: (1, 1)
 
 var sel = Selection(mesh)
 sel.addgrade(1)
@@ -78,7 +78,7 @@ print adapt3.count(field3)
 // expect: 102
 
 print field3.shape()
-// expect: [ 1, 2 ]
+// expect: (1, 2)
 
 var sel3 = Selection(mesh3)
 sel3.addgrade(1)

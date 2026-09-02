@@ -86,6 +86,7 @@ class QTensor {
       // Select elements that have a large contribution to the elastic energy
       var en = GradSq(self.q_tensor).integrand(self.q_tensor)
       var mean = en.sum()/en.count()
+      // TODO: Modernize to Selection(mesh, fn (q) q>lambda*mean, en) when older Morpho can be dropped.
       srefine = Selection(self.mesh) // Start with an empty selection
       for (id in 0...en.count()) if (en[0,id]>lambda*mean) srefine[2,id]=true // Identify high (compared to the mean) energy elements
       print "Refining ${srefine.count(2)} elements"

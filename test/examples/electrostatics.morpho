@@ -62,6 +62,7 @@ class ElectrostaticsExample {
     // Select elements that have an above average contribution to the energy
     var en = GradSq(self.phi).integrand(self.phi) // energy in each element
     var mean = en.sum()/en.count() // mean energy per element
+    // TODO: Modernize to Selection(mesh, fn (q) q>1.5*mean, en) when older Morpho can be dropped.
     var srefine = Selection(self.mesh)
     for (id in 0...en.count()) if (en[0,id]>1.5*mean) srefine[2,id]=true // identify large contributions
 

@@ -1,0 +1,40 @@
+// Legacy Matrix integrand: a 1xN row still becomes a column in constraintValue()
+
+import meshtools
+import optimize4
+
+class RowIntegrand {
+  integrand(Mesh mesh) {
+    var n = mesh.count(0)
+    var row = Matrix(1, n)
+    for (i in 0...n) row[0, i] = i+1
+    return row
+  }
+
+  total(Mesh mesh) { return 0 }
+
+  gradient(Mesh mesh) {
+    var v = mesh.vertexmatrix()
+    return Matrix(v.dimensions()[0], v.dimensions()[1])
+  }
+}
+
+var m = LineMesh(fn (u) [cos(u), sin(u)], -Pi...Pi:Pi/6, closed=true)
+var nvert = m.count(0)
+
+var problem = OptimizationProblem(m)
+problem.addEnergy(Length())
+problem.addLocalConstraint(RowIntegrand())
+
+var adapt = ProblemAdapter(problem, m)
+var cv = adapt.constraintValue()[0]
+var dim = cv.dimensions()
+
+print dim[0]==nvert && dim[1]==1
+// expect: true
+
+print cv[0]
+// expect: 1
+
+print cv[nvert-1]==nvert
+// expect: true

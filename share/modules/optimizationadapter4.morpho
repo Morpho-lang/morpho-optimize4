@@ -1211,11 +1211,11 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
   }
 
   _checkFunctionalDependency(func, Field f) {
-    var deps 
-    if (func.functional.has("field")) deps = func.functional.field 
-    if (deps==f) return true 
-    if (islist(deps) && (deps.contains(f))) return true 
-    return false 
+    var deps
+    if (func.functional.has("field")) deps = func.functional.field
+    if (isfield(deps)) return deps==f
+    if (islist(deps)) return deps.contains(f)
+    return false
   }
 
   value() { // Returns the current value of the objective function at the current parameters
@@ -1314,13 +1314,19 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
     return cval
   }
 
-  _reduceIntegrandWithSelection(Matrix val, Constraint cons) { // Reduces an integrand using a selection
+  _integrandToColumn(val) { // Column Matrix for QP flatteners
+    if (isfield(val)) return val.__linearize().clone() // Clone: callers keep this after the Field is gone
+    if (ismatrix(val) && val.dimensions()[0]==1) return val.transpose()
+    return val
+  }
+
+  _reduceIntegrandWithSelection(val, Constraint cons) { // Reduces an integrand using a selection
     var grade = _inferFunctionalGrade(cons, self.problem.mesh)
     var l = []
     for (id in cons.selection.idlistforgrade(grade)) {
       l.append(val[id])
-    }  
-    return Matrix(l) 
+    }
+    return Matrix(l)
   } 
 
   _fieldShape(x) { // Field layout per grade; unwraps Energy/Constraint wrappers dynamically
@@ -1340,20 +1346,35 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
     var func = x
     if (x.has("functional")) func = x.functional
 
-    if (func.has("grade")) return func.grade
+    if (func.has("grade") && isint(func.grade) && func.grade>=0) return func.grade
 
     var cls = func.clss()
-    // TODO: Remove clss() mapping once LineIntegral, AreaIntegral, and VolumeIntegral
-    // expose func.grade (Morpho API gap; Length and ScalarPotential already do).
+    // Compatibility: older Morpho Line/Area/VolumeIntegral may omit func.grade.
+    // TODO: Remove clss() mapping in a later release.
     if (cls==LineIntegral) return 1
     if (cls==AreaIntegral) return 2
     if (cls==VolumeIntegral) return 3
 
-    var ncol = func.integrand(mesh).dimensions()[1]
-    var sh = _fieldShape(x)
+    var en = func.integrand(mesh)
+    if (isfield(en)) {
+      var n = en.count()
+      var sh = en.shape()
+      for (g in mesh.maxgrade()...0:-1) {
+        if (sh[g]>0 && mesh.count(g)==n) return g
+      }
+      return 0
+    }
 
-    if (sh) for (g in mesh.maxgrade()...0:-1) {
-      if (sh[g]>0 && mesh.count(g)==ncol) return g
+    var ncol = 0
+    if (ismatrix(en)) {
+      var dim = en.dimensions()
+      if (dim[0]==1) ncol = dim[1]
+      else ncol = dim[0]
+    } else return 0
+
+    var fsh = _fieldShape(x)
+    if (fsh) for (g in mesh.maxgrade()...0:-1) {
+      if (fsh[g]>0 && mesh.count(g)==ncol) return g
     }
 
     // Fallback: match integrand width, preferring the highest grade
@@ -1374,8 +1395,9 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
     for (cons in self.localConstraints()) { 
       if (!self._checkOneSided(cons, onesided)) continue
 
-      var val = self.integrandForFunctional(cons).transpose() 
+      var val = self.integrandForFunctional(cons)
       if (cons.has("target")) val-=cons.target
+      val = self._integrandToColumn(val)
       if (cons.onesided && zeroinactive) self._zeroInactiveVal(val)
       if (cons.selection) val = self._reduceIntegrandWithSelection(val, cons)
 
@@ -1467,7 +1489,7 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
     var nel = mesh.count(grade)
 
     var val
-    if (cons.onesided) val = self.integrandForFunctional(cons)
+    if (cons.onesided) val = self._integrandToColumn(self.integrandForFunctional(cons))
 
     var ids
     if (cons.selection) ids = cons.selection.idlistforgrade(grade)
@@ -1479,7 +1501,9 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
 
       if (grad) for (id, k in ids) {
         var scale = 1
-        if (cons.onesided && val[0, id]>0) scale = 0
+        if (cons.onesided) {
+          if (val[id]>0) scale = 0
+        }
 
         for (entry in self._elementAt(grad, id, grade)) {
           out[self._targetRowIndex(target, grade, id, entry[0], entry[1]), k]=scale*entry[2]
@@ -1494,8 +1518,10 @@ class ProblemAdapter is OptimizationAdapter with FixSelectionMixin {
 
     for (id in ids) {
       temp.selection[grade, id] = true
+      var skip = false
+      if (cons.onesided) skip = val[id]>0
       var grad = self.gradientForFunctional(temp, target)
-      if (grad) l.append(self.columnVector(grad))
+      if (grad && !skip) l.append(self.columnVector(grad))
       else l.append(Matrix(ndof_t))
       temp.selection[grade, id] = false
     }

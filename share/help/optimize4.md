@@ -128,7 +128,7 @@ A `ProblemAdapter` is the main adapter for morpho shape optimization problems. I
 * Accumulates gradients per target from `functional.gradient(mesh)` (mesh targets) and `functional.fieldgradient(field, mesh)` (field targets).
 * Routes field gradients only when the functional's `field` property matches the target (or lists it).
 * Evaluates global and local constraints; splits equality vs one-sided inequality contributions in `constraintValue()` / `constraintGradient()`.
-* Infers the mesh grade of functionals when `functional.grade` is absent (e.g. line/area/volume integrals).
+* Uses `functional.grade` when present; otherwise the Line/Area/VolumeIntegral class map, then Field `shape()`/`count()` or Matrix width.
 * Does not provide a Hessian; use quasi-Newton controllers such as `LBFGSController` or `SQPController`.
 
 **Field indexing.** `selectionToIndexList(selection, target)` maps a `Selection` to linear indices in the adapter parameter vector—for use with `FixAdapter`. Works for `Mesh` and `Field` targets; with multiple targets, indices are offset automatically. For vector-valued fields, pass `components=` to restrict which components are fixed:

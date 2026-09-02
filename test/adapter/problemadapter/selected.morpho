@@ -1,0 +1,29 @@
+// Selected local constraint: constraintValue length matches the selection
+
+import meshtools
+import optimize4
+
+var m = LineMesh(fn (u) [cos(u), sin(u)], -Pi...Pi:Pi/6, closed=true)
+
+var problem = OptimizationProblem(m)
+problem.addEnergy(Length())
+
+var sel = Selection(m)
+sel[0, 0] = true
+sel[0, 2] = true
+sel[0, 5] = true
+
+var ls = ScalarPotential(fn (x, y) x)
+problem.addLocalConstraint(ls, selection=sel)
+
+var adapt = ProblemAdapter(problem, m)
+var cv = adapt.constraintValue()
+
+print cv.count()
+// expect: 1
+
+print cv[0].count()
+// expect: 3
+
+print cv[0].count()==sel.idlistforgrade(0).count()
+// expect: true

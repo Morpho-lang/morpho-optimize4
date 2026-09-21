@@ -2,6 +2,7 @@
 
 import optimize
 import plot
+import morphoview
 import "../examples/qtensor.morpho" for QTensor
 
 var example = QTensor()

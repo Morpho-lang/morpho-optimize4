@@ -1,5 +1,6 @@
 
 import plot
+import morphoview
 import optimize
 
 import "../examples/catenoid.morpho" for CatenoidExample

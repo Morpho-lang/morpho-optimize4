@@ -1,5 +1,6 @@
 
 import "../examples/qtactoid.morpho"
+import morphoview
 
 var example = QTactoid()
 var adapt = example.build()

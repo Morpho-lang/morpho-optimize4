@@ -2,6 +2,7 @@
 import optimize4
 
 import plot
+import morphoview
 import "../examples/nematic.morpho"
 
 var example = Nematic()

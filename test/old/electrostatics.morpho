@@ -1,6 +1,7 @@
 
 import optimize
 import plot 
+import morphoview
 import "../examples/electrostatics.morpho" for ElectrostaticsExample
 
 var Nlevels = 11

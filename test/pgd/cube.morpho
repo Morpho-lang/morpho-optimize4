@@ -1,5 +1,6 @@
 
 import "../examples/cube.morpho"
+import morphoview
 
 var Nlevels = 3
 

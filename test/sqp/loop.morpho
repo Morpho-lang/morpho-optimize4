@@ -2,6 +2,7 @@
 
 import optimize4 
 import plot
+import morphoview
 import "../examples/loop.morpho" for LoopExample
 
 var example = LoopExample()

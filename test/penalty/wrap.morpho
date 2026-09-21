@@ -1,4 +1,5 @@
 import "../examples/wrap.morpho"
+import morphoview
 
 var example = WrapExample()
 example.build() 

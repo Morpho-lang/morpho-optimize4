@@ -2,6 +2,7 @@
 
 import optimize4
 import "../examples/qtactoid.morpho"
+import morphoview
 
 var example = QTactoid(omega=0.1, tau=10)
 var adapt = example.build()

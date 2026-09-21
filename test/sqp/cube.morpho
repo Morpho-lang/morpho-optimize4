@@ -2,6 +2,7 @@
 import optimize4 
 import "../examples/cube.morpho" for CubeExample
 import plot 
+import morphoview
 
 var Nlevels = 1
 

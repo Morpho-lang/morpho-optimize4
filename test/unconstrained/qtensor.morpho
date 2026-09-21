@@ -3,6 +3,7 @@
 import optimize4
 
 import plot
+import morphoview
 import "../examples/qtensor.morpho"
 
 var example = QTensor()

@@ -1,5 +1,6 @@
 
 import plot 
+import morphoview
 import optimize4 
 import "../examples/wrap.morpho" for WrapExample
 

@@ -1,5 +1,6 @@
 
 import plot
+import morphoview
 import "../examples/loop.morpho"
 
 var example = LoopExample()

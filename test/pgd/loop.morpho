@@ -2,6 +2,7 @@
 import optimize4
 import plot
 import morphoview
+import "../show.morpho"
 import "../examples/loop.morpho"
 
 var example = LoopExample()
@@ -10,4 +11,4 @@ var adapt = example.build()
 var control = ProjectedGradientDescentController(adapt)
 control.optimize(10000) 
 
-Show(example.visualize()) 
+if (!noVis()) Show(example.visualize())

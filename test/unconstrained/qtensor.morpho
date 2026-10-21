@@ -4,6 +4,7 @@ import optimize4
 
 import plot
 import morphoview
+import "../show.morpho"
 import "../examples/qtensor.morpho"
 
 var example = QTensor()
@@ -15,4 +16,4 @@ for (i in 1..2) {
     control.optimize(500) 
 }
 
-Show(example.visualize())
+if (!noVis()) Show(example.visualize())

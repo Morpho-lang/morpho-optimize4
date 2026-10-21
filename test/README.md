@@ -35,7 +35,14 @@ The runner executes all `.morpho` files under `test/` except `examples/` and `ol
 
 ### Headless `Show()`
 
-Test files may call `Show()` for interactive use. The runner prepends `test/bin` to `PATH` so a no-op `morphoview` stub is used instead of launching the viewer.
+Test files call `Show()` only when `noVis()` is false. The runner passes `--no-visualize` after the script name, which `test/show.morpho` reads from `System.arguments()`. Running a test file directly still opens the viewer:
+
+```bash
+morpho6 test/unconstrained/qtensor.morpho
+morpho6 test/unconstrained/qtensor.morpho --no-visualize
+```
+
+`test/bin` is also prepended to `PATH` so a stray `morphoview` launch hits a no-op stub.
 
 ## Test modes
 

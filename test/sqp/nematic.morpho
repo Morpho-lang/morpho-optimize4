@@ -3,6 +3,7 @@
 import optimize4 
 import plot
 import morphoview
+import "../show.morpho"
 import "../examples/nematic.morpho" for Nematic
 
 var example = Nematic()
@@ -12,4 +13,4 @@ var control = SQPController(adapter)
 
 control.optimize(100) 
 
-Show(example.visualize())
+if (!noVis()) Show(example.visualize())

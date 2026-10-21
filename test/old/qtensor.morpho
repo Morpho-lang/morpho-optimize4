@@ -3,6 +3,7 @@
 import optimize
 import plot
 import morphoview
+import "../show.morpho"
 import "../examples/qtensor.morpho" for QTensor
 
 var example = QTensor()
@@ -14,4 +15,4 @@ for (i in 1..2) {
     opt.conjugategradient(1000)
 }
 
-Show(example.visualize())
+if (!noVis()) Show(example.visualize())

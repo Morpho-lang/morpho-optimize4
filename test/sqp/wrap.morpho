@@ -3,6 +3,7 @@
 import optimize4
 import plot 
 import morphoview
+import "../show.morpho"
 import "../examples/wrap.morpho" for WrapExample
 
 var example = WrapExample()
@@ -18,4 +19,4 @@ for (i in 1..Nlevels) {
 
 print example.mesh
 
-Show(example.visualize())
+if (!noVis()) Show(example.visualize())

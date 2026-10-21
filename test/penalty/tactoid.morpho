@@ -4,6 +4,7 @@ import optimize4
 
 import plot
 import morphoview
+import "../show.morpho"
 import "../examples/tactoid.morpho"
 
 var example = Tactoid()
@@ -12,4 +13,4 @@ var adapt = example.build()
 var control = PenaltyController(adapt, mu0=100)
 control.optimize(20)
 
-Show(example.visualize())
+if (!noVis()) Show(example.visualize())

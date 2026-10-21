@@ -3,6 +3,7 @@
 import optimize4 
 import plot
 import morphoview
+import "../show.morpho"
 import "../examples/thomson.morpho" for Thomson
 
 var example = Thomson()
@@ -16,4 +17,4 @@ control.optimize(500)
 print "lambda:"
 print control.ladapter.lagrangeMultipliers()
 
-Show(example.visualize())
+if (!noVis()) Show(example.visualize())

@@ -1,0 +1,6 @@
+// Skip the morphoview window when the script is run as:
+//   morpho6 program.morpho --no-visualize
+
+fn noVis() {
+  return System.arguments().ismember("--no-visualize")
+}

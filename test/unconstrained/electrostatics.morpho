@@ -4,6 +4,7 @@ import optimize4
 
 import "../examples/electrostatics.morpho"
 import morphoview
+import "../show.morpho"
 
 var Nlevels = 11
 
@@ -19,4 +20,4 @@ for (i in 1..Nlevels) {
   if (i<Nlevels) example.refine() 
 }
 
-Show(example.visualize())
+if (!noVis()) Show(example.visualize())

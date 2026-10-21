@@ -4,6 +4,7 @@ import optimize4
 
 import "../examples/qtactoid.morpho"
 import morphoview
+import "../show.morpho"
 
 var example = QTactoid()
 var adapt = example.build()
@@ -15,4 +16,4 @@ for (n in 1..1) {
     control.optimize(20) 
 } 
 
-Show(example.visualize())
+if (!noVis()) Show(example.visualize())

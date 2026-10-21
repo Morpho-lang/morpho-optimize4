@@ -180,7 +180,7 @@ def run_test(path: str) -> RunMetrics:
     ignored, smoke = parse_flags(path)
 
     proc = subprocess.run(
-        [COMMAND, path],
+        [COMMAND, path, "--no-visualize"],
         cwd=ROOT,
         env=headless_env(),
         capture_output=True,

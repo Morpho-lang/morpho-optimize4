@@ -1,6 +1,7 @@
 
 import plot
 import morphoview
+import "../show.morpho"
 
 import "../examples/catenoid.morpho"
 
@@ -13,5 +14,5 @@ var adapt = sim.setupAdapter()
 var opt = LBFGSController(adapt)
 opt.optimize(1000)
 
-Show(sim.visualize())
+if (!noVis()) Show(sim.visualize())
 

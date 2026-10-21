@@ -3,6 +3,7 @@
 import optimize4
 import plot
 import morphoview
+import "../show.morpho"
 import "../examples/constrainedloop.morpho"
 
 var example = ConstrainedLoop()
@@ -13,4 +14,4 @@ control.optimize(500)
 
 print "f=${adapt.value()} |constraints|=${control.constraintNorm()}"
 
-Show(example.visualize())
+if (!noVis()) Show(example.visualize())

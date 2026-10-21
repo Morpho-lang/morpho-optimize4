@@ -3,6 +3,7 @@ import optimize4
 import "../examples/cube.morpho" for CubeExample
 import plot 
 import morphoview
+import "../show.morpho"
 
 var Nlevels = 1
 
@@ -20,4 +21,4 @@ for (i in 1..Nlevels) {
   example.refine()
 }
 
-Show(example.visualize())
+if (!noVis()) Show(example.visualize())

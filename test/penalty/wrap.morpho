@@ -1,5 +1,6 @@
 import "../examples/wrap.morpho"
 import morphoview
+import "../show.morpho"
 
 var example = WrapExample()
 example.build() 
@@ -14,4 +15,4 @@ for (i in 1..Nlevels) {
 
 print example.mesh
 
-Show(example.visualize())
+if (!noVis()) Show(example.visualize())

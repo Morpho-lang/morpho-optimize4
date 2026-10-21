@@ -1,6 +1,7 @@
 
 import plot
 import morphoview
+import "../show.morpho"
 import "../examples/thomson.morpho" for Thomson
 import optimize
 
@@ -19,4 +20,4 @@ opt.relax(5)
 // Now perform gradient descent
 opt.conjugategradient(1000) // Perform up to 1000 iterations of direct gradient descent
 
-Show(example.visualize())
+if (!noVis()) Show(example.visualize())

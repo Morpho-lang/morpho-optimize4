@@ -3,8 +3,9 @@
 #
 # Runs .morpho files under test/ (excluding examples/ and old/) with morpho6.
 # Extra printed output (iteration traces, etc.) is allowed unless the
-# test is in exact mode. Show() still runs but morphoview is stubbed out
-# via test/bin/morphoview on PATH (see headless_env()).
+# test is in exact mode. Scripts are run with --no-visualize so Show() is skipped
+# (see test/show.morpho). test/bin is still prepended to PATH so a stray
+# morphoview launch hits the no-op stub.
 #
 # CI directives (anywhere in the file as // comments):
 #   [CI:Ignore]    - skip this test (known failure or too slow for routine CI)
@@ -294,7 +295,7 @@ def run_morpho(command: List[str], filepath: str) -> Tuple[int, str]:
     try:
         with open(tmp, "w", encoding="utf8") as outfile:
             result = subprocess.run(
-                command + [filepath],
+                command + [filepath, "--no-visualize"],
                 stdout=outfile,
                 stderr=subprocess.STDOUT,
                 cwd=ROOT,

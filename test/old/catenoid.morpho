@@ -1,6 +1,7 @@
 
 import plot
 import morphoview
+import "../show.morpho"
 import optimize
 
 import "../examples/catenoid.morpho" for CatenoidExample
@@ -14,5 +15,5 @@ var opt = ShapeOptimizer(sim.problem, sim.mesh)
 opt.fix(sim.bnd)
 opt.conjugategradient(1000)
 
-Show(sim.visualize())
+if (!noVis()) Show(sim.visualize())
 

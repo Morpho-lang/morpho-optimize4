@@ -1,6 +1,7 @@
 
 import plot
 import morphoview
+import "../show.morpho"
 import "../examples/thomson.morpho"
 
 var example = Thomson()
@@ -10,4 +11,4 @@ var control = PenaltyController(adapt)
 control.ctol = 2e-10  // local constraints plateau just above default ctol
 control.optimize(25)
 
-Show(example.visualize()) 
+if (!noVis()) Show(example.visualize())

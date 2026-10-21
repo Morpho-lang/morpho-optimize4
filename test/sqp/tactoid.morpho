@@ -3,6 +3,7 @@
 import optimize4 
 import plot
 import morphoview
+import "../show.morpho"
 import "../examples/tactoid.morpho" for Tactoid
 
 var example = Tactoid()
@@ -11,4 +12,4 @@ var adapter = example.build()
 var control = SQPController(adapter)
 control.optimize(1000) 
 
-Show(example.visualize())
+if (!noVis()) Show(example.visualize())
